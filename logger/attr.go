@@ -258,7 +258,7 @@ package name from it.
 */
 func trimSource(src *slog.Source) {
 	// function name by default includes "full path package name" ie
-	// github.com/unicitynetwork/bft-core/cli/bft/cmd.newBaseCmd.func1
+	// github.com/unicitynetwork/bft-core/cli/ubft/cmd.newBaseCmd.func1
 	// so first get last part of the path (filename)...
 	_, src.Function = filepath.Split(src.Function)
 	// ...and then get rid of package name in front of func name

@@ -1,6 +1,6 @@
 # Build
 
-Run `make build` to build the application. Executable will be built to `build/bft`. 
+Run `make build` to build the application. Executable will be built to `build/ubft`. 
 
 ### Build dependencies
 
@@ -55,7 +55,7 @@ Logging can be configured through a yaml configuration file. See [logger-config.
 Default location of the logger configuration file is `$UBFT_HOME/logger-config.yaml`
 
 The location can be changed through `--logger-config` configuration key. If it's relative URL, then it's relative
-to `$UBFT_HOME`. Some logging related parameters can be set via command line parameters too - run `bft -h`
+to `$UBFT_HOME`. Some logging related parameters can be set via command line parameters too - run `ubft -h`
 for more.
 
 See [logging.md](./docs/logging.md) for information about log schema.
@@ -109,7 +109,7 @@ UBFT_RUST_SDK_ROOT="/path/to/rust-predicates-sdk" go test ./...
 To use autocompletion (supported with `bash`, `fish`, `powershell` and `zsh`), run the following commands after
 building (this is `bash` example):
 
-* `./bft completion bash > /tmp/completion`
+* `./ubft completion bash > /tmp/completion`
 * `source /tmp/completion`
 
 # CI setup
