@@ -10,11 +10,11 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 var (

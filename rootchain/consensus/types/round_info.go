@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 
 type RoundInfo struct {
 	_                 struct{} `cbor:",toarray"`
-	Version           types.ABVersion
+	Version           types.Version
 	RoundNumber       uint64    `json:"rootChainRoundNumber"`
 	Epoch             uint64    `json:"rootEpoch"`
 	Timestamp         uint64    `json:"timestamp"`
@@ -62,7 +62,7 @@ func (x *RoundInfo) IsValid() error {
 	return nil
 }
 
-func (x *RoundInfo) GetVersion() types.ABVersion {
+func (x *RoundInfo) GetVersion() types.Version {
 	if x == nil || x.Version == 0 {
 		return 1
 	}

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 func Test_addrToPage(t *testing.T) {

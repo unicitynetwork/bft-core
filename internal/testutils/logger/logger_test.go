@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/unicitynetwork/bft-core/logger"
 )
 
 func Test_logger_for_tests(t *testing.T) {
@@ -38,7 +38,7 @@ func Test_logger_for_tests_color(t *testing.T) {
 	t.Skip("this test is only for visually checking the output")
 
 	t.Run("colors disabled", func(t *testing.T) {
-		t.Setenv("AB_TEST_LOG_NO_COLORS", "true")
+		t.Setenv("UBFT_TEST_LOG_NO_COLORS", "true")
 
 		l := New(t)
 		l.Error("now thats really bad", logger.Error(fmt.Errorf("what now")))
@@ -49,7 +49,7 @@ func Test_logger_for_tests_color(t *testing.T) {
 	})
 
 	t.Run("colors enabled", func(t *testing.T) {
-		t.Setenv("AB_TEST_LOG_NO_COLORS", "false")
+		t.Setenv("UBFT_TEST_LOG_NO_COLORS", "false")
 
 		l := New(t)
 		l.Error("now thats really bad", logger.Error(fmt.Errorf("what now")))

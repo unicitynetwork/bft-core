@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/handshake"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/network/protocol/handshake"
 )
 
 const (

@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"math/rand"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const defaultHandshakeNodes = 3

@@ -8,8 +8,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-go-base/types"
 	bolt "go.etcd.io/bbolt"
 )
 

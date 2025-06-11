@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/state"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/state"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *tokens.BurnFungibleTokenAttributes, _ *tokens.BurnFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {

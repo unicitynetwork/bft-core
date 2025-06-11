@@ -9,10 +9,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/observability"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const responsesPerSubscription = 2

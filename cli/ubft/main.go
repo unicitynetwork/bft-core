@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/alphabill-org/alphabill/cli/alphabill/cmd"
-	"github.com/alphabill-org/alphabill/observability"
+	"github.com/unicitynetwork/bft-core/cli/ubft/cmd"
+	"github.com/unicitynetwork/bft-core/observability"
 )
 
 func main() {

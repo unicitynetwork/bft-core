@@ -3,8 +3,8 @@ package types
 import (
 	"errors"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 // transaction execution types

@@ -9,11 +9,11 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type shardStore struct {
@@ -37,7 +37,7 @@ func newShardStore(db keyvaluedb.KeyValueDB, log *slog.Logger) *shardStore {
 func (s *shardStore) StoreShardConf(shardConf *types.PartitionDescriptionRecord) error {
 	var prevShardConf *types.PartitionDescriptionRecord
 	if shardConf.Epoch > 0 {
-		prevEpoch := shardConf.Epoch-1
+		prevEpoch := shardConf.Epoch - 1
 		var err error
 		prevShardConf, err = s.loadShardConf(prevEpoch)
 		if err != nil {

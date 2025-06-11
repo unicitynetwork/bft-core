@@ -11,14 +11,14 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/debug"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/unicitynetwork/bft-core/internal/debug"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/network"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-core/partition"
+	"github.com/unicitynetwork/bft-core/rpc"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const (
@@ -72,13 +72,13 @@ func shardNodeRunCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.C
 	flags.addRPCFlags(cmd)
 
 	cmd.Flags().StringVarP(&flags.StateFile, "state", "", "",
-		fmt.Sprintf("path to the state file (default %s)", filepath.Join("$AB_HOME", StateFileName)))
+		fmt.Sprintf("path to the state file (default %s)", filepath.Join("$UBFT_HOME", StateFileName)))
 	cmd.Flags().StringVarP(&flags.BlockStoreFile, "block-db", "", "",
-		fmt.Sprintf("path to the block datatabase (default %s)", filepath.Join("$AB_HOME", blockStoreFileName)))
+		fmt.Sprintf("path to the block datatabase (default %s)", filepath.Join("$UBFT_HOME", blockStoreFileName)))
 	cmd.Flags().StringVarP(&flags.ShardStoreFile, "shard-db", "", "",
-		fmt.Sprintf("path to the shard configuration datatabase (default %s)", filepath.Join("$AB_HOME", shardStoreFileName)))
+		fmt.Sprintf("path to the shard configuration datatabase (default %s)", filepath.Join("$UBFT_HOME", shardStoreFileName)))
 	cmd.Flags().StringVarP(&flags.ProofStoreFile, "proof-db", "", "",
-		fmt.Sprintf("path to the proof datatabase (default %s)", filepath.Join("$AB_HOME", proofStoreFileName)))
+		fmt.Sprintf("path to the proof datatabase (default %s)", filepath.Join("$UBFT_HOME", proofStoreFileName)))
 
 	cmd.Flags().BoolVar(&flags.WithOwnerIndex, "with-owner-index", true, "enable/disable owner indexer")
 	cmd.Flags().BoolVar(&flags.WithGetUnits, "with-get-units", false, "enable/disable state_getUnits RPC endpoint")

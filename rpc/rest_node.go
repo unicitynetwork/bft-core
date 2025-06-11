@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/gorilla/mux"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func NodeEndpoints(node partitionNode, obs Observability) RegistrarFunc {

@@ -5,16 +5,16 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	moneysdk "github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	orchestrationsdk "github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/orchestration"
+	"github.com/unicitynetwork/bft-core/partition"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	"github.com/unicitynetwork/bft-core/txsystem/orchestration"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	moneysdk "github.com/unicitynetwork/bft-go-base/txsystem/money"
+	orchestrationsdk "github.com/unicitynetwork/bft-go-base/txsystem/orchestration"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 type (

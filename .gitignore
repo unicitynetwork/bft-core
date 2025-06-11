@@ -9,7 +9,7 @@ test-coverage-cobertura.xml
 test-coverage.html
 gosec_report.json
 .trivycache/
-/testab/
+/test-nodes/
 
 *.log
 

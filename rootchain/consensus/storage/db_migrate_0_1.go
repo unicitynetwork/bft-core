@@ -9,8 +9,8 @@ import (
 
 	"go.etcd.io/bbolt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 /*

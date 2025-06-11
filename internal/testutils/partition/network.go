@@ -17,30 +17,30 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/rootchain"
-	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/rootchain/testutils"
-	"github.com/alphabill-org/alphabill/txsystem"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testlogger "github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testevent "github.com/unicitynetwork/bft-core/internal/testutils/partition/event"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/network"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-core/partition"
+	"github.com/unicitynetwork/bft-core/rootchain"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
+	"github.com/unicitynetwork/bft-core/rootchain/partitions"
+	"github.com/unicitynetwork/bft-core/rootchain/testutils"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const networkID = 5
 const speedFactor = 4
 
-// AlphabillNetwork for integration tests
-type AlphabillNetwork struct {
+// UnicityNetwork for integration tests
+type UnicityNetwork struct {
 	RootChain *RootChain
 	Shards    map[types.PartitionShardID]*Shard
 	ctx       context.Context
@@ -96,7 +96,7 @@ func (n *rootNode) Stop() error {
 
 const testNetworkTimeout = 600 * time.Millisecond
 
-func NewAlphabillNetwork(t *testing.T, rootNodeCount int) *AlphabillNetwork {
+func NewUnicityNetwork(t *testing.T, rootNodeCount int) *UnicityNetwork {
 	nodes, nodeInfos := testutils.CreateTestNodes(t, rootNodeCount)
 	rootNodes := make([]*rootNode, rootNodeCount)
 
@@ -110,7 +110,7 @@ func NewAlphabillNetwork(t *testing.T, rootNodeCount int) *AlphabillNetwork {
 	trustBase, err := types.NewTrustBaseGenesis(networkID, nodeInfos)
 	require.NoError(t, err)
 
-	return &AlphabillNetwork{
+	return &UnicityNetwork{
 		RootChain: &RootChain{
 			TrustBase: trustBase,
 			nodes:     rootNodes,
@@ -120,7 +120,7 @@ func NewAlphabillNetwork(t *testing.T, rootNodeCount int) *AlphabillNetwork {
 }
 
 // Start AB network, no bootstrap all id's and addresses are injected to peer store at start
-func (a *AlphabillNetwork) Start(t *testing.T) error {
+func (a *UnicityNetwork) Start(t *testing.T) error {
 	a.ctx, a.ctxCancel = context.WithCancel(context.Background())
 	require.NotEmpty(t, a.RootChain.nodes)
 
@@ -131,10 +131,10 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 	return nil
 }
 
-// Adds a shard to a running AlphabillNetwork instance
-func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDescriptionRecord, nodeCount int, txSystemProvider txSystemProvider) {
-	require.NotZero(t, len(a.RootChain.nodes), "AlphabillNetwork must contain at least one root node")
-	require.NotNil(t, a.RootChain.nodes[0].addr, "AlphabillNetwork must be running to add shards")
+// Adds a shard to a running UnicityNetwork instance
+func (a *UnicityNetwork) AddShard(t *testing.T, shardConf *types.PartitionDescriptionRecord, nodeCount int, txSystemProvider txSystemProvider) {
+	require.NotZero(t, len(a.RootChain.nodes), "UnicityNetwork must contain at least one root node")
+	require.NotNil(t, a.RootChain.nodes[0].addr, "UnicityNetwork must be running to add shards")
 
 	nodes, nodeInfos := testutils.CreateTestNodes(t, nodeCount)
 	shardConf.Validators = nodeInfos
@@ -203,7 +203,7 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 	}
 }
 
-func (a *AlphabillNetwork) waitShardActivation(t *testing.T, partitionID types.PartitionID, shardID types.ShardID) {
+func (a *UnicityNetwork) waitShardActivation(t *testing.T, partitionID types.PartitionID, shardID types.ShardID) {
 	require.NotEmpty(t, a.RootChain.nodes)
 	require.Eventually(t, func() bool {
 		cm := a.RootChain.nodes[0].consensusManager
@@ -212,7 +212,7 @@ func (a *AlphabillNetwork) waitShardActivation(t *testing.T, partitionID types.P
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func (a *AlphabillNetwork) Close() (retErr error) {
+func (a *UnicityNetwork) Close() (retErr error) {
 	a.ctxCancel()
 	// wait and check validator exit
 	for _, shard := range a.Shards {
@@ -245,7 +245,7 @@ func (a *AlphabillNetwork) Close() (retErr error) {
 WaitClose closes the AB network and waits for all the nodes to stop.
 It fails the test "t" if nodes do not stop/exit within timeout.
 */
-func (a *AlphabillNetwork) WaitClose(t *testing.T) {
+func (a *UnicityNetwork) WaitClose(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -262,7 +262,7 @@ func (a *AlphabillNetwork) WaitClose(t *testing.T) {
 	}
 }
 
-func (a *AlphabillNetwork) GetShard(psID types.PartitionShardID) (*Shard, error) {
+func (a *UnicityNetwork) GetShard(psID types.PartitionShardID) (*Shard, error) {
 	shard, f := a.Shards[psID]
 	if !f {
 		return nil, fmt.Errorf("unknown shard %s", psID)
@@ -270,7 +270,7 @@ func (a *AlphabillNetwork) GetShard(psID types.PartitionShardID) (*Shard, error)
 	return shard, nil
 }
 
-func (a *AlphabillNetwork) GetValidator(psID types.PartitionShardID) (partition.UnicityCertificateValidator, error) {
+func (a *UnicityNetwork) GetValidator(psID types.PartitionShardID) (partition.UnicityCertificateValidator, error) {
 	shard, f := a.Shards[psID]
 	if !f {
 		return nil, fmt.Errorf("unknown shard %s", psID)

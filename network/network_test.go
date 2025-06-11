@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 )
 
 type testStrMsg struct {

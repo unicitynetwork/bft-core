@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestLedgerReplicationResponse_Pretty_okEmpty(t *testing.T) {

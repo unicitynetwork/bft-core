@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
+	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type (

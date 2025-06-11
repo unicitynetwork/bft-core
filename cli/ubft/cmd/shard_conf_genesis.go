@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 
-	"github.com/alphabill-org/alphabill/state"
-	abmoney "github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/unicitynetwork/bft-core/state"
+	abmoney "github.com/unicitynetwork/bft-core/txsystem/money"
 )
 
 const StateFileName = "state.cbor"

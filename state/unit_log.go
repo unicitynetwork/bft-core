@@ -5,8 +5,8 @@ import (
 	"crypto"
 	"fmt"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 // Log contains a state changes of the unit during the transaction execution.

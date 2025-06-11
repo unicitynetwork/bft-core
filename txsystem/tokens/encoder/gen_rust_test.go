@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/rust"
+	"github.com/unicitynetwork/bft-core/internal/testutils/rust"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func Test_tokenAttributesEncoding_trigger(t *testing.T) {

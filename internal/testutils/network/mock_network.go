@@ -13,16 +13,16 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
-	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/network/protocol/replication"
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	"github.com/alphabill-org/alphabill/txbuffer"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	"github.com/unicitynetwork/bft-core/network"
+	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/network/protocol/handshake"
+	"github.com/unicitynetwork/bft-core/network/protocol/replication"
+	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-core/txbuffer"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type MockNet struct {

@@ -3,20 +3,20 @@ package txsystem
 import (
 	"testing"
 
-	basetemplates "github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
-	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
-	"github.com/alphabill-org/alphabill/state"
-	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
-	tt "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/predicates/templates"
+	"github.com/unicitynetwork/bft-core/state"
+	abfc "github.com/unicitynetwork/bft-core/txsystem/fc"
+	tt "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	basetemplates "github.com/unicitynetwork/bft-go-base/predicates/templates"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	fcsdk "github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func Test_StateUnlockProofFromBytes(t *testing.T) {

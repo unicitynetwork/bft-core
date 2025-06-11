@@ -3,20 +3,20 @@ package orchestration
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	orchid "github.com/alphabill-org/alphabill-go-base/testutils/orchestration"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/state"
-	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/state"
+	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	orchid "github.com/unicitynetwork/bft-go-base/testutils/orchestration"
+	"github.com/unicitynetwork/bft-go-base/txsystem/orchestration"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type TestData struct {
@@ -31,7 +31,7 @@ func (t *TestData) Copy() types.UnitData { return &TestData{} }
 func (t *TestData) Owner() []byte {
 	return nil
 }
-func (t *TestData) GetVersion() types.ABVersion { return 0 }
+func (t *TestData) GetVersion() types.Version { return 0 }
 
 func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)

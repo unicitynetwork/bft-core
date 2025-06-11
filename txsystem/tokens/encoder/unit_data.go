@@ -3,9 +3,9 @@ package tokenenc
 import (
 	"errors"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/encoder"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func RegisterUnitDataEncoders(reg func(ud any, enc encoder.UnitDataEncoder) error) error {

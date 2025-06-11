@@ -8,19 +8,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	tokenid "github.com/unicitynetwork/bft-go-base/testutils/tokens"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testpartition "github.com/unicitynetwork/bft-core/internal/testutils/partition"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/unit"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 )
 
 var (
@@ -44,7 +44,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 		T2Timeout:       2000 * time.Millisecond,
 	}
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
-	abNet := testpartition.NewAlphabillNetwork(t, 1)
+	abNet := testpartition.NewUnicityNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
 	abNet.AddShard(t, &pdr, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
@@ -103,7 +103,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// the tx system lambda is called once for node genesis, but this is not interesting so clear the states before node
 	// is started
 	states = []*state.State{}
-	abNet := testpartition.NewAlphabillNetwork(t, 1)
+	abNet := testpartition.NewUnicityNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
 	abNet.AddShard(t, &pdr, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {

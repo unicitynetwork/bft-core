@@ -6,10 +6,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/stretchr/testify/require"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 type AlwaysValidTrustBase struct{}

@@ -5,14 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
-	feeModule "github.com/alphabill-org/alphabill/txsystem/fc"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/predicates/templates"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	feeModule "github.com/unicitynetwork/bft-core/txsystem/fc"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc/permissioned"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)

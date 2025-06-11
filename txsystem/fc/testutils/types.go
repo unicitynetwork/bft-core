@@ -3,12 +3,12 @@ package testutils
 import (
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/stretchr/testify/require"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func NewFeeCreditRecordID(t *testing.T, signer abcrypto.Signer) types.UnitID {

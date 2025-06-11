@@ -4,13 +4,13 @@ import (
 	"crypto"
 	"errors"
 
-	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/nop"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/state"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/state"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	fcsdk "github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/nop"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var _ txtypes.Module = (*Module)(nil)

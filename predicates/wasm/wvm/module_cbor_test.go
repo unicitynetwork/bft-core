@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero/api"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/bumpallocator"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func Test_cborParse(t *testing.T) {

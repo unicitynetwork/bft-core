@@ -9,9 +9,9 @@ import (
 
 	"github.com/multiformats/go-multiaddr"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/network"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/network"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type (

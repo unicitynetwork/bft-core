@@ -6,13 +6,13 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	"github.com/unicitynetwork/bft-go-base/types"
 
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
 )
 
 type (

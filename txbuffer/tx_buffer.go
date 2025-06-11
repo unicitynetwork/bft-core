@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/observability"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-go-base/types"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"

@@ -5,13 +5,13 @@ import (
 	mrand "math/rand"
 	"testing"
 
-	abt "github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils/peer"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	abt "github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 func Test_ReputationBased_Update(t *testing.T) {

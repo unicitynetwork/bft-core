@@ -3,7 +3,7 @@ package network
 import (
 	"time"
 
-	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
+	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 )
 
 const (

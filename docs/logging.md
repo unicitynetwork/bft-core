@@ -1,6 +1,6 @@
-# Logging in Alphabill
+# Logging in Unicity
 
-This document describes structured logging rules for Alphabill.
+This document describes structured logging rules for Unicity.
 
 The [stdlib slog](https://pkg.go.dev/log/slog) is used as a logger and
 "structured logging" is achieved by adding additional 
@@ -9,7 +9,7 @@ The [stdlib slog](https://pkg.go.dev/log/slog) is used as a logger and
 ```go
 logger.InfoContext(ctx, "meaning of everything", slog.Int("answer", 42))
 ```
-The names of attributes (ie known `Attr.Key` values) is the Alphabill
+The names of attributes (ie known `Attr.Key` values) is the Unicity
 logging schema.
 
 ## Schema
@@ -44,16 +44,16 @@ Following attributes are "created by logger":
 | level | string | name of the log level |
 | source | struct | information about the [location in the source](https://pkg.go.dev/log/slog#Source) code from where the log call was made. |
 
-### Attributes defined by AB logger
+### Attributes defined by logger
 
-AB logger package defines some "well known attributes".
+The logger package defines some "well known attributes".
 For these there is a "constructor function" in the logger package to create
 the attribute - use that rather than creating slog.Attr manually!
 
 | name | type | comment |
 |---|---|---|
 | node_id | string | libp2p peer ID is used as node id - which node is logging. |
-| go_id | int | goroutine id, added by the AB logger handler if enabled |
+| go_id | int | goroutine id, added by the logger handler if enabled |
 | round | int | current round number (depends on the context whether it was a root chain round or validator round!) |
 | err | error | error which caused the log message to be created (log level doesn't have to be ERROR). |
 | unit_id | []byte | hex encoded ID of the unit (bill, token, token type, ...) which caused the log record |
@@ -66,7 +66,7 @@ The logger's "output schema" depends on the format configuration (slog handler).
 
 ### ECS
 
-The AB team uses Kibana for logs so the default output handler for AB is `ECS`
+Kibana is used for logs and the default output handler for Unicity is `ECS`
 which is 
 [Elastic Common Schema](https://www.elastic.co/guide/en/ecs/current/ecs-field-reference.html)
 "friendly" format. Ie some of the well known attributes will be transformed as following
@@ -95,13 +95,13 @@ ie something like
 > logger.go:225: [2m13:44:38.8725[0m [91mERR[0m [2mlogger/logger_test.go:55[0m now thats really bad [2merr=[0m"what now" [2mgo_id=[0m24
 
 To disable color codes configure IDE so that it executes `go test` tool with
-env variable `AB_TEST_LOG_NO_COLORS` set to `true`.
+env variable `UBFT_TEST_LOG_NO_COLORS` set to `true`.
 
-The default log level for test loggers is `debug`. Environment variable `AB_TEST_LOG_LEVEL`
+The default log level for test loggers is `debug`. Environment variable `UBFT_TEST_LOG_LEVEL`
 can be used to set the default log level for tests ie
 
 ```bash
-AB_TEST_LOG_LEVEL=trace go test ./...
+UBFT_TEST_LOG_LEVEL=trace go test ./...
 ```
 The `-run` flag and/or specific package name (instead of `./...`) can be used to debug
 specific test / package.
@@ -113,6 +113,6 @@ for `Go: Tools Env Vars`, open the settings json and add the env var there, ie
 
 ```json
 "go.toolsEnvVars": {
-    "AB_TEST_LOG_NO_COLORS":"true"
+    "UBFT_TEST_LOG_NO_COLORS":"true"
 }
 ```

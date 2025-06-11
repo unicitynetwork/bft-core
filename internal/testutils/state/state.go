@@ -3,10 +3,10 @@ package teststate
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 func CreateUC(t *testing.T, s *state.State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate {

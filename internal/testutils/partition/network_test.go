@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testtxsystem "github.com/unicitynetwork/bft-core/internal/testutils/txsystem"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	"github.com/unicitynetwork/bft-go-base/types"
 
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 )
 
 func TestNewNetwork_Ok(t *testing.T) {
@@ -27,7 +27,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 		EpochStart:      0,
 	}
 
-	abNetwork := NewAlphabillNetwork(t, 3)
+	abNetwork := NewUnicityNetwork(t, 3)
 	require.NoError(t, abNetwork.Start(t))
 	t.Cleanup(func() { abNetwork.WaitClose(t) })
 

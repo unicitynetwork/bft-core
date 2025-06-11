@@ -8,7 +8,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 /*

@@ -1,8 +1,8 @@
 package rpc
 
 import (
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/partition"
+	"github.com/unicitynetwork/bft-core/partition"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type (

@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 )
 
 const randomTestAddressStr = "/ip4/127.0.0.1/tcp/0"

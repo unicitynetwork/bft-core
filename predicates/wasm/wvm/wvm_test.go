@@ -12,14 +12,14 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/bumpallocator"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/encoder"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/instrument"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-go-base/predicates/wasm"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 //go:embed testdata/add_one/target/wasm32-unknown-unknown/release/add_one.wasm

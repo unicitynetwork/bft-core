@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/unicitynetwork/bft-core/tree/avl"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var (

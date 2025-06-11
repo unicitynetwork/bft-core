@@ -3,10 +3,10 @@ package certification
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func Test_CertificationResponse_IsValid(t *testing.T) {

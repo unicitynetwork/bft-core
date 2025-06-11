@@ -3,11 +3,11 @@ package unit
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/types"
 
-	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/state"
 )
 
 var (

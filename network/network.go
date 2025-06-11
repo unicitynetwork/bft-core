@@ -11,10 +11,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/alphabill-org/alphabill/logger"
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/unicitynetwork/bft-core/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -55,7 +55,7 @@ type (
 )
 
 /*
-LibP2PNetwork implements "alphabill network" using libp2p.
+LibP2PNetwork implements "unicity network" using libp2p.
 
 Zero value is not useable, use one of the constructors to create network!
 */

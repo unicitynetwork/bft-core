@@ -3,20 +3,20 @@ package tokens
 import (
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	tokensid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
-	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/nop"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
+	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	tokensid "github.com/unicitynetwork/bft-go-base/testutils/tokens"
+	fcsdk "github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/nop"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestModule_validateNopTx(t *testing.T) {

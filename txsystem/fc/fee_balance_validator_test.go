@@ -6,15 +6,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestCheckFeeCreditBalance(t *testing.T) {

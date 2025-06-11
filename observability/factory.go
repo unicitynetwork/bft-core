@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/unicitynetwork/bft-core/logger"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var (
@@ -17,7 +17,7 @@ var (
 
 type BlockData struct {
 	_         struct{} `cbor:",toarray"`
-	Version   types.ABVersion
+	Version   types.Version
 	Author    string   `json:"author"` // NodeID of the proposer
 	Round     uint64   `json:"round"`  // Root round number
 	Epoch     uint64   `json:"epoch"`  // Epoch to establish valid configuration
@@ -133,7 +133,7 @@ func (x *BlockData) String() string {
 	return fmt.Sprintf("round: %v, time: %v, payload: %s", x.Round, x.Timestamp, strings.Join(changed, ", "))
 }
 
-func (x *BlockData) GetVersion() types.ABVersion {
+func (x *BlockData) GetVersion() types.Version {
 	if x == nil || x.Version == 0 {
 		return 1
 	}

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
+	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var ErrDuplicateChangeReq = errors.New("duplicate ir change request")

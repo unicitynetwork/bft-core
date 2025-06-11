@@ -4,21 +4,21 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/predicates/templates"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
 )
 
 type (
 	Options struct {
-		state                       *state.State
-		executedTransactions        map[string]uint64
-		hashAlgorithm               crypto.Hash
-		trustBase                   types.RootTrustBase
-		exec                        predicates.PredicateExecutor
+		state                *state.State
+		executedTransactions map[string]uint64
+		hashAlgorithm        crypto.Hash
+		trustBase            types.RootTrustBase
+		exec                 predicates.PredicateExecutor
 	}
 
 	Option func(*Options)

@@ -37,7 +37,7 @@ EOT
 function boot_node() {
   local home=$1
   local rootPort=$2
-  nodeId=$(build/alphabill node-id --home $home | tail -n1)
+  nodeId=$(build/ubft node-id --home $home | tail -n1)
   echo "/ip4/127.0.0.1/tcp/$rootPort/p2p/$nodeId"
 }
 
@@ -56,12 +56,12 @@ function init_shard_nodes() {
   echo "initializing $4 nodes for partition $partitionId"
   for i in $(seq 1 "$4")
   do
-    build/alphabill shard-node init --home "${home}$i" --generate
+    build/ubft shard-node init --home "${home}$i" --generate
     nodeInfoFiles+=" --node-info ${home}$i/node-info.json"
   done
 
-  # Generate shard-conf once to testab
-  build/alphabill shard-conf generate --home testab \
+  # Generate shard-conf once to test-nodes
+  build/ubft shard-conf generate --home test-nodes \
                   --network-id 3 \
                   --partition-id $partitionId \
                   --partition-type-id $partitionTypeId \
@@ -77,29 +77,29 @@ function generate_shard_genesis_state() {
   for i in $(seq 1 "$3")
   do
     # Generate genesis state from shard-conf
-    build/alphabill shard-conf genesis --home ${home}${i} --shard-conf testab/shard-conf-${partitionId}_0.json
+    build/ubft shard-conf genesis --home ${home}${i} --shard-conf test-nodes/shard-conf-${partitionId}_0.json
   done
 }
 
 # Initiallize root nodes
 # $1 number of root nodes
 function init_root_nodes() {
-  home=testab/root
+  home=test-nodes/root
   nodeInfoFiles=
   echo "initializing $1 nodes for root chain"
   for i in $(seq 1 "$1")
   do
-    build/alphabill root-node init --home "${home}$i" -g
+    build/ubft root-node init --home "${home}$i" -g
     nodeInfoFiles+=" --node-info ${home}$i/node-info.json"
   done
 
-  # Generate trust-base once to testab
-  build/alphabill trust-base generate --home testab --network-id 3 $nodeInfoFiles
+  # Generate trust-base once to test-nodes
+  build/ubft trust-base generate --home test-nodes --network-id 3 $nodeInfoFiles
 
   # Sign trust-base by each node
   for i in $(seq 1 "$1")
   do
-    build/alphabill trust-base sign --home ${home}$i --trust-base testab/trust-base.json
+    build/ubft trust-base sign --home ${home}$i --trust-base test-nodes/trust-base.json
   done
 }
 
@@ -109,25 +109,25 @@ function start_root_nodes() {
   local p2pPort=$rootPortStart
   local rpcPort=25866
 
-  bootNode=$(boot_node testab/root1 "$rootPortStart")
+  bootNode=$(boot_node test-nodes/root1 "$rootPortStart")
 
   i=1
-  for node in testab/root*
+  for node in test-nodes/root*
   do
     if [[ $i -ne 1 ]]; then
       bootNodeParam="--bootnodes=$bootNode"
     fi
 
-    build/alphabill root-node run \
-                    --home testab/root$i \
+    build/ubft root-node run \
+                    --home test-nodes/root$i \
                     --address "/ip4/127.0.0.1/tcp/$p2pPort" \
                     $bootNodeParam \
-                    --trust-base testab/trust-base.json \
+                    --trust-base test-nodes/trust-base.json \
                     --rpc-server-address "localhost:$rpcPort" \
                     --log-format text \
                     --log-level debug \
                     --metrics prometheus \
-                    >> testab/root$i/debug.log 2>&1 &
+                    >> test-nodes/root$i/debug.log 2>&1 &
     nodePID=$!
     # wait until node starts listening on RPC port OR exits because of some error
     until lsof -i:$rpcPort >/dev/null || ! ps -p $nodePID >/dev/null
@@ -141,9 +141,9 @@ function start_root_nodes() {
       exit
     fi
 
-    if ls testab/shard-conf-* >/dev/null 2>&1; then
+    if ls test-nodes/shard-conf-* >/dev/null 2>&1; then
       # uplaod all shard confs
-      for shardConf in testab/shard-conf-*
+      for shardConf in test-nodes/shard-conf-*
       do
         curl -X PUT -H "Content-Type: application/json" -d @${shardConf} \
              http://localhost:${rpcPort}/api/v1/configurations
@@ -168,25 +168,25 @@ function start_shard_nodes() {
   local rpcPort=0
   case $1 in
     money)
-      homePrefix="testab/money"
+      homePrefix="test-nodes/money"
       partitionId=1
       p2pPort=26666
       rpcPort=26866
       ;;
     tokens)
-      homePrefix="testab/tokens"
+      homePrefix="test-nodes/tokens"
       partitionId=2
       p2pPort=28666
       rpcPort=28866
       ;;
     orchestration)
-      homePrefix="testab/orchestration"
+      homePrefix="test-nodes/orchestration"
       partitionId=4
       p2pPort=30666
       rpcPort=30866
       ;;
     tokens-enterprise)
-      homePrefix="testab/tokens-enterprise"
+      homePrefix="test-nodes/tokens-enterprise"
       partitionId=5
       p2pPort=31666
       rpcPort=31866
@@ -197,16 +197,16 @@ function start_shard_nodes() {
       ;;
   esac
 
-  bootNode=$(boot_node testab/root1 "$rootPortStart")
+  bootNode=$(boot_node test-nodes/root1 "$rootPortStart")
 
   # Start nodes
   i=1
   for home in `ls -d ${homePrefix}[0-9]*`
   do
-    build/alphabill shard-node run \
+    build/ubft shard-node run \
         --home $home \
-        --trust-base testab/trust-base.json \
-        --shard-conf testab/shard-conf-${partitionId}_0.json \
+        --trust-base test-nodes/trust-base.json \
+        --shard-conf test-nodes/shard-conf-${partitionId}_0.json \
         --address "/ip4/127.0.0.1/tcp/$p2pPort" \
         --bootnodes $bootNode \
         --rpc-server-address "localhost:$rpcPort" \
@@ -226,7 +226,7 @@ function start_non_validator_shard_nodes() {
   count=$2
   extraFlags=$3
   partitionType=$partition
-  home="testab/$partition-non-validator"
+  home="test-nodes/$partition-non-validator"
 
   echo "starting $count non-validator $partition nodes"
 
@@ -250,16 +250,16 @@ function start_non_validator_shard_nodes() {
   esac
 
   # create bootnodes
-  local bootNodes=$(boot_node testab/root1 "$rootPortStart")
+  local bootNodes=$(boot_node test-nodes/root1 "$rootPortStart")
 
   # Start non-validator partition nodes
   for i in $(seq $count); do
     if [[ ! -d ${home}$i ]]; then
-      build/alphabill shard-node init --home ${home}$i -g
+      build/ubft shard-node init --home ${home}$i -g
 
       # Copy shard-conf and genesis state to node
-      cp testab/${partition}1/shard-conf.json ${home}$i
-      cp testab/${partition}1/state.cbor ${home}$i
+      cp test-nodes/${partition}1/shard-conf.json ${home}$i
+      cp test-nodes/${partition}1/state.cbor ${home}$i
 
       # generate_log_configuration ${home}$i
     fi
@@ -275,9 +275,9 @@ function start_non_validator_shard_nodes() {
     fi
 
     echo "starting non-validator $partition node" $i "($rpcServerAddress)"
-    build/alphabill shard-node run \
+    build/ubft shard-node run \
       --home ${home}$i \
-      --trust-base testab/trust-base.json \
+      --trust-base test-nodes/trust-base.json \
       --address "/ip4/127.0.0.1/tcp/$p2pPort" \
       --bootnodes "$bootNodes" \
       --rpc-server-address $rpcServerAddress \

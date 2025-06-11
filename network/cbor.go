@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func serializeMsg(msg any) ([]byte, error) {

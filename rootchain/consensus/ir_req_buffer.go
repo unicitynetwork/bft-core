@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-core/logger"
+	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type (

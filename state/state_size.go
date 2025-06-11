@@ -1,8 +1,8 @@
 package state
 
 import (
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/unicitynetwork/bft-core/tree/avl"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type stateSize struct {

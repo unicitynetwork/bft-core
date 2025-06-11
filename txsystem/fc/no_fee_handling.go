@@ -3,8 +3,8 @@ package fc
 import (
 	"math"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var _ txtypes.Module = (*NoFeeHandling)(nil)

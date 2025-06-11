@@ -11,8 +11,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/observability"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/observability"
 )
 
 func metricsUpdater(mtr metric.Meter, node partitionNode, log *slog.Logger) func(ctx context.Context, method string, start time.Time, apiErr error) {

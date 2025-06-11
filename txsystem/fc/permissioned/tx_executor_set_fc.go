@@ -5,14 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/tree/avl"
-	feeModule "github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/tree/avl"
+	feeModule "github.com/unicitynetwork/bft-core/txsystem/fc"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/unit"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc/permissioned"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func (f *FeeCreditModule) validateSetFC(tx *types.TransactionOrder, attr *permissioned.SetFeeCreditAttributes, authProof *permissioned.SetFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {

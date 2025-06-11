@@ -3,9 +3,9 @@ package orchestration
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/txsystem"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func NewTxSystem(shardConf types.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
