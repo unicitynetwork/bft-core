@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/internal/testutils/peer"
+	testobservability "github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	"github.com/unicitynetwork/bft-core/internal/testutils/peer"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestGetNodeInfo_OK(t *testing.T) {

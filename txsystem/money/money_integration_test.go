@@ -9,20 +9,20 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/partition/event"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testpartition "github.com/unicitynetwork/bft-core/internal/testutils/partition"
+	testevent "github.com/unicitynetwork/bft-core/internal/testutils/partition/event"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/partition/event"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	fcsdk "github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var (
@@ -48,7 +48,7 @@ func TestPartition_Ok(t *testing.T) {
 	shardConf := *pdrs[0]
 
 	s := genesisState(t, ib, pdrs)
-	abNet := testpartition.NewAlphabillNetwork(t, 1)
+	abNet := testpartition.NewUnicityNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
 	abNet.AddShard(t, &shardConf, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
@@ -178,7 +178,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, err)
 	total := moneyInvariant
 	txsState := genesisState(t, initialBill, pdrs)
-	abNet := testpartition.NewAlphabillNetwork(t, 1)
+	abNet := testpartition.NewUnicityNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
 	abNet.AddShard(t, &moneyPDR, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/rootchain/testutils"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	"github.com/unicitynetwork/bft-core/rootchain/testutils"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestNewOrchestration(t *testing.T) {

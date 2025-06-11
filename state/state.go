@@ -8,11 +8,11 @@ import (
 	"io"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/tree/mt"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/unicitynetwork/bft-core/tree/avl"
+	"github.com/unicitynetwork/bft-go-base/tree/mt"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 type (

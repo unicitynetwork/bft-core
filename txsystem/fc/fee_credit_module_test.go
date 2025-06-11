@@ -5,13 +5,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
-	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	fcsdk "github.com/unicitynetwork/bft-go-base/txsystem/fc"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/state"
 )
 
 func TestFC_Validation(t *testing.T) {

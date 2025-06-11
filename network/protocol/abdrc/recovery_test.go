@@ -6,14 +6,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 func TestRecoveryBlock_GetRound(t *testing.T) {

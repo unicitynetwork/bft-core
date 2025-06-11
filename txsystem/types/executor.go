@@ -3,8 +3,8 @@ package types
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type (

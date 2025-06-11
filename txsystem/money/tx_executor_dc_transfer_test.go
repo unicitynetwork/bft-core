@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
-	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
+	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	fcsdk "github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestModule_validateTransferDCTx(t *testing.T) {

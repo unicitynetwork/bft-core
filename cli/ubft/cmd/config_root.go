@@ -13,11 +13,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/logger"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/boltdb"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 type (
@@ -34,7 +34,7 @@ type (
 	}
 
 	baseFlags struct {
-		// The Alphabill home directory
+		// The home directory
 		HomeDir string
 		// Configuration file URL. If it's relative, then it's relative from the HomeDir.
 		CfgFile string
@@ -49,11 +49,11 @@ type (
 
 const (
 	// The prefix for configuration keys inside environment.
-	envPrefix = "AB"
+	envPrefix = "UBFT"
 	// The default name for config file.
 	defaultConfigFile = "config.props"
-	// the default alphabill directory.
-	defaultAlphabillDir = ".alphabill"
+	// the default directory.
+	defaultDir = ".ubft"
 	// The default logger configuration file name.
 	defaultLoggerConfigFile = "logger-config.yaml"
 
@@ -72,13 +72,13 @@ const (
 )
 
 func (r *baseFlags) addBaseFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", alphabillHomeDir()))
-	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file URL (default is $AB_HOME/%s)", defaultConfigFile))
+	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the UBFT_HOME for this invocation (default is %s)", unicityHomeDir()))
+	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file URL (default is $UBFT_HOME/%s)", defaultConfigFile))
 
 	cmd.PersistentFlags().String(keyMetrics, "", "metrics exporter, disabled when not set. One of: stdout, prometheus")
 	cmd.PersistentFlags().String(keyTracing, "", "traces exporter, disabled when not set. One of: stdout, otlptracehttp, zipkin")
 
-	cmd.PersistentFlags().StringVar(&r.LogCfgFile, flagNameLoggerCfgFile, defaultLoggerConfigFile, "logger config file URL. Considered absolute if starts with '/'. Otherwise relative from $AB_HOME.")
+	cmd.PersistentFlags().StringVar(&r.LogCfgFile, flagNameLoggerCfgFile, defaultLoggerConfigFile, "logger config file URL. Considered absolute if starts with '/'. Otherwise relative from $UBFT_HOME.")
 	// do not set default values for these flags as then we can easily determine whether to load the value from cfg file or not
 	cmd.PersistentFlags().String(flagNameLogOutputFile, "", "log file path or one of the special values: stdout, stderr, discard")
 	cmd.PersistentFlags().String(flagNameLogLevel, "", "logging level, one of: DEBUG, INFO, WARN, ERROR")
@@ -93,7 +93,7 @@ func (r *baseFlags) initConfigFileLocation() {
 	if r.HomeDir == "" {
 		r.HomeDir = os.Getenv(envKey(keyHome))
 		if r.HomeDir == "" {
-			r.HomeDir = alphabillHomeDir()
+			r.HomeDir = unicityHomeDir()
 		}
 	}
 
@@ -203,10 +203,10 @@ func envKey(key string) string {
 	return strings.ToUpper(envPrefix + "_" + key)
 }
 
-func alphabillHomeDir() string {
+func unicityHomeDir() string {
 	dir, err := os.UserHomeDir()
 	if err != nil {
 		panic("default user home dir not defined: " + err.Error())
 	}
-	return filepath.Join(dir, defaultAlphabillDir)
+	return filepath.Join(dir, defaultDir)
 }

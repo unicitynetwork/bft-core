@@ -20,19 +20,19 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/network/protocol/replication"
-	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill/partition/event"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/network"
+	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/network/protocol/handshake"
+	"github.com/unicitynetwork/bft-core/network/protocol/replication"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-core/partition/event"
+	"github.com/unicitynetwork/bft-core/txsystem"
 )
 
 const (

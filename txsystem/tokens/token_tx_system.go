@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	basetypes "github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/txsystem/fc/permissioned"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	"github.com/unicitynetwork/bft-core/txsystem/fc"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/permissioned"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	basetypes "github.com/unicitynetwork/bft-go-base/types"
 )
 
 const (

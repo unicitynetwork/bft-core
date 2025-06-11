@@ -8,11 +8,11 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates"
-	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	exec "github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm"
+	exec "github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm"
+	"github.com/unicitynetwork/bft-go-base/predicates"
+	"github.com/unicitynetwork/bft-go-base/predicates/wasm"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type WasmRunner struct {

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/stretchr/testify/require"
+	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 )
 
 func TestNodeID_KeyConfNotFound(t *testing.T) {

@@ -12,20 +12,20 @@ import (
 	"github.com/tetratelabs/wazero/api"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/bumpallocator"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/instrument"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-go-base/predicates/wasm"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 // WASM of "env" module which exports memory so data can be shared between host
 // and other WASM module(s).
 // envWasm was compiled using `wat2wasm --debug-names env.wat`
 //
-//go:embed ab_env.wasm
+//go:embed ubft_env.wasm
 var envWasm []byte
 
 type rtCtxKey string
@@ -195,8 +195,8 @@ func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor,
 	if err := addCBORModule(ctx, rt, observe); err != nil {
 		return nil, fmt.Errorf("adding CBOR API module: %w", err)
 	}
-	if err := addAlphabillModule(ctx, rt, observe); err != nil {
-		return nil, fmt.Errorf("adding alphabill API module: %w", err)
+	if err := addModule(ctx, rt, observe); err != nil {
+		return nil, fmt.Errorf("adding API module: %w", err)
 	}
 
 	return &WasmVM{

@@ -3,7 +3,7 @@ package testtxsystem
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestRace(t *testing.T) {

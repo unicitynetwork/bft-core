@@ -3,10 +3,10 @@ package partition
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils/peer"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func Test_rootNodesSelector(t *testing.T) {

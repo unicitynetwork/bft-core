@@ -9,7 +9,7 @@ all: clean tools test build gosec
 
 clean:
 	rm -rf build/
-	rm -rf testab/
+	rm -rf test-nodes/
 
 test:
 	go test ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
@@ -17,10 +17,10 @@ test:
 build:
     # cd to directory where main.go exits, hack fix for go bug to embed version control data
     # https://github.com/golang/go/issues/51279
-	cd ./cli/alphabill && go build -o ../../build/alphabill
+	cd ./cli/ubft && go build -o ../../build/ubft
 
 build-docker:
-	docker build ${DOCKER_ARGUMENTS} --file scripts/Dockerfile --tag alphabill:local .
+	docker build ${DOCKER_ARGUMENTS} --file scripts/Dockerfile --tag unicity-bft:local .
 
 gosec:
 	gosec -exclude-generated ./...

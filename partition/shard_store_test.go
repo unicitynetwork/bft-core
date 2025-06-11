@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testpeer "github.com/alphabill-org/alphabill/internal/testutils/peer"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	testpeer "github.com/unicitynetwork/bft-core/internal/testutils/peer"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestVerifier_Ok(t *testing.T) {

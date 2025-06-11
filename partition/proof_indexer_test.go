@@ -12,13 +12,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testtxsystem "github.com/unicitynetwork/bft-core/internal/testutils/txsystem"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/boltdb"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 func TestNewProofIndexer_history_2(t *testing.T) {

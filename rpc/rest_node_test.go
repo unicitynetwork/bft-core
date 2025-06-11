@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testtxsystem "github.com/unicitynetwork/bft-core/internal/testutils/txsystem"
 )
 
 func TestRESTServer_GetState_Ok(t *testing.T) {

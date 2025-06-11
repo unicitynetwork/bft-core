@@ -3,8 +3,8 @@ package predicates
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
 )
 
 func Test_ExtractPubKey(t *testing.T) {

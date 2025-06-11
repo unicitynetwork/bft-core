@@ -3,12 +3,12 @@ package fc
 import (
 	"testing"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/state"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/state"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var (
@@ -25,9 +25,9 @@ func (t *testData) Write(hasher abhash.Hasher) { hasher.Write(t) }
 func (t *testData) SummaryValueInput() uint64 {
 	return 0
 }
-func (t *testData) Copy() types.UnitData        { return &testData{} }
-func (t *testData) Owner() []byte               { return nil }
-func (t *testData) GetVersion() types.ABVersion { return 0 }
+func (t *testData) Copy() types.UnitData      { return &testData{} }
+func (t *testData) Owner() []byte             { return nil }
+func (t *testData) GetVersion() types.Version { return 0 }
 
 // test
 func TestValidateGenericFeeCreditTx(t *testing.T) {

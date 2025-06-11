@@ -3,11 +3,11 @@ package money
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	basetypes "github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	"github.com/unicitynetwork/bft-core/txsystem/fc"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	basetypes "github.com/unicitynetwork/bft-go-base/types"
 )
 
 func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {

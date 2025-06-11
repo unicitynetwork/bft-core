@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 
 /*
 TVEnc is an encoder for serializing data info format which can be parsed
-by Alphabill Rust predicate SDK.
+by Unicity Rust predicate SDK.
 
 Encodes simple data as {type id; data} pairs, to encode more complex data
 structures additional "tag" can be assigned to each "data record" (see

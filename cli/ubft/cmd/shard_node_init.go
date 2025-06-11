@@ -10,10 +10,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/partition"
+	"github.com/unicitynetwork/bft-core/partition"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 const (
@@ -90,7 +90,7 @@ func (c *keyConfFlags) addKeyConfFlags(cmd *cobra.Command, enableGenerate bool) 
 		cmd.Flags().BoolVarP(&c.Generate, "generate", "g", false, "generate a new key configuration if none exist")
 	}
 	cmd.Flags().StringVarP(&c.KeyConfFile, "key-conf", "k", "",
-		fmt.Sprintf("path to the key configuration file (default: %s)", filepath.Join("$AB_HOME", keyConfFileName)))
+		fmt.Sprintf("path to the key configuration file (default: %s)", filepath.Join("$UBFT_HOME", keyConfFileName)))
 }
 
 func (c *keyConfFlags) loadKeyConf(baseFlags *baseFlags, generate bool) (ret *partition.KeyConf, err error) {

@@ -4,16 +4,16 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testcerts "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testcerts "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 const partitionID types.PartitionID = 1
@@ -22,11 +22,11 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	_, nodeVerifier := testsig.CreateSignerAndVerifier(t)
 	ucSigner, ucVerifier := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
-		PartitionID         types.PartitionID
-		NodeID              peer.ID
-		UnicityCertificate  *types.UnicityCertificate
-		TechnicalRecord     certification.TechnicalRecord
-		Transactions        []*types.TransactionRecord
+		PartitionID        types.PartitionID
+		NodeID             peer.ID
+		UnicityCertificate *types.UnicityCertificate
+		TechnicalRecord    certification.TechnicalRecord
+		Transactions       []*types.TransactionRecord
 	}
 	type args struct {
 		nodeSignatureVerifier crypto.Verifier
@@ -104,14 +104,14 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "block proposer id is missing",
 			fields: fields{
-				PartitionID: partitionID,
-				Transactions:        []*types.TransactionRecord{},
+				PartitionID:  partitionID,
+				Transactions: []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
 				algorithm:             gocrypto.SHA256,
-				partitionID:   partitionID,
+				partitionID:           partitionID,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: errBlockProposerIDMissing.Error(),
@@ -128,7 +128,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
 				algorithm:             gocrypto.SHA256,
-				partitionID:   partitionID,
+				partitionID:           partitionID,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: types.ErrUnicityCertificateIsNil.Error(),
@@ -136,8 +136,8 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "tr hash mismatch",
 			fields: fields{
-				PartitionID:        partitionID,
-				NodeID:             "1",
+				PartitionID: partitionID,
+				NodeID:      "1",
 				UnicityCertificate: testcerts.CreateUnicityCertificate(
 					t, ucSigner, &types.InputRecord{
 						Version:      1,
@@ -154,7 +154,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           trustbase.NewTrustBase(t, ucVerifier),
 				algorithm:             gocrypto.SHA256,
-				partitionID:   partitionID,
+				partitionID:           partitionID,
 				systemDescriptionHash: test.DoHash(t, pdr),
 			},
 			wantErr: "hash mismatch",

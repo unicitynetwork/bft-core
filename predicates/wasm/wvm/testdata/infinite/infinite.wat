@@ -7,4 +7,4 @@
     unreachable)
   (memory (;0;) 1)
   (export "memory" (memory 0))
-  (export "ab_main" (func 0)))
+  (export "ubft_main" (func 0)))

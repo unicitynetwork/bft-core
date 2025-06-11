@@ -7,19 +7,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/partition/event"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testevent "github.com/unicitynetwork/bft-core/internal/testutils/partition/event"
+	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	testtxsystem "github.com/unicitynetwork/bft-core/internal/testutils/txsystem"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
+	"github.com/unicitynetwork/bft-core/network"
+	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/partition/event"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 type AlwaysValidCertificateValidator struct{}
@@ -101,7 +101,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 			t.Fatal("partition node didn't shut down within timeout")
 		}
 	})
-	
+
 	// Ask Node for latest block
 	b := tp.GetLatestBlock(t)
 	rn, err := b.GetRoundNumber()
@@ -379,7 +379,7 @@ func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 	ir.RoundNumber++
 	ir.SummaryValue = []byte{1}
 	ir.Timestamp = 1
-	ir.Hash = []byte{1,2,3}
+	ir.Hash = []byte{1, 2, 3}
 	ir.BlockHash = []byte{3, 2, 1}
 	tp.ReceiveCertResponseSameEpoch(t, ir, uc.UnicitySeal.RootChainRoundNumber+1)
 
@@ -644,8 +644,8 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	ir := uc1.InputRecord.NewRepeatIR()
 	ir.RoundNumber++
 	ir.PreviousHash = ir.Hash
-	ir.Hash = []byte{1,2,3}
-	ir.BlockHash = []byte{3,2,1}
+	ir.Hash = []byte{1, 2, 3}
+	ir.BlockHash = []byte{3, 2, 1}
 	uc2, tr, err := tp.CreateUnicityCertificate(t,
 		ir,
 		uc1.UnicitySeal.RootChainRoundNumber+1,

@@ -5,14 +5,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 // TestTransferNFT_StateLock locks NFT with a transfer tx to pk1, then unlocks it with an update tx

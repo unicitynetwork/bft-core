@@ -17,20 +17,20 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
-	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/rootchain"
-	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/network"
+	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-core/partition"
+	"github.com/unicitynetwork/bft-core/rootchain"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	"github.com/unicitynetwork/bft-core/rootchain/partitions"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 const (
@@ -104,11 +104,11 @@ func rootNodeRunCmd(baseFlags *baseFlags) *cobra.Command {
 		`Specifies the TCP address for the RPC server to listen on, in the form "host:port". RPC server isn't initialised if address is empty.`)
 
 	cmd.Flags().StringVar(&flags.RootStoreFile, "root-db", "",
-		fmt.Sprintf("path to the root database (default: %s)", filepath.Join("$AB_HOME", rootStoreFileName)))
+		fmt.Sprintf("path to the root database (default: %s)", filepath.Join("$UBFT_HOME", rootStoreFileName)))
 	cmd.Flags().StringVar(&flags.TrustBaseStoreFile, "trust-base-db", "",
-		fmt.Sprintf("path to the trust base database (default: %s)", filepath.Join("$AB_HOME", trustBaseStoreFileName)))
+		fmt.Sprintf("path to the trust base database (default: %s)", filepath.Join("$UBFT_HOME", trustBaseStoreFileName)))
 	cmd.Flags().StringVar(&flags.OrchestrationStoreFile, "orchestration-db", "",
-		fmt.Sprintf("path to the orchestration database (default: %s)", filepath.Join("$AB_HOME", orchestrationStoreFileName)))
+		fmt.Sprintf("path to the orchestration database (default: %s)", filepath.Join("$UBFT_HOME", orchestrationStoreFileName)))
 
 	cmd.Flags().StringSliceVarP(&flags.ShardConfFiles, "shard-conf", "", []string{}, "path to shard conf files")
 	cmd.Flags().Uint32Var(&flags.BlockRate, "block-rate", consensus.BlockRate, "block rate (consensus parameter)")

@@ -1,6 +1,6 @@
 package partition
 
-import "github.com/alphabill-org/alphabill-go-base/types"
+import "github.com/unicitynetwork/bft-go-base/types"
 
 /*
 static orchestration until real thing is implemented.

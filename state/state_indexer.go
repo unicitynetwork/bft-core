@@ -3,7 +3,7 @@ package state
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 // stateIndexer traverses the state tree and constructs an index using the keyExtractor

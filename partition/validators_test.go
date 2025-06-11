@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
+	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var shardConf = &types.PartitionDescriptionRecord{
@@ -95,8 +95,8 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 	type args struct {
 		shardConf *types.PartitionDescriptionRecord
-		trustBase         types.RootTrustBase
-		algorithm         gocrypto.Hash
+		trustBase types.RootTrustBase
+		algorithm gocrypto.Hash
 	}
 	tests := []struct {
 		name    string
@@ -107,8 +107,8 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 			name: "trust base is nil",
 			args: args{
 				shardConf: shardConf,
-				trustBase:         nil,
-				algorithm:         gocrypto.SHA256,
+				trustBase: nil,
+				algorithm: gocrypto.SHA256,
 			},
 			wantErr: types.ErrRootValidatorInfoMissing,
 		},

@@ -5,7 +5,7 @@ import (
 	"maps"
 	"slices"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 )
 
 type (

@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 )
 
 const MaxBodySize int64 = 1 << 20 // 1 MB

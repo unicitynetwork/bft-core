@@ -7,26 +7,26 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	tokenid "github.com/unicitynetwork/bft-go-base/testutils/tokens"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 )
 
-const validNFTURI = "https://alphabill.org/nft"
+const validNFTURI = "https://example.com/nft"
 
 var (
 	parent1Identifier types.UnitID = append(make(types.UnitID, 31), 1, tokens.NonFungibleTokenTypeUnitType)
@@ -490,7 +490,7 @@ func TestRevertTransaction_Ok(t *testing.T) {
 }
 
 func TestExecuteDefineNFT_InvalidSymbolLength(t *testing.T) {
-	s := "♥ Alphabill ♥"
+	s := "♥♥ Unicity ♥♥"
 	txs, _, _ := newTokenTxSystem(t)
 	tx := testtransaction.NewTransactionOrder(
 		t,
@@ -512,7 +512,7 @@ func TestExecuteDefineNFT_InvalidSymbolLength(t *testing.T) {
 }
 
 func TestExecuteDefineNFT_InvalidNameLength(t *testing.T) {
-	n := "♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill♥♥"
+	n := "♥♥♥♥♥♥♥♥ We ♥ Unicity ♥♥♥♥♥♥♥♥ We ♥ Unicity ♥♥♥♥♥♥♥♥ We ♥ Unicity ♥♥♥♥♥♥♥♥ We ♥ Unicity ♥♥♥♥♥♥♥♥ We ♥ Unicity ♥♥♥♥♥♥♥♥ We ♥ Unicity ♥♥♥♥♥♥♥♥ We ♥ Unicity ♥♥♥♥♥♥♥♥ We ♥ Unicity♥♥"
 	txs, _, _ := newTokenTxSystem(t)
 	tx := testtransaction.NewTransactionOrder(
 		t,
@@ -1575,7 +1575,7 @@ func (m mockUnitData) Owner() []byte {
 	return nil
 }
 
-func (m mockUnitData) GetVersion() types.ABVersion {
+func (m mockUnitData) GetVersion() types.Version {
 	return 0
 }
 

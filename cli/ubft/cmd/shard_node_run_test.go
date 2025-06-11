@@ -11,26 +11,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/orchestration"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 
-	testutils "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	test "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/rpc"
+	testutils "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/net"
+	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	test "github.com/unicitynetwork/bft-core/internal/testutils/time"
+	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/partition"
+	"github.com/unicitynetwork/bft-core/rpc"
 )
 
 type envVar [2]string
@@ -79,8 +79,8 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 			args: "shard-node run --config=custom-config.props",
 			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
-				f.HomeDir = alphabillHomeDir()
-				f.CfgFile = alphabillHomeDir() + "/custom-config.props"
+				f.HomeDir = unicityHomeDir()
+				f.CfgFile = unicityHomeDir() + "/custom-config.props"
 				f.LogCfgFile = defaultLoggerConfigFile
 				return f
 			}(),
@@ -114,7 +114,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 		{
 			args: "shard-node run",
 			envVars: []envVar{
-				{"AB_RPC_SERVER_ADDRESS", "srv:1234"},
+				{"UBFT_RPC_SERVER_ADDRESS", "srv:1234"},
 			},
 			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
@@ -124,7 +124,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 		}, {
 			args: "shard-node run --rpc-server-address=srv:666",
 			envVars: []envVar{
-				{"AB_RPC_SERVER_ADDRESS", "srv:1234"},
+				{"UBFT_RPC_SERVER_ADDRESS", "srv:1234"},
 			},
 			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
@@ -134,9 +134,9 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 		}, {
 			args: "shard-node run --home=/custom-home-1",
 			envVars: []envVar{
-				{"AB_HOME", "/custom-home-2"},
-				{"AB_CONFIG", "custom-config.props"},
-				{"AB_LOGGER_CONFIG", logCfgFilename},
+				{"UBFT_HOME", "/custom-home-2"},
+				{"UBFT_CONFIG", "custom-config.props"},
+				{"UBFT_LOGGER_CONFIG", logCfgFilename},
 			},
 			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
@@ -148,8 +148,8 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 		}, {
 			args: "shard-node run",
 			envVars: []envVar{
-				{"AB_HOME", "/custom-home"},
-				{"AB_CONFIG", "custom-config.props"},
+				{"UBFT_HOME", "/custom-home"},
+				{"UBFT_CONFIG", "custom-config.props"},
 			},
 			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
@@ -161,9 +161,9 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 		}, {
 			args: "shard-node run",
 			envVars: []envVar{
-				{"AB_LEDGER_REPLICATION_MAX_BLOCKS_FETCH", "4"},
-				{"AB_LEDGER_REPLICATION_MAX_BLOCKS", "8"},
-				{"AB_LEDGER_REPLICATION_MAX_TRANSACTIONS", "16"},
+				{"UBFT_LEDGER_REPLICATION_MAX_BLOCKS_FETCH", "4"},
+				{"UBFT_LEDGER_REPLICATION_MAX_BLOCKS", "8"},
+				{"UBFT_LEDGER_REPLICATION_MAX_TRANSACTIONS", "16"},
 			},
 			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
@@ -241,8 +241,8 @@ logger-config: "` + logCfgFilename + `"
 func defaultFlags() *ShardNodeRunFlags {
 	flags := &ShardNodeRunFlags{
 		baseFlags: &baseFlags{
-			HomeDir:    alphabillHomeDir(),
-			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
+			HomeDir:    unicityHomeDir(),
+			CfgFile:    filepath.Join(unicityHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 			partitions: map[types.PartitionTypeID]Partition{
 				money.PartitionTypeID:         NewMoneyPartition(),

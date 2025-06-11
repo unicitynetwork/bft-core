@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"testing"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 var unitIdentifiers = []types.UnitID{
@@ -49,7 +49,7 @@ func (t *TestData) Owner() []byte {
 	return t.OwnerPredicate
 }
 
-func (t *TestData) GetVersion() types.ABVersion {
+func (t *TestData) GetVersion() types.Version {
 	return 0
 }
 
@@ -975,7 +975,7 @@ func (p *pruneUnitData) Owner() []byte {
 	return p.O
 }
 
-func (p *pruneUnitData) GetVersion() types.ABVersion {
+func (p *pruneUnitData) GetVersion() types.Version {
 	return 0
 }
 

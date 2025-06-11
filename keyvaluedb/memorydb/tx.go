@@ -3,7 +3,7 @@ package memorydb
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
 )
 
 type Tx struct {

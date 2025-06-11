@@ -11,7 +11,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 /*
@@ -35,7 +35,7 @@ const (
 )
 
 /*
-NodeID adds "AB node ID" field.
+NodeID adds "UBFT node ID" field.
 
 This function should be used with logger.With() method to create sub-logger
 for the node (rather than adding NodeID call to individual logging calls).
@@ -258,7 +258,7 @@ package name from it.
 */
 func trimSource(src *slog.Source) {
 	// function name by default includes "full path package name" ie
-	// github.com/alphabill-org/alphabill/cli/alphabill/cmd.newBaseCmd.func1
+	// github.com/unicitynetwork/bft-core/cli/bft/cmd.newBaseCmd.func1
 	// so first get last part of the path (filename)...
 	_, src.Function = filepath.Split(src.Function)
 	// ...and then get rid of package name in front of func name

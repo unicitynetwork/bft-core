@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 type (

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/libp2p/go-libp2p/core/peer"
+	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
 const UnknownLeader = ""

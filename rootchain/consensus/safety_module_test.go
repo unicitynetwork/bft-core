@@ -6,11 +6,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 func initSafetyModule(t *testing.T, id string, db SafetyStorage) *SafetyModule {

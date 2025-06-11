@@ -10,17 +10,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
-	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
-	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/predicates/templates"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/encoder"
+	tokenenc "github.com/unicitynetwork/bft-core/txsystem/tokens/encoder"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/predicates/wasm"
+	tokenid "github.com/unicitynetwork/bft-go-base/testutils/tokens"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 // the source code of the predicate is in the Rust SDK repo under examples

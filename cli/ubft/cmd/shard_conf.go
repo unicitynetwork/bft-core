@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/spf13/cobra"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const shardConfFileName = "shard-conf.json"
@@ -28,7 +28,7 @@ func newShardConfCmd(baseConfig *baseFlags) *cobra.Command {
 
 func (f *shardConfFlags) addShardConfFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&f.ShardConfFile, "shard-conf", "s", "",
-		fmt.Sprintf("path to shard conf (default: %s)", filepath.Join("$AB_HOME", shardConfFileName)))
+		fmt.Sprintf("path to shard conf (default: %s)", filepath.Join("$UBFT_HOME", shardConfFileName)))
 }
 
 func (f *shardConfFlags) shardConfPath(baseFlags *baseFlags) string {

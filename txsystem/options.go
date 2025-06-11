@@ -4,11 +4,11 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/templates"
-	"github.com/alphabill-org/alphabill/state"
-	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/predicates/templates"
+	"github.com/unicitynetwork/bft-core/state"
+	abfc "github.com/unicitynetwork/bft-core/txsystem/fc"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 )
 
 type Options struct {
