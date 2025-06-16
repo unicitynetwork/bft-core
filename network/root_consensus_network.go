@@ -16,48 +16,48 @@ const (
 )
 
 func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Duration, obs Observability) (*LibP2PNetwork, error) {
-	n, err := newLibP2PNetwork(self, capacity, obs)
+	n, err := NewLibP2PNetwork(self, capacity, obs)
 	if err != nil {
 		return nil, err
 	}
-	sendProtocolDescriptions := []sendProtocolDescription{
-		{protocolID: ProtocolRootIrChangeReq, timeout: sendTimeout, msgType: abdrc.IrChangeReqMsg{}},
-		{protocolID: ProtocolRootProposal, timeout: sendTimeout, msgType: abdrc.ProposalMsg{}},
-		{protocolID: ProtocolRootVote, timeout: sendTimeout, msgType: abdrc.VoteMsg{}},
-		{protocolID: ProtocolRootTimeout, timeout: sendTimeout, msgType: abdrc.TimeoutMsg{}},
-		{protocolID: ProtocolRootStateReq, timeout: sendTimeout, msgType: abdrc.StateRequestMsg{}},
-		{protocolID: ProtocolRootStateResp, timeout: sendTimeout, msgType: abdrc.StateMsg{}},
+	sendProtocolDescriptions := []SendProtocolDescription{
+		{ProtocolID: ProtocolRootIrChangeReq, Timeout: sendTimeout, MsgType: abdrc.IrChangeReqMsg{}},
+		{ProtocolID: ProtocolRootProposal, Timeout: sendTimeout, MsgType: abdrc.ProposalMsg{}},
+		{ProtocolID: ProtocolRootVote, Timeout: sendTimeout, MsgType: abdrc.VoteMsg{}},
+		{ProtocolID: ProtocolRootTimeout, Timeout: sendTimeout, MsgType: abdrc.TimeoutMsg{}},
+		{ProtocolID: ProtocolRootStateReq, Timeout: sendTimeout, MsgType: abdrc.StateRequestMsg{}},
+		{ProtocolID: ProtocolRootStateResp, Timeout: sendTimeout, MsgType: abdrc.StateMsg{}},
 	}
-	if err = n.registerSendProtocols(sendProtocolDescriptions); err != nil {
+	if err = n.RegisterSendProtocols(sendProtocolDescriptions); err != nil {
 		return nil, err
 	}
-	receiveProtocolDescriptions := []receiveProtocolDescription{
+	receiveProtocolDescriptions := []ReceiveProtocolDescription{
 		{
-			protocolID: ProtocolRootIrChangeReq,
-			typeFn:     func() any { return &abdrc.IrChangeReqMsg{} },
+			ProtocolID: ProtocolRootIrChangeReq,
+			TypeFn:     func() any { return &abdrc.IrChangeReqMsg{} },
 		},
 		{
-			protocolID: ProtocolRootProposal,
-			typeFn:     func() any { return &abdrc.ProposalMsg{} },
+			ProtocolID: ProtocolRootProposal,
+			TypeFn:     func() any { return &abdrc.ProposalMsg{} },
 		},
 		{
-			protocolID: ProtocolRootVote,
-			typeFn:     func() any { return &abdrc.VoteMsg{} },
+			ProtocolID: ProtocolRootVote,
+			TypeFn:     func() any { return &abdrc.VoteMsg{} },
 		},
 		{
-			protocolID: ProtocolRootTimeout,
-			typeFn:     func() any { return &abdrc.TimeoutMsg{} },
+			ProtocolID: ProtocolRootTimeout,
+			TypeFn:     func() any { return &abdrc.TimeoutMsg{} },
 		},
 		{
-			protocolID: ProtocolRootStateReq,
-			typeFn:     func() any { return &abdrc.StateRequestMsg{} },
+			ProtocolID: ProtocolRootStateReq,
+			TypeFn:     func() any { return &abdrc.StateRequestMsg{} },
 		},
 		{
-			protocolID: ProtocolRootStateResp,
-			typeFn:     func() any { return &abdrc.StateMsg{} },
+			ProtocolID: ProtocolRootStateResp,
+			TypeFn:     func() any { return &abdrc.StateMsg{} },
 		},
 	}
-	if err = n.registerReceiveProtocols(receiveProtocolDescriptions); err != nil {
+	if err = n.RegisterReceiveProtocols(receiveProtocolDescriptions); err != nil {
 		return nil, err
 	}
 	return n, nil

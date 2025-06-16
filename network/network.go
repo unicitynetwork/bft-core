@@ -28,18 +28,18 @@ type (
 		PopFront() any
 	}
 
-	sendProtocolDescription struct {
-		protocolID string
-		msgType    any           // value of the message type of the protocol
-		timeout    time.Duration // timeout per receiver
+	SendProtocolDescription struct {
+		ProtocolID string
+		MsgType    any           // value of the message type of the protocol
+		Timeout    time.Duration // timeout per receiver
 	}
 
-	receiveProtocolDescription struct {
-		protocolID string
+	ReceiveProtocolDescription struct {
+		ProtocolID string
 		// constructor which returns pointer to a data struct into which
 		// received message can be stored
-		typeFn  func() any
-		handler libp2pNetwork.StreamHandler
+		TypeFn  func() any
+		Handler libp2pNetwork.StreamHandler
 	}
 
 	sendProtocolData struct {
@@ -68,14 +68,14 @@ type LibP2PNetwork struct {
 }
 
 /*
-newLibP2PNetwork creates a new libp2p network without protocols (protocols need to be
+NewLibP2PNetwork creates a new libp2p network without protocols (protocols need to be
 registered separately to make the network actually useful).
 
 In case of slow consumer up to "capacity" messages are buffered, after that messages will be dropped.
 
 Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
-func newLibP2PNetwork(self *Peer, capacity uint, obs Observability) (*LibP2PNetwork, error) {
+func NewLibP2PNetwork(self *Peer, capacity uint, obs Observability) (*LibP2PNetwork, error) {
 	if self == nil {
 		return nil, errors.New("peer is nil")
 	}
@@ -261,37 +261,37 @@ func (n *LibP2PNetwork) receivedMsg(from peer.ID, protocolID string, msg any) er
 	return nil
 }
 
-func (n *LibP2PNetwork) registerReceiveProtocols(protocols []receiveProtocolDescription) error {
+func (n *LibP2PNetwork) RegisterReceiveProtocols(protocols []ReceiveProtocolDescription) error {
 	if len(protocols) == 0 {
 		return errors.New("at least one protocol description must be given")
 	}
 
 	for _, p := range protocols {
 		if err := n.registerReceiveProtocol(p); err != nil {
-			return fmt.Errorf("registering protocol %q: %w", p.protocolID, err)
+			return fmt.Errorf("registering protocol %q: %w", p.ProtocolID, err)
 		}
 	}
 
 	return nil
 }
 
-func (n *LibP2PNetwork) registerReceiveProtocol(protoc receiveProtocolDescription) error {
-	if protoc.protocolID == "" {
+func (n *LibP2PNetwork) registerReceiveProtocol(protoc ReceiveProtocolDescription) error {
+	if protoc.ProtocolID == "" {
 		return errors.New("protocol ID must be assigned")
 	}
-	if slices.Contains(n.self.host.Mux().Protocols(), protocol.ID(protoc.protocolID)) {
-		return fmt.Errorf("protocol %q is already registered", protoc.protocolID)
+	if slices.Contains(n.self.host.Mux().Protocols(), protocol.ID(protoc.ProtocolID)) {
+		return fmt.Errorf("protocol %q is already registered", protoc.ProtocolID)
 	}
 
-	if protoc.handler != nil {
-		n.self.RegisterProtocolHandler(protoc.protocolID, protoc.handler)
+	if protoc.Handler != nil {
+		n.self.RegisterProtocolHandler(protoc.ProtocolID, protoc.Handler)
 		return nil
 	}
 
-	if protoc.typeFn == nil {
+	if protoc.TypeFn == nil {
 		return errors.New("data struct constructor or handler must be assigned")
 	}
-	msg := protoc.typeFn()
+	msg := protoc.TypeFn()
 	if msg == nil {
 		return errors.New("data struct constructor returns nil")
 	}
@@ -307,49 +307,49 @@ func (n *LibP2PNetwork) registerReceiveProtocol(protoc receiveProtocolDescriptio
 		return fmt.Errorf("data struct constructor must return pointer to struct but returns %s", typ)
 	}
 
-	n.self.RegisterProtocolHandler(protoc.protocolID, n.streamHandlerForProtocol(protoc.protocolID, protoc.typeFn))
+	n.self.RegisterProtocolHandler(protoc.ProtocolID, n.streamHandlerForProtocol(protoc.ProtocolID, protoc.TypeFn))
 	return nil
 }
 
 /*
-registerSendProtocols allows to register multiple send protocols with single call.
+RegisterSendProtocols allows to register multiple send protocols with single call.
 It calls "registerSendProtocol" for each element in the "protocols" parameter.
 */
-func (n *LibP2PNetwork) registerSendProtocols(protocols []sendProtocolDescription) error {
+func (n *LibP2PNetwork) RegisterSendProtocols(protocols []SendProtocolDescription) error {
 	if len(protocols) == 0 {
 		return errors.New("at least one protocol description must be given")
 	}
 
 	for _, pd := range protocols {
 		if err := n.registerSendProtocol(pd); err != nil {
-			return fmt.Errorf("registering protocol %q: %w", pd.protocolID, err)
+			return fmt.Errorf("registering protocol %q: %w", pd.ProtocolID, err)
 		}
 	}
 	return nil
 }
 
-func (n *LibP2PNetwork) registerSendProtocol(protocol sendProtocolDescription) error {
-	if protocol.protocolID == "" {
+func (n *LibP2PNetwork) registerSendProtocol(protocol SendProtocolDescription) error {
+	if protocol.ProtocolID == "" {
 		return errors.New("protocol ID must be assigned")
 	}
 
-	if protocol.timeout < 0 {
-		return fmt.Errorf("negative duration is not allowed for timeout, got %s for %s", protocol.timeout, protocol.protocolID)
+	if protocol.Timeout < 0 {
+		return fmt.Errorf("negative duration is not allowed for timeout, got %s for %s", protocol.Timeout, protocol.ProtocolID)
 	}
 
-	typ := reflect.TypeOf(protocol.msgType)
+	typ := reflect.TypeOf(protocol.MsgType)
 	if typ == nil {
 		return errors.New("message data type must be assigned")
 	}
 	if typ.Kind() != reflect.Struct {
-		return fmt.Errorf("message data type must be struct, got %T", protocol.msgType)
+		return fmt.Errorf("message data type must be struct, got %T", protocol.MsgType)
 	}
 
 	if spd, ok := n.sendProtocols[typ]; ok {
 		return fmt.Errorf("data type %s has been already registered for protocol %s", typ, spd.protocolID)
 	}
 
-	spx := &sendProtocolData{protocolID: protocol.protocolID, timeout: protocol.timeout}
+	spx := &sendProtocolData{protocolID: protocol.ProtocolID, timeout: protocol.Timeout}
 	n.sendProtocols[typ] = spx
 	n.sendProtocols[reflect.PointerTo(typ)] = spx
 	return nil

@@ -18,29 +18,29 @@ const (
 Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
 func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout time.Duration, obs Observability) (*LibP2PNetwork, error) {
-	n, err := newLibP2PNetwork(self, capacity, obs)
+	n, err := NewLibP2PNetwork(self, capacity, obs)
 	if err != nil {
 		return nil, err
 	}
 
-	sendProtocolDescriptions := []sendProtocolDescription{
-		{protocolID: ProtocolUnicityCertificates, timeout: sendCertificateTimeout, msgType: certification.CertificationResponse{}},
+	sendProtocolDescriptions := []SendProtocolDescription{
+		{ProtocolID: ProtocolUnicityCertificates, Timeout: sendCertificateTimeout, MsgType: certification.CertificationResponse{}},
 	}
-	if err = n.registerSendProtocols(sendProtocolDescriptions); err != nil {
+	if err = n.RegisterSendProtocols(sendProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering send protocols: %w", err)
 	}
 
-	receiveProtocolDescriptions := []receiveProtocolDescription{
+	receiveProtocolDescriptions := []ReceiveProtocolDescription{
 		{
-			protocolID: ProtocolBlockCertification,
-			typeFn:     func() any { return &certification.BlockCertificationRequest{} },
+			ProtocolID: ProtocolBlockCertification,
+			TypeFn:     func() any { return &certification.BlockCertificationRequest{} },
 		},
 		{
-			protocolID: ProtocolHandshake,
-			typeFn:     func() any { return &handshake.Handshake{} },
+			ProtocolID: ProtocolHandshake,
+			TypeFn:     func() any { return &handshake.Handshake{} },
 		},
 	}
-	if err = n.registerReceiveProtocols(receiveProtocolDescriptions); err != nil {
+	if err = n.RegisterReceiveProtocols(receiveProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering receive protocols: %w", err)
 	}
 

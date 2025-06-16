@@ -96,7 +96,7 @@ NewLibP2PValidatorNetwork creates a new LibP2PNetwork based validator network.
 Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
 func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNetworkOptions, obs Observability) (*validatorNetwork, error) {
-	base, err := newLibP2PNetwork(node.Peer(), opts.ReceivedChannelCapacity, obs)
+	base, err := NewLibP2PNetwork(node.Peer(), opts.ReceivedChannelCapacity, obs)
 	if err != nil {
 		return nil, err
 	}
@@ -116,47 +116,47 @@ func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNet
 		return nil, fmt.Errorf("initializing gossip protocol: %w", err)
 	}
 
-	sendProtocolDescriptions := []sendProtocolDescription{
+	sendProtocolDescriptions := []SendProtocolDescription{
 		{
-			protocolID: ProtocolLedgerReplicationReq,
-			timeout:    opts.LedgerReplicationRequestTimeout,
-			msgType:    replication.LedgerReplicationRequest{}},
+			ProtocolID: ProtocolLedgerReplicationReq,
+			Timeout:    opts.LedgerReplicationRequestTimeout,
+			MsgType:    replication.LedgerReplicationRequest{}},
 		{
-			protocolID: ProtocolLedgerReplicationResp,
-			timeout:    opts.LedgerReplicationResponseTimeout,
-			msgType:    replication.LedgerReplicationResponse{},
+			ProtocolID: ProtocolLedgerReplicationResp,
+			Timeout:    opts.LedgerReplicationResponseTimeout,
+			MsgType:    replication.LedgerReplicationResponse{},
 		},
 		{
-			protocolID: ProtocolBlockProposal,
-			timeout:    opts.BlockProposalTimeout,
-			msgType:    blockproposal.BlockProposal{},
+			ProtocolID: ProtocolBlockProposal,
+			Timeout:    opts.BlockProposalTimeout,
+			MsgType:    blockproposal.BlockProposal{},
 		},
 		{
-			protocolID: ProtocolBlockCertification,
-			timeout:    opts.BlockCertificationTimeout,
-			msgType:    certification.BlockCertificationRequest{},
+			ProtocolID: ProtocolBlockCertification,
+			Timeout:    opts.BlockCertificationTimeout,
+			MsgType:    certification.BlockCertificationRequest{},
 		},
 		{
-			protocolID: ProtocolHandshake,
-			timeout:    opts.HandshakeTimeout,
-			msgType:    handshake.Handshake{},
+			ProtocolID: ProtocolHandshake,
+			Timeout:    opts.HandshakeTimeout,
+			MsgType:    handshake.Handshake{},
 		},
 	}
-	if err = n.registerSendProtocols(sendProtocolDescriptions); err != nil {
+	if err = n.RegisterSendProtocols(sendProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering send protocols: %w", err)
 	}
 
-	receiveProtocolDescriptions := []receiveProtocolDescription{
+	receiveProtocolDescriptions := []ReceiveProtocolDescription{
 		{
-			protocolID: ProtocolLedgerReplicationReq,
-			typeFn:     func() any { return &replication.LedgerReplicationRequest{} },
+			ProtocolID: ProtocolLedgerReplicationReq,
+			TypeFn:     func() any { return &replication.LedgerReplicationRequest{} },
 		},
 		{
-			protocolID: ProtocolLedgerReplicationResp,
-			typeFn:     func() any { return &replication.LedgerReplicationResponse{} },
+			ProtocolID: ProtocolLedgerReplicationResp,
+			TypeFn:     func() any { return &replication.LedgerReplicationResponse{} },
 		},
 	}
-	if err = n.registerReceiveProtocols(receiveProtocolDescriptions); err != nil {
+	if err = n.RegisterReceiveProtocols(receiveProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering receive protocols: %w", err)
 	}
 
@@ -247,21 +247,21 @@ func (n *validatorNetwork) UnsubscribeFromBlocks() {
 }
 
 func (n *validatorNetwork) RegisterValidatorProtocols() error {
-	receiveProtocols := []receiveProtocolDescription{
+	receiveProtocols := []ReceiveProtocolDescription{
 		{
-			protocolID: ProtocolBlockProposal,
-			typeFn:     func() any { return &blockproposal.BlockProposal{} },
+			ProtocolID: ProtocolBlockProposal,
+			TypeFn:     func() any { return &blockproposal.BlockProposal{} },
 		},
 		{
-			protocolID: ProtocolInputForward,
-			handler:    n.handleTransactions,
+			ProtocolID: ProtocolInputForward,
+			Handler:    n.handleTransactions,
 		},
 		{
-			protocolID: ProtocolUnicityCertificates,
-			typeFn:     func() any { return &certification.CertificationResponse{} },
+			ProtocolID: ProtocolUnicityCertificates,
+			TypeFn:     func() any { return &certification.CertificationResponse{} },
 		},
 	}
-	return n.registerReceiveProtocols(receiveProtocols)
+	return n.RegisterReceiveProtocols(receiveProtocols)
 }
 
 func (n *validatorNetwork) UnregisterValidatorProtocols() {
