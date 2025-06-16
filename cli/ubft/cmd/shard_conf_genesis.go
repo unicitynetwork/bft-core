@@ -65,7 +65,8 @@ func shardConfGenesis(flags *shardConfGenesisFlags) error {
 func newGenesisState(pdr *types.PartitionDescriptionRecord, flags *shardConfGenesisFlags) (*state.State, error) {
 	partition, ok := flags.baseFlags.partitions[pdr.PartitionTypeID]
 	if !ok {
-		return nil, fmt.Errorf("unsupported partition type %d", pdr.PartitionTypeID)
+		//return nil, fmt.Errorf("unsupported partition type %d", pdr.PartitionTypeID)
+		return state.NewEmptyState(), nil
 	}
 	return partition.NewGenesisState(pdr)
 }
