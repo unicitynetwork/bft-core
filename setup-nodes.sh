@@ -1,5 +1,4 @@
 #!/bin/bash
-unicity_node=1
 money_nodes=3
 token_nodes=3
 orchestration_nodes=3
@@ -12,11 +11,11 @@ set -e
 
 # print help
 usage() {
-  echo "Generate 'test-nodes' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-u number of unicity nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate] [-k number of enterprise token partition nodes] [-a enterprise token partition admin owner predicate]"
+  echo "Generate 'test-nodes' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate] [-k number of enterprise token partition nodes] [-a enterprise token partition admin owner predicate]"
   exit 0
 }
 # handle arguments
-while getopts "chm:t:u:r:e:o:i:k:a:" o; do
+while getopts "chm:t:r:e:o:i:k:a:" o; do
   case "${o}" in
   c)
     reset_db_only=true
@@ -26,9 +25,6 @@ while getopts "chm:t:u:r:e:o:i:k:a:" o; do
     ;;
   t)
     token_nodes=${OPTARG}
-    ;;
-  u)
-    unicity_node=${OPTARG}
     ;;
   r)
     root_nodes=${OPTARG}
@@ -80,11 +76,6 @@ fi
 if [ "$token_nodes" -ne 0 ]; then
   init_shard_nodes test-nodes/tokens 2 2 "$token_nodes"
   generate_shard_genesis_state test-nodes/tokens 2 "$token_nodes"
-fi
-
-if [ "$unicity_node" -ne 0 ]; then
-  init_shard_nodes test-nodes/unicity 7 7 "$unicity_node"
-  generate_shard_genesis_state test-nodes/unicity 7 "$unicity_node"
 fi
 
 if [ "$orchestration_nodes" -ne 0 ]; then
