@@ -1,5 +1,4 @@
 #!/bin/bash
-
 money_nodes=3
 token_nodes=3
 orchestration_nodes=3
