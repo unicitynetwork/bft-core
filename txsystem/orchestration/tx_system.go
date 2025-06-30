@@ -8,7 +8,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func NewTxSystem(shardConf types.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(shardConf txsystem.ShardConf, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default configuration: %w", err)

@@ -63,7 +63,11 @@ func Test_MoneyGenesis(t *testing.T) {
 		require.NoError(t, err)
 
 		cmd := New(testobserve.NewFactory(t))
-		cmd.baseCmd.SetArgs([]string{"shard-conf", "genesis", "--home", homeDir})
+		cmd.baseCmd.SetArgs([]string{
+			"shard-conf", "genesis",
+			"--home", homeDir,
+			"--shard-conf", filepath.Join(homeDir, shardConfFileName),
+		})
 		err = cmd.Execute(context.Background())
 		require.ErrorContains(t, err, fmt.Sprintf("state file %q already exists", genesisStatePath))
 	})
@@ -72,7 +76,11 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := writeShardConf(t, shardConf)
 
 		cmd := New(testobserve.NewFactory(t))
-		cmd.baseCmd.SetArgs([]string{"shard-conf", "genesis", "--home", homeDir})
+		cmd.baseCmd.SetArgs([]string{
+			"shard-conf", "genesis",
+			"--home", homeDir,
+			"--shard-conf", filepath.Join(homeDir, shardConfFileName),
+		})
 		require.NoError(t, cmd.Execute(context.Background()))
 	})
 
@@ -94,7 +102,11 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := writeShardConf(t, shardConf)
 
 		cmd := New(testobserve.NewFactory(t))
-		cmd.baseCmd.SetArgs([]string{"shard-conf", "genesis", "--home", homeDir})
+		cmd.baseCmd.SetArgs([]string{
+			"shard-conf", "genesis",
+			"--home", homeDir,
+			"--shard-conf", filepath.Join(homeDir, shardConfFileName),
+		})
 		require.NoError(t, cmd.Execute(context.Background()))
 
 		// TODO: test this under shard_conf_generate_test.go
@@ -128,6 +140,11 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := writeShardConf(t, shardConf)
 		cmd := New(testobserve.NewFactory(t))
 		cmd.baseCmd.SetArgs([]string{"shard-conf", "genesis", "--home", homeDir})
+		cmd.baseCmd.SetArgs([]string{
+			"shard-conf", "genesis",
+			"--home", homeDir,
+			"--shard-conf", filepath.Join(homeDir, shardConfFileName),
+		})
 		require.NoError(t, cmd.Execute(context.Background()))
 
 		// TOOD: shard_conf_generate_test.go

@@ -5,74 +5,60 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
 )
 
 type (
-	// TxValidator is used to validate generic transactions (e.g. timeouts, partition identifiers, etc.). This validator
+	// TransactionOrderValidator is used to validate generic transactions (e.g. timeouts, partition identifiers, etc.). This validator
 	// should not contain transaction system specific validation logic.
-	TxValidator interface {
-		Validate(tx *types.TransactionOrder, currentRoundNumber uint64) error
+	TransactionOrderValidator interface {
+		Validate(tx *types.TransactionOrder, shardConf *types.PartitionDescriptionRecord, currentRoundNumber uint64) error
 	}
 
 	// UnicityCertificateValidator is used to validate certificates.UnicityCertificate.
 	UnicityCertificateValidator interface {
 		// Validate validates the given UC. Returns an error if UC is not valid.
-		Validate(uc *types.UnicityCertificate, shardConfHash []byte) error
+		Validate(uc *types.UnicityCertificate, shardConf *types.PartitionDescriptionRecord, trustBase types.RootTrustBase) error
 	}
 
 	// BlockProposalValidator is used to validate block proposals.
 	BlockProposalValidator interface {
 		// Validate validates the given blockproposal.BlockProposal. Returns an error if given block proposal
 		// is not valid.
-		Validate(bp *blockproposal.BlockProposal, sigVerifier crypto.Verifier, shardConfHash []byte) error
+		Validate(bp *blockproposal.BlockProposal, shardConf *types.PartitionDescriptionRecord, trustBase types.RootTrustBase) error
 	}
 
 	// DefaultUnicityCertificateValidator is a default implementation of UnicityCertificateValidator.
 	DefaultUnicityCertificateValidator struct {
-		partitionID types.PartitionID
-		shardID     types.ShardID
-		trustBase   types.RootTrustBase
-		hashAlg     gocrypto.Hash
+		hashAlg gocrypto.Hash
 	}
 
 	// DefaultBlockProposalValidator is a default implementation of UnicityCertificateValidator.
 	DefaultBlockProposalValidator struct {
-		partitionID types.PartitionID
-		shardID     types.ShardID
-		trustBase   types.RootTrustBase
-		hashAlg     gocrypto.Hash
+		hashAlg gocrypto.Hash
 	}
 
-	DefaultTxValidator struct {
-		partitionID types.PartitionID
+	DefaultTransactionOrderValidator struct {
 	}
 )
 
 var ErrTxTimeout = errors.New("transaction has timed out")
-var errInvalidPartitionID = errors.New("invalid transaction partition identifier")
+var errInvalidPartitionID = errors.New("invalid partition identifier")
 
-// NewDefaultTxValidator creates a new instance of default TxValidator.
-func NewDefaultTxValidator(partitionID types.PartitionID) (TxValidator, error) {
-	if partitionID == 0 {
-		return nil, fmt.Errorf("invalid transaction partition identifier: %s", partitionID)
-	}
-	return &DefaultTxValidator{
-		partitionID: partitionID,
-	}, nil
+// NewDefaultTransactionOrderValidator creates a new instance of default TxValidator.
+func NewDefaultTransactionOrderValidator() TransactionOrderValidator {
+	return &DefaultTransactionOrderValidator{}
 }
 
-func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, currentRoundNumber uint64) error {
+func (v *DefaultTransactionOrderValidator) Validate(tx *types.TransactionOrder, shardConf *types.PartitionDescriptionRecord, currentRoundNumber uint64) error {
 	if tx == nil {
 		return errors.New("transaction is nil")
 	}
-	if dtv.partitionID != tx.PartitionID {
+	if shardConf.PartitionID != tx.PartitionID {
 		// transaction was not sent to correct transaction system
-		return fmt.Errorf("expected %s, got %s: %w", dtv.partitionID, tx.PartitionID, errInvalidPartitionID)
+		return fmt.Errorf("expected partitionID %s, got %s: %w", shardConf.PartitionID, tx.PartitionID, errInvalidPartitionID)
 	}
-
 	if tx.Timeout() < currentRoundNumber {
 		// transaction is expired
 		return fmt.Errorf("transaction timeout round is %d, current round is %d: %w", tx.Timeout(), currentRoundNumber, ErrTxTimeout)
@@ -86,51 +72,32 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, currentRound
 }
 
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
-func NewDefaultUnicityCertificateValidator(
-	partitionID types.PartitionID,
-	shardID types.ShardID,
-	trustBase types.RootTrustBase,
-	hashAlg gocrypto.Hash,
-) (UnicityCertificateValidator, error) {
-	if trustBase == nil {
-		return nil, types.ErrRootValidatorInfoMissing
-	}
-	return &DefaultUnicityCertificateValidator{
-		partitionID: partitionID,
-		shardID:     shardID,
-		trustBase:   trustBase,
-		hashAlg:     hashAlg,
-	}, nil
+func NewDefaultUnicityCertificateValidator(hashAlg gocrypto.Hash) UnicityCertificateValidator {
+	return &DefaultUnicityCertificateValidator{hashAlg: hashAlg}
 }
 
-func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertificate, shardConfHash []byte) error {
-	return uc.Verify(ucv.trustBase, ucv.hashAlg, ucv.partitionID, shardConfHash)
+func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertificate, shardConf *types.PartitionDescriptionRecord, trustBase types.RootTrustBase) error {
+	if shardConf == nil {
+		return errors.New("shard conf is nil")
+	}
+
+	var shardConfHash []byte
+	// Only verify shardConfHash if UC epoch matches the current shard epoch.
+	if uc != nil && uc.GetShardEpoch() == shardConf.Epoch {
+		var err error
+		shardConfHash, err = shardConf.Hash(ucv.hashAlg)
+		if err != nil {
+			return fmt.Errorf("failed to calculate shard conf hash: %w", err)
+		}
+	}
+	return uc.Verify(trustBase, ucv.hashAlg, shardConf.PartitionID, shardConf.ShardID, shardConfHash)
 }
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
-func NewDefaultBlockProposalValidator(
-	partitionID types.PartitionID,
-	shardID types.ShardID,
-	trustBase types.RootTrustBase,
-	hashAlg gocrypto.Hash,
-) (BlockProposalValidator, error) {
-	if trustBase == nil {
-		return nil, types.ErrRootValidatorInfoMissing
-	}
-	return &DefaultBlockProposalValidator{
-		partitionID: partitionID,
-		shardID:     shardID,
-		trustBase:   trustBase,
-		hashAlg:     hashAlg,
-	}, nil
+func NewDefaultBlockProposalValidator(hashAlg gocrypto.Hash) BlockProposalValidator {
+	return &DefaultBlockProposalValidator{hashAlg: hashAlg}
 }
 
-func (bpv *DefaultBlockProposalValidator) Validate(bp *blockproposal.BlockProposal, nodeSignatureVerifier crypto.Verifier, shardConfHash []byte) error {
-	return bp.IsValid(
-		nodeSignatureVerifier,
-		bpv.trustBase,
-		bpv.hashAlg,
-		bpv.partitionID,
-		shardConfHash,
-	)
+func (bpv *DefaultBlockProposalValidator) Validate(bp *blockproposal.BlockProposal, shardConf *types.PartitionDescriptionRecord, trustBase types.RootTrustBase) error {
+	return bp.IsValid(trustBase, shardConf, bpv.hashAlg)
 }

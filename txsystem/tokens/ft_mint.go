@@ -28,12 +28,12 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	tokenTypeID := attr.TypeID
 
 	// verify tx.unitID (new token id) has correct embedded type
-	if err := tokenID.TypeMustBe(tokens.FungibleTokenUnitType, &m.pdr); err != nil {
+	if err := tokenID.TypeMustBe(tokens.FungibleTokenUnitType, m.shardConf.ExtractUnitType); err != nil {
 		return fmt.Errorf("invalid unit ID: %w", err)
 	}
 
 	// verify token type has correct embedded type
-	if err := tokenTypeID.TypeMustBe(tokens.FungibleTokenTypeUnitType, &m.pdr); err != nil {
+	if err := tokenTypeID.TypeMustBe(tokens.FungibleTokenTypeUnitType, m.shardConf.ExtractUnitType); err != nil {
 		return fmt.Errorf("invalid token type: %w", err)
 	}
 
@@ -65,7 +65,7 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	}
 
 	// verify token id is correctly generated
-	newTokenID, err := m.pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
+	newTokenID, err := m.shardConf.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
 	if err != nil {
 		return err
 	}

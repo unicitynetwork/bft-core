@@ -130,7 +130,7 @@ func Test_parseFeeCreditRecord(t *testing.T) {
 			OwnerPredicate: []byte{2},
 		}
 		require.NoError(t, s.Apply(state.AddUnit(fcrID, fcr)))
-		unitData, err := parseFeeCreditRecord(&pdr, fcrID, feeCreditRecordUnitType, s)
+		unitData, err := parseFeeCreditRecord(pdr.ExtractUnitType, fcrID, feeCreditRecordUnitType, s)
 		require.NoError(t, err)
 		require.EqualValues(t, fcr, unitData)
 	})
@@ -139,14 +139,14 @@ func Test_parseFeeCreditRecord(t *testing.T) {
 		s := state.NewEmptyState()
 		unitID := []byte{1}
 		require.NoError(t, s.Apply(state.AddUnit(unitID, &fc.FeeCreditRecord{})))
-		unitData, err := parseFeeCreditRecord(&pdr, unitID, feeCreditRecordUnitType, s)
+		unitData, err := parseFeeCreditRecord(pdr.ExtractUnitType, unitID, feeCreditRecordUnitType, s)
 		require.EqualError(t, err, "invalid unit identifier: type is not fee credit record")
 		require.Nil(t, unitData)
 	})
 
 	t.Run("fcr unit not found", func(t *testing.T) {
 		s := state.NewEmptyState()
-		unitData, err := parseFeeCreditRecord(&pdr, fcrID, feeCreditRecordUnitType, s)
+		unitData, err := parseFeeCreditRecord(pdr.ExtractUnitType, fcrID, feeCreditRecordUnitType, s)
 		require.EqualError(t, err, "get fcr unit error: item 00000000000000000000000000000000000000000000000000000000000000000A does not exist: not found")
 		require.Nil(t, unitData)
 	})
@@ -155,7 +155,7 @@ func Test_parseFeeCreditRecord(t *testing.T) {
 		s := state.NewEmptyState()
 		fcr := &testData{}
 		require.NoError(t, s.Apply(state.AddUnit(fcrID, fcr)))
-		unitData, err := parseFeeCreditRecord(&pdr, fcrID, feeCreditRecordUnitType, s)
+		unitData, err := parseFeeCreditRecord(pdr.ExtractUnitType, fcrID, feeCreditRecordUnitType, s)
 		require.EqualError(t, err, "invalid unit type: unit is not fee credit record")
 		require.Nil(t, unitData)
 	})

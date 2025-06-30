@@ -103,7 +103,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: verify tx inclusion: failed to get unicity certificate: unicity certificate is nil")
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: unicity certificate is nil")
 	})
 	t.Run("InvalidDcProofInvalid", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidDcProofsSwap(t, &pdr, signer)
@@ -191,7 +191,7 @@ func newInvalidTargetUnitIDSwap(t *testing.T, pdr *types.PartitionDescriptionRec
 	}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPartitionID(partitionID),
+		testtransaction.WithPartition(pdr),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -234,7 +234,7 @@ func newDescBillOrderSwap(t *testing.T, pdr *types.PartitionDescriptionRecord, s
 	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPartitionID(partitionID),
+		testtransaction.WithPartition(pdr),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -267,7 +267,7 @@ func newEqualBillIdsSwap(t *testing.T, pdr *types.PartitionDescriptionRecord, si
 	attr := &money.SwapDCAttributes{DustTransferProofs: txrProofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPartitionID(partitionID),
+		testtransaction.WithPartition(pdr),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -354,7 +354,7 @@ func newEmptyDcProofsSwap(t *testing.T, pdr *types.PartitionDescriptionRecord, s
 	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPartitionID(partitionID),
+		testtransaction.WithPartition(pdr),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),

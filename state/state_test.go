@@ -585,7 +585,7 @@ func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
 
 type alwaysValid struct{}
 
-func (a *alwaysValid) Validate(*types.UnicityCertificate, []byte) error {
+func (a *alwaysValid) Validate(*types.UnicityCertificate, *types.PartitionDescriptionRecord, types.RootTrustBase) error {
 	return nil
 }
 
@@ -600,7 +600,7 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 		require.NoError(t, err)
 		data, err := types.NewUnitState(unit.data, 0, nil)
 		require.NoError(t, err)
-		require.NoError(t, proof.Verify(crypto.SHA256, data, &alwaysValid{}, nil))
+		require.NoError(t, proof.Verify(crypto.SHA256, data, &alwaysValid{}, nil, nil))
 	})
 	t.Run("unit not found", func(t *testing.T) {
 		s, _, _ := prepareState(t)
@@ -810,24 +810,25 @@ func TestState_GetUnits(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 5)
 	})
-	t.Run("nok without pdr", func(t *testing.T) {
+	t.Run("nok without unit type extractor", func(t *testing.T) {
 		typeID := uint32(1)
 		unitIDs, err := s.GetUnits(&typeID, nil)
-		require.ErrorContains(t, err, "partition description record is nil")
+		require.ErrorContains(t, err, "unit type extractor is nil")
 		require.Nil(t, unitIDs)
 	})
 	t.Run("nok with invalid pdr", func(t *testing.T) {
 		typeID := uint32(3)
-		unitIDs, err := s.GetUnits(&typeID, &types.PartitionDescriptionRecord{
+		shardConf := &types.PartitionDescriptionRecord{
 			TypeIDLen: 16,
 			UnitIDLen: 256,
-		})
+		}
+		unitIDs, err := s.GetUnits(&typeID, shardConf.ExtractUnitType)
 		require.ErrorContains(t, err, "failed to traverse state: extracting unit type from unit ID: expected unit ID length 34 bytes, got 33 bytes")
 		require.Nil(t, unitIDs)
 	})
 	t.Run("ok with type id 1", func(t *testing.T) {
 		typeID := uint32(1)
-		unitIDs, err := s.GetUnits(&typeID, pdr)
+		unitIDs, err := s.GetUnits(&typeID, pdr.ExtractUnitType)
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 3)
 		require.EqualValues(t, unitID1, unitIDs[0])
@@ -836,7 +837,7 @@ func TestState_GetUnits(t *testing.T) {
 	})
 	t.Run("ok with type id 2", func(t *testing.T) {
 		typeID := uint32(2)
-		unitIDs, err := s.GetUnits(&typeID, pdr)
+		unitIDs, err := s.GetUnits(&typeID, pdr.ExtractUnitType)
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 2)
 		require.EqualValues(t, unitID4, unitIDs[0])
@@ -844,7 +845,7 @@ func TestState_GetUnits(t *testing.T) {
 	})
 	t.Run("ok with type id 3", func(t *testing.T) {
 		typeID := uint32(3)
-		unitIDs, err := s.GetUnits(&typeID, pdr)
+		unitIDs, err := s.GetUnits(&typeID, pdr.ExtractUnitType)
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 0)
 	})

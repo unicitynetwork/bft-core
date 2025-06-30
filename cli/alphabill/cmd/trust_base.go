@@ -14,7 +14,7 @@ const trustBaseFileName = "trust-base.json"
 
 type (
 	trustBaseFlags struct {
-		TrustBaseFile string
+		TrustBaseFiles []string
 	}
 
 	trustBaseGenerateFlags struct {
@@ -23,6 +23,8 @@ type (
 		NetworkID       uint16
 		NodeInfoFiles   []string // paths to node info files
 		QuorumThreshold uint64   // optional custom quorum threshold (default len(nodes)*2/3 + 1)
+		Epoch           uint64
+		EpochStart      uint64
 	}
 
 	trustBaseSignFlags struct {
@@ -59,6 +61,9 @@ func trustBaseGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 		panic(err)
 	}
 	cmd.Flags().Uint64Var(&flags.QuorumThreshold, "quorum-threshold", 0, "define custom quorum threshold (default: len(nodes)*2/3+1")
+	cmd.Flags().Uint64Var(&flags.Epoch, "epoch", 0, "epoch assigned to this trust base, must be one greater than the epoch of the previous trust base")
+	cmd.Flags().Uint64Var(&flags.EpochStart, "epoch-start", 0, "root round in which this trust base is activated")
+
 	return cmd
 }
 
@@ -73,7 +78,9 @@ func trustBaseGenerate(flags *trustBaseGenerateFlags) error {
 	}
 
 	trustBase, err := types.NewTrustBaseGenesis(types.NetworkID(flags.NetworkID), nodes,
-		types.WithQuorumThreshold(flags.QuorumThreshold))
+		types.WithQuorumThreshold(flags.QuorumThreshold),
+		types.WithEpoch(flags.Epoch),
+		types.WithEpochStart(flags.EpochStart))
 	if err != nil {
 		return fmt.Errorf("failed to generate trust base: %w", err)
 	}
@@ -112,19 +119,25 @@ func trustBaseSign(flags *trustBaseSignFlags) error {
 	if err != nil {
 		return err
 	}
-	trustBase, err := flags.loadTrustBase(flags.baseFlags)
+	trustBases, err := flags.loadTrustBases(flags.baseFlags)
 	if err != nil {
 		return err
 	}
 
-	// sign trust base
-	if err = trustBase.Sign(nodeID.String(), signer); err != nil {
-		return fmt.Errorf("failed to sign trust base: %w", err)
+	if len(trustBases) != 1 {
+		return fmt.Errorf("exactly one trust base parameter expected")
 	}
 
-	// write trust base
-	if err = util.WriteJsonFile(flags.trustBasePath(flags.baseFlags), trustBase); err != nil {
-		return fmt.Errorf("failed to save trust base: %w", err)
+	for idx, trustBase := range trustBases {
+		// sign trust base
+		if err = trustBase.Sign(nodeID.String(), signer); err != nil {
+			return fmt.Errorf("failed to sign trust base: %w", err)
+		}
+
+		// write trust base
+		if err = util.WriteJsonFile(flags.trustBasePath(flags.baseFlags, idx), trustBase); err != nil {
+			return fmt.Errorf("failed to save trust base: %w", err)
+		}
 	}
 	return nil
 }
@@ -142,14 +155,20 @@ func loadNodeInfoFiles(paths []string) ([]*types.NodeInfo, error) {
 }
 
 func (f *trustBaseFlags) addTrustBaseFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&f.TrustBaseFile, "trust-base", "t", "",
+	cmd.Flags().StringSliceVarP(&f.TrustBaseFiles, "trust-base", "t", []string{},
 		fmt.Sprintf("path to trust base (default: %s)", filepath.Join("$AB_HOME", trustBaseFileName)))
 }
 
-func (f *trustBaseFlags) trustBasePath(baseFlags *baseFlags) string {
-	return baseFlags.PathWithDefault(f.TrustBaseFile, trustBaseFileName)
+func (f *trustBaseFlags) trustBasePath(baseFlags *baseFlags, idx int) string {
+	return baseFlags.PathWithDefault(f.TrustBaseFiles[idx], trustBaseFileName)
 }
 
-func (f *trustBaseFlags) loadTrustBase(baseFlags *baseFlags) (ret *types.RootTrustBaseV1, err error) {
-	return ret, baseFlags.loadConf(f.TrustBaseFile, trustBaseFileName, &ret)
+func (f *trustBaseFlags) loadTrustBases(baseFlags *baseFlags) ([]*types.RootTrustBaseV1, error) {
+	trustBases := make([]*types.RootTrustBaseV1, len(f.TrustBaseFiles))
+	for i, trustBaseFile := range f.TrustBaseFiles {
+		if err := baseFlags.loadConf(trustBaseFile, trustBaseFileName, &trustBases[i]); err != nil {
+			return nil, err
+		}
+	}
+	return trustBases, nil
 }

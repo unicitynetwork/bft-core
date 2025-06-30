@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
@@ -329,9 +328,9 @@ type nopModuleOptions func(m *NopModule) error
 func newNopModule(t *testing.T, verifier abcrypto.Verifier, opts ...nopModuleOptions) *NopModule {
 	options, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
-	options.trustBase = testtb.NewTrustBase(t, verifier)
+
 	options.state = state.NewEmptyState()
-	module := NewNopModule(tokensid.PDR(), options)
+	module := NewNopModule(options)
 	for _, opt := range opts {
 		require.NoError(t, opt(module))
 	}

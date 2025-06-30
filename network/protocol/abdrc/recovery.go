@@ -116,7 +116,7 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) er
 		}
 	}
 	for _, c := range sm.CommittedHead.ShardInfo {
-		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.UnicityTreeCertificate.Partition, nil); err != nil {
+		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.GetPartitionID(), c.UC.GetShardID(), nil); err != nil {
 			return fmt.Errorf("certificate for %s is invalid: %w", c.UC.UnicityTreeCertificate.Partition, err)
 		}
 	}

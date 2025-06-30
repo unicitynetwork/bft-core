@@ -18,7 +18,9 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/partition/event"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -51,21 +53,18 @@ func TestPartition_Ok(t *testing.T) {
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &shardConf, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNet.AddShard(t, &shardConf, 3, func(tbs *trustbase.TrustBaseStore) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
 			&shardConf,
 			observability.Default(t),
 			WithState(s),
 			WithHashAlgorithm(crypto.SHA256),
-			WithTrustBase(tb),
+			WithTrustBaseStore(tbs),
 		)
 		require.NoError(t, err)
 		return system
 	})
-	// AddShard modfied the shardConf by adding Validators, calculate hash after
-	shardConfHash, err := shardConf.Hash(crypto.SHA256)
-	require.NoError(t, err)
 
 	moneyPrt, err := abNet.GetShard(types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()})
 	require.NoError(t, err)
@@ -93,9 +92,8 @@ func TestPartition_Ok(t *testing.T) {
 	require.Equal(t, moneyInvariant-fcrAmount, billState.Value)
 
 	// verify proof
-	ucv, err := abNet.GetValidator(types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()})
-	require.NoError(t, err)
-	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, shardConfHash))
+	ucv := partition.NewDefaultUnicityCertificateValidator(crypto.SHA256)
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, &shardConf, abNet.RootChain.TrustBase))
 
 	// send addFC
 	addFC := testutils.NewAddFC(t, signer,
@@ -114,7 +112,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err, "add fee credit transaction failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, addFC)
 	require.NoError(t, err)
-	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, shardConfHash))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, &shardConf, abNet.RootChain.TrustBase))
 
 	// verify that frc bill is created and its balance is equal to frcAmount - "transfer transaction cost" - "add transaction cost"
 	var feeBillState fcsdk.FeeCreditRecord
@@ -129,7 +127,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err, "transfer initial bill failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, transferInitialBillTx)
 	require.NoError(t, err)
-	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, shardConfHash))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, &shardConf, abNet.RootChain.TrustBase))
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance = remainingFeeBalance - txRecordProof.ActualFee()
 	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
@@ -143,7 +141,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err, "money split transaction failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, tx)
 	require.NoError(t, err)
-	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, shardConfHash))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, &shardConf, abNet.RootChain.TrustBase))
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance = remainingFeeBalance - txRecordProof.ActualFee()
 	require.EqualValues(t, remainingFeeBalance, feeBillState.Balance)
@@ -151,7 +149,7 @@ func TestPartition_Ok(t *testing.T) {
 	// wrong partition tx
 	tx = createSplitTx(t, ib.ID, fcrID, 3, []*money.TargetUnit{targetUnit})
 	tx.PartitionID = 0x01010101
-	require.ErrorContains(t, moneyPrt.SubmitTx(tx), "invalid transaction partition identifier")
+	require.ErrorContains(t, moneyPrt.SubmitTx(tx), "invalid partition identifier")
 	// and fee unit is not changed
 	feeCredit, err := s.GetUnit(fcrID, true)
 	require.NoError(t, err)
@@ -181,13 +179,13 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &moneyPDR, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNet.AddShard(t, &moneyPDR, 3, func(tbs *trustbase.TrustBaseStore) txsystem.TransactionSystem {
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
 			&moneyPDR,
 			observability.Default(t),
 			WithHashAlgorithm(crypto.SHA256),
-			WithTrustBase(tb),
+			WithTrustBaseStore(tbs),
 			WithState(txsState),
 		)
 		require.NoError(t, err)

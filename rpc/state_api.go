@@ -23,7 +23,7 @@ type (
 		node       partitionNode
 		ownerIndex partition.IndexReader
 
-		pdr          *types.PartitionDescriptionRecord
+		unitTypeExtractor types.UnitTypeExtractor
 		withGetUnits bool
 
 		requestLimiter    *RequestLimiter
@@ -92,7 +92,7 @@ func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) 
 	return &StateAPI{
 		node:              node,
 		ownerIndex:        options.ownerIndex,
-		pdr:               options.shardConf,
+		unitTypeExtractor: options.unitTypeExtractor,
 		withGetUnits:      options.withGetUnits,
 		updMetrics:        metricsUpdater(m, node, log),
 		updTxReceived:     metricsUpdaterTxReceived(m, node, log),
@@ -176,7 +176,7 @@ func (s *StateAPI) GetUnits(unitTypeID *uint32, sinceUnitID *types.UnitID, limit
 	if err := s.requestLimiter.CheckRequestAllowed("getUnits"); err != nil {
 		return nil, fmt.Errorf("request not allowed: %w", err)
 	}
-	units, err := s.node.TransactionSystemState().GetUnits(unitTypeID, s.pdr)
+	units, err := s.node.TransactionSystemState().GetUnits(unitTypeID, s.unitTypeExtractor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get units: %w", err)
 	}
@@ -262,6 +262,10 @@ func (s *StateAPI) GetTrustBase(epochNumber hex.Uint64) (_ types.RootTrustBase, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to load trust base: %w", err)
 	}
+	if trustBase == nil {
+		return nil, fmt.Errorf("trust base not found")
+	}
+
 	return trustBase, nil
 }
 

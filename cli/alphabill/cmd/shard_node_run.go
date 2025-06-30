@@ -17,14 +17,15 @@ import (
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 const (
-	shardStoreFileName = "shard.db"
-	blockStoreFileName = "blocks.db"
-	proofStoreFileName = "proof.db"
+	shardConfDBFileName = "shard.db"
+	blockDBFileName     = "blocks.db"
+	proofDBFileName     = "proof.db"
 )
 
 type ShardNodeRunFlags struct {
@@ -35,10 +36,11 @@ type ShardNodeRunFlags struct {
 	p2pFlags
 	rpcFlags
 
-	StateFile      string
-	BlockStoreFile string
-	ProofStoreFile string
-	ShardStoreFile string
+	StateFile       string
+	BlockDBFile     string
+	ProofDBFile     string
+	ShardConfDBFile string
+	TrustBaseDBFile string
 
 	WithOwnerIndex bool
 	WithGetUnits   bool
@@ -67,18 +69,18 @@ func shardNodeRunCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.C
 
 	flags.addKeyConfFlags(cmd, false)
 	flags.addTrustBaseFlags(cmd)
-	flags.addShardConfFlags(cmd)
+	flags.addShardConfFlags(cmd, true)
 	flags.addP2PFlags(cmd)
 	flags.addRPCFlags(cmd)
 
 	cmd.Flags().StringVarP(&flags.StateFile, "state", "", "",
 		fmt.Sprintf("path to the state file (default %s)", filepath.Join("$AB_HOME", StateFileName)))
-	cmd.Flags().StringVarP(&flags.BlockStoreFile, "block-db", "", "",
-		fmt.Sprintf("path to the block datatabase (default %s)", filepath.Join("$AB_HOME", blockStoreFileName)))
-	cmd.Flags().StringVarP(&flags.ShardStoreFile, "shard-db", "", "",
-		fmt.Sprintf("path to the shard configuration datatabase (default %s)", filepath.Join("$AB_HOME", shardStoreFileName)))
-	cmd.Flags().StringVarP(&flags.ProofStoreFile, "proof-db", "", "",
-		fmt.Sprintf("path to the proof datatabase (default %s)", filepath.Join("$AB_HOME", proofStoreFileName)))
+	cmd.Flags().StringVarP(&flags.BlockDBFile, "block-db", "", "",
+		fmt.Sprintf("path to the block datatabase (default %s)", filepath.Join("$AB_HOME", blockDBFileName)))
+	cmd.Flags().StringVarP(&flags.ShardConfDBFile, "shard-db", "", "",
+		fmt.Sprintf("path to the shard configuration datatabase (default %s)", filepath.Join("$AB_HOME", shardConfDBFileName)))
+	cmd.Flags().StringVarP(&flags.ProofDBFile, "proof-db", "", "",
+		fmt.Sprintf("path to the proof datatabase (default %s)", filepath.Join("$AB_HOME", proofDBFileName)))
 
 	cmd.Flags().BoolVar(&flags.WithOwnerIndex, "with-owner-index", true, "enable/disable owner indexer")
 	cmd.Flags().BoolVar(&flags.WithGetUnits, "with-get-units", false, "enable/disable state_getUnits RPC endpoint")
@@ -131,7 +133,7 @@ func shardNodeRun(ctx context.Context, flags *ShardNodeRunFlags) error {
 				Service: rpc.NewStateAPI(node, obs,
 					rpc.WithOwnerIndex(nodeConf.OwnerIndexer()),
 					rpc.WithGetUnits(flags.WithGetUnits),
-					rpc.WithShardConf(nodeConf.ShardConf()),
+					rpc.WithUnitTypeExtractor(nodeConf.ShardConf().ExtractUnitType),
 					rpc.WithRateLimit(flags.StateRpcRateLimit),
 					rpc.WithResponseItemLimit(flags.StateRpcResponseItemLimit),
 				),
@@ -182,36 +184,60 @@ func createNode(ctx context.Context, flags *ShardNodeRunFlags) (*partition.Node,
 	if err != nil {
 		return nil, nil, err
 	}
-	shardConf, err := flags.loadShardConf()
-	if err != nil {
-		return nil, nil, err
-	}
-	trustBase, err := flags.loadTrustBase()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	shardStore, err := flags.initStore(flags.ShardStoreFile, shardStoreFileName)
-	if err != nil {
-		return nil, nil, err
-	}
-	blockStore, err := flags.initStore(flags.BlockStoreFile, blockStoreFileName)
-	if err != nil {
-		return nil, nil, err
-	}
-	proofStore, err := flags.initStore(flags.ProofStoreFile, proofStoreFileName)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	nodeID, err := keyConf.NodeID()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to calculate nodeID: %w", err)
 	}
-	log := flags.observe.Logger().With(
-		logger.NodeID(nodeID),
-		logger.Shard(shardConf.PartitionID, shardConf.ShardID))
+	log := flags.observe.Logger().With(logger.NodeID(nodeID))
+
+	shardConfs, err := flags.loadShardConfs(flags.baseFlags)
+	if err != nil {
+		return nil, nil, err
+	}
+	shardConfDB, err := flags.initDB(flags.ShardConfDBFile, shardConfDBFileName)
+	if err != nil {
+		return nil, nil, err
+	}
+	shardConfStore, err := partition.NewShardConfStore(shardConfDB, log)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, shardConf := range shardConfs {
+		if err := shardConfStore.Store(shardConf); err != nil {
+			return nil, nil, fmt.Errorf("failed to store shard configuration: %w", err)
+		}
+	}
+
+	shardConf, err := shardConfStore.GetFirst()
+	if err != nil {
+		return nil, nil, err
+	}
+	log = log.With(logger.Shard(shardConf.PartitionID, shardConf.ShardID))
 	obs := observability.WithLogger(flags.observe, log)
+
+	trustBases, err := flags.loadTrustBases(flags.baseFlags)
+	if err != nil {
+		return nil, nil, err
+	}
+	trustBaseDB, err := flags.initDB(flags.TrustBaseDBFile, trustBaseDBFileName)
+	if err != nil {
+		return nil, nil, err
+	}
+	trustBaseStore, err := trustbase.NewTrustBaseStore(trustBaseDB, log)
+	for _, trustBase := range trustBases {
+		if err := trustBaseStore.Store(trustBase); err != nil {
+			return nil, nil, fmt.Errorf("failed to store trust base: %w", err)
+		}
+	}
+
+	blockDB, err := flags.initDB(flags.BlockDBFile, blockDBFileName)
+	if err != nil {
+		return nil, nil, err
+	}
+	proofDB, err := flags.initDB(flags.ProofDBFile, proofDBFileName)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	var ownerIndexer *partition.OwnerIndexer
 	if flags.WithOwnerIndex {
@@ -225,21 +251,20 @@ func createNode(ctx context.Context, flags *ShardNodeRunFlags) (*partition.Node,
 
 	nodeConf, err := partition.NewNodeConf(
 		keyConf,
-		shardConf,
-		trustBase,
+		shardConfStore,
+		trustBaseStore,
 		obs,
 		partition.WithAddress(flags.p2pFlags.Address),
 		partition.WithAnnounceAddresses(flags.AnnounceAddresses),
 		partition.WithBootstrapAddresses(flags.BootstrapAddresses),
 		partition.WithBootstrapConnectRetry(bootstrapConnectRetry),
-		partition.WithBlockStore(blockStore),
-		partition.WithShardStore(shardStore),
+		partition.WithBlockDB(blockDB),
 		partition.WithReplicationParams(
 			flags.LedgerReplicationMaxBlocksFetch,
 			flags.LedgerReplicationMaxBlocks,
 			flags.LedgerReplicationMaxTx,
 			time.Duration(flags.LedgerReplicationTimeoutMs)*time.Millisecond),
-		partition.WithProofIndex(proofStore, 20),
+		partition.WithProofIndex(proofDB, 20),
 		partition.WithOwnerIndex(ownerIndexer),
 		partition.WithBlockSubscriptionTimeout(time.Duration(flags.BlockSubscriptionTimeoutMs)*time.Millisecond),
 		partition.WithT1Timeout(time.Duration(flags.T1TimeoutMs)*time.Millisecond),
@@ -260,19 +285,11 @@ func createNode(ctx context.Context, flags *ShardNodeRunFlags) (*partition.Node,
 }
 
 func createTxSystem(flags *ShardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error) {
-	partition, ok := flags.baseFlags.partitions[nodeConf.ShardConf().PartitionTypeID]
+	partition, ok := flags.baseFlags.partitions[nodeConf.ShardConf().GetPartitionTypeID()]
 	if !ok {
-		return nil, fmt.Errorf("unsupported partition type %d", nodeConf.ShardConf().PartitionTypeID)
+		return nil, fmt.Errorf("unsupported partition type %d", nodeConf.ShardConf().GetPartitionTypeID())
 	}
 	return partition.CreateTxSystem(flags, nodeConf)
-}
-
-func (f *ShardNodeRunFlags) loadShardConf() (ret *types.PartitionDescriptionRecord, err error) {
-	return ret, f.loadConf(f.ShardConfFile, shardConfFileName, &ret)
-}
-
-func (f *ShardNodeRunFlags) loadTrustBase() (ret *types.RootTrustBaseV1, err error) {
-	return ret, f.loadConf(f.TrustBaseFile, trustBaseFileName, &ret)
 }
 
 func partitionTypeIDToString(partitionTypeID types.PartitionTypeID, flags *ShardNodeRunFlags) string {

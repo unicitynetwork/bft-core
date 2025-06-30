@@ -20,9 +20,12 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -53,14 +56,14 @@ func TestNewTxSystem(t *testing.T) {
 		sdrs        = createPDRs(t)
 		txsState    = genesisStateWithUC(t, initialBill, sdrs)
 		_, verifier = testsig.CreateSignerAndVerifier(t)
-		trustBase   = testtb.NewTrustBase(t, verifier)
 	)
+
 	txSystem, err := NewTxSystem(
 		sdrs[0],
 		observability.Default(t),
 		WithHashAlgorithm(crypto.SHA256),
 		WithState(txsState),
-		WithTrustBase(trustBase),
+		WithTrustBaseStore(newTrustBaseStore(t, verifier)),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, txSystem)
@@ -82,14 +85,13 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	sdrs := createPDRs(t)
 	s := genesisStateWithUC(t, initialBill, sdrs)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := testtb.NewTrustBase(t, verifier)
 	observe := observability.Default(t)
-
+	tbs := newTrustBaseStore(t, verifier)
 	originalTxs, err := NewTxSystem(
 		sdrs[0],
 		observe,
 		WithState(s),
-		WithTrustBase(trustBase),
+		WithTrustBaseStore(tbs),
 	)
 	require.NoError(t, err)
 
@@ -120,13 +122,13 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	require.NoError(t, originalTxs.State().Serialize(buf, true, nil))
 
 	// Create a recovered state and txSystem from the serialized state
-	recoveredState, _, err := state.NewRecoveredState(buf, func(ui types.UnitID) (types.UnitData, error) { return money.NewUnitData(ui, sdrs[0]) }, state.WithHashAlgorithm(crypto.SHA256))
+	recoveredState, _, err := state.NewRecoveredState(buf, func(ui types.UnitID) (types.UnitData, error) { return money.NewUnitData(ui, sdrs[0].ExtractUnitType) }, state.WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
 		sdrs[0],
 		observe,
 		WithState(recoveredState),
-		WithTrustBase(trustBase),
+		WithTrustBaseStore(tbs),
 	)
 	require.NoError(t, err)
 
@@ -920,14 +922,13 @@ func createStateAndTxSystem(t *testing.T, pdrs []*types.PartitionDescriptionReco
 	require.Equal(t, money.PartitionTypeID, pdrs[0].PartitionTypeID, "first PDR must be for the money partition")
 	s := genesisStateWithUC(t, initialBill, pdrs)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := testtb.NewTrustBase(t, verifier)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	mss, err := NewTxSystem(
 		pdrs[0],
 		observability.Default(t),
 		WithState(s),
-		WithTrustBase(trustBase),
+		WithTrustBaseStore(newTrustBaseStore(t, verifier)),
 	)
 	require.NoError(t, err)
 	summary, err := mss.StateSummary()
@@ -1044,9 +1045,16 @@ func defaultMoneyModule(t *testing.T, pdr types.PartitionDescriptionRecord, veri
 	// NB! using the same pubkey for trust base and unit bearer! TODO: use different keys...
 	options, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
-	options.trustBase = testtb.NewTrustBase(t, verifier)
+	options.trustBaseStore = newTrustBaseStore(t, verifier)
 	options.state = state.NewEmptyState()
-	module, err := NewMoneyModule(pdr, options)
+	module, err := NewMoneyModule(&pdr, options)
 	require.NoError(t, err)
 	return module
+}
+
+func newTrustBaseStore(t *testing.T, verifier abcrypto.Verifier) *trustbase.TrustBaseStore{
+	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, verifier)))
+	return trustBaseStore
 }

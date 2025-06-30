@@ -71,6 +71,14 @@ func (a AlwaysValidTrustBase) GetNetworkID() types.NetworkID {
 	return types.NetworkLocal
 }
 
+func (a AlwaysValidTrustBase) GetEpoch() uint64 {
+	return 0
+}
+
+func (a AlwaysValidTrustBase) GetEpochStart() uint64 {
+	return 1
+}
+
 func (a AlwaysValidTrustBase) GetQuorumThreshold() uint64 {
 	return 1
 }

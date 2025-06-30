@@ -40,6 +40,7 @@ func TestTrustBaseGenerateAndSign(t *testing.T) {
 		"--node-info", nodeInfoFile2,
 		"--network-id", "5",
 		"--quorum-threshold", "2",
+		"--epoch", "1",
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
@@ -53,7 +54,7 @@ func TestTrustBaseGenerateAndSign(t *testing.T) {
 
 	// root node 1 signs the trust base in its home dir
 	cmd = New(logF)
-	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir1})
+	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir1, "--trust-base", trustBasePath})
 	require.NoError(t, cmd.Execute(context.Background()))
 
 	// root node 2 signs the trust base at custom location

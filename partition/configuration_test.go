@@ -10,14 +10,13 @@ import (
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	tbstore "github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 )
 
 func TestNewNodeConf(t *testing.T) {
-	blockStore, err := memorydb.New()
-	require.NoError(t, err)
-	shardStore, err := memorydb.New()
-	require.NoError(t, err)
+	blockDB := memorydb.New()
+	shardDB := memorydb.New()
 	t1Timeout := 250 * time.Millisecond
 
 	keyConf, nodeInfo := createKeyConf(t)
@@ -38,23 +37,30 @@ func TestNewNodeConf(t *testing.T) {
 	trustBase := trustbase.NewTrustBase(t, verifier)
 	obs := testobserve.Default(t)
 
-	conf, err := NewNodeConf(keyConf, shardConf, trustBase, obs,
+	shardConfStore, err := NewShardConfStore(shardDB, obs.Logger())
+	require.NoError(t, err)
+	require.NoError(t, shardConfStore.Store(shardConf))
+
+	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), obs.Logger())
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(trustBase))
+
+	conf, err := NewNodeConf(keyConf, shardConfStore, trustBaseStore, obs,
 		WithTxValidator(&AlwaysValidTransactionValidator{}),
 		WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}),
 		WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
-		WithBlockStore(blockStore),
-		WithShardStore(shardStore),
+		WithBlockDB(blockDB),
 		WithT1Timeout(t1Timeout),
 		WithReplicationParams(1, 2, 3, 1000),
 		WithBlockSubscriptionTimeout(3500))
 
 	require.NoError(t, err)
 	require.NotNil(t, conf)
-	require.Equal(t, blockStore, conf.blockStore)
-	require.Equal(t, shardStore, conf.shardStore)
-	require.NoError(t, conf.txValidator.Validate(nil, 0))
+	require.Equal(t, blockDB, conf.blockDB)
+	require.Equal(t, shardDB, conf.shardConfStore.db)
+	require.NoError(t, conf.txValidator.Validate(nil, shardConf, 0))
 	require.NoError(t, conf.bpValidator.Validate(nil, nil, nil))
-	require.NoError(t, conf.ucValidator.Validate(nil, nil))
+	require.NoError(t, conf.ucValidator.Validate(nil, nil, nil))
 	require.Equal(t, t1Timeout, conf.t1Timeout)
 	require.EqualValues(t, 1, conf.replicationConfig.maxFetchBlocks)
 	require.EqualValues(t, 2, conf.replicationConfig.maxReturnBlocks)
@@ -84,20 +90,28 @@ func TestNewNodeConf_WithDefaults(t *testing.T) {
 
 	obs := testobserve.Default(t)
 
-	_, err := NewNodeConf(nil, shardConf, trustBase, obs)
+	shardConfStore, err := NewShardConfStore(memorydb.New(), obs.Logger())
+	require.NoError(t, err)
+	require.NoError(t, shardConfStore.Store(shardConf))
+
+	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), obs.Logger())
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(trustBase))
+
+	_, err = NewNodeConf(nil, shardConfStore, trustBaseStore, obs)
 	require.ErrorIs(t, err, ErrKeyConfIsNil)
 
-	_, err = NewNodeConf(keyConf, nil, trustBase, obs)
-	require.ErrorIs(t, err, ErrShardConfIsNil)
+	_, err = NewNodeConf(keyConf, nil, trustBaseStore, obs)
+	require.ErrorIs(t, err, ErrShardConfStoreIsNil)
 
-	_, err = NewNodeConf(keyConf, shardConf, nil, obs)
-	require.ErrorIs(t, err, ErrTrustBaseIsNil)
+	_, err = NewNodeConf(keyConf, shardConfStore, nil, obs)
+	require.ErrorIs(t, err, ErrTrustBaseStoreIsNil)
 
-	conf, err := NewNodeConf(keyConf, shardConf, trustBase, obs)
+	conf, err := NewNodeConf(keyConf, shardConfStore, trustBaseStore, obs)
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 
-	require.NotNil(t, conf.blockStore)
+	require.NotNil(t, conf.blockDB)
 	require.NotNil(t, conf.signer)
 	require.NotNil(t, conf.txValidator)
 	require.NotNil(t, conf.bpValidator)
@@ -110,8 +124,4 @@ func TestNewNodeConf_WithDefaults(t *testing.T) {
 	require.Equal(t, DefaultReplicationMaxTx, conf.replicationConfig.maxTx)
 	require.Equal(t, DefaultLedgerReplicationTimeout, conf.replicationConfig.timeout)
 	require.Equal(t, DefaultBlockSubscriptionTimeout, conf.blockSubscriptionTimeout)
-
-	rootNodes, err := conf.getRootNodes()
-	require.NoError(t, err)
-	require.Len(t, rootNodes, 1)
 }

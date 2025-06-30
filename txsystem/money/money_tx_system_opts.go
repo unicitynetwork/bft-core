@@ -4,10 +4,9 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
@@ -17,7 +16,7 @@ type (
 		state                       *state.State
 		executedTransactions        map[string]uint64
 		hashAlgorithm               crypto.Hash
-		trustBase                   types.RootTrustBase
+		trustBaseStore              *trustbase.TrustBaseStore
 		exec                        predicates.PredicateExecutor
 	}
 
@@ -52,9 +51,9 @@ func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
 	}
 }
 
-func WithTrustBase(trust types.RootTrustBase) Option {
+func WithTrustBaseStore(trustBaseStore *trustbase.TrustBaseStore) Option {
 	return func(options *Options) {
-		options.trustBase = trust
+		options.trustBaseStore = trustBaseStore
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 const (
@@ -63,9 +64,9 @@ func ParseMoneyPartitionParams(shardConf *types.PartitionDescriptionRecord) (*Mo
 	return &params, nil
 }
 
-func ParseOrchestrationPartitionParams(shardConf *types.PartitionDescriptionRecord) (*OrchestrationPartitionParams, error) {
+func ParseOrchestrationPartitionParams(shardConf txsystem.ShardConf) (*OrchestrationPartitionParams, error) {
 	var params OrchestrationPartitionParams
-	for key, valueStr := range shardConf.PartitionParams {
+	for key, valueStr := range shardConf.GetPartitionParams() {
 		switch key {
 		case orchestrationOwnerPredicate:
 			value, err := hex.Decode([]byte(valueStr))
@@ -80,9 +81,9 @@ func ParseOrchestrationPartitionParams(shardConf *types.PartitionDescriptionReco
 	return &params, nil
 }
 
-func ParseTokensPartitionParams(shardConf *types.PartitionDescriptionRecord) (*TokensPartitionParams, error) {
+func ParseTokensPartitionParams(shardConf txsystem.ShardConf) (*TokensPartitionParams, error) {
 	var params TokensPartitionParams
-	for key, valueStr := range shardConf.PartitionParams {
+	for key, valueStr := range shardConf.GetPartitionParams() {
 		switch key {
 		case tokensAdminOwnerPredicate:
 			{

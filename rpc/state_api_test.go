@@ -216,7 +216,7 @@ func TestGetUnits(t *testing.T) {
 		UnitIDLen:   8 * 32,
 		T2Timeout:   2500 * time.Millisecond,
 	}
-	api := NewStateAPI(node, observe, WithGetUnits(true), WithShardConf(pdr))
+	api := NewStateAPI(node, observe, WithGetUnits(true), WithUnitTypeExtractor(pdr.ExtractUnitType))
 
 	t.Run("ok", func(t *testing.T) {
 		unitIDs, err := api.GetUnits(nil, nil, nil)
@@ -224,7 +224,7 @@ func TestGetUnits(t *testing.T) {
 		require.Len(t, unitIDs, 5)
 	})
 	t.Run("api disabled", func(t *testing.T) {
-		api := NewStateAPI(node, observe, WithGetUnits(false), WithShardConf(pdr))
+		api := NewStateAPI(node, observe, WithGetUnits(false), WithUnitTypeExtractor(pdr.ExtractUnitType))
 		typeID := uint32(3)
 		unitIDs, err := api.GetUnits(&typeID, nil, nil)
 		require.ErrorContains(t, err, "state_getUnits is disabled")
@@ -254,7 +254,7 @@ func TestGetUnits(t *testing.T) {
 		require.Len(t, unitIDs, 0)
 	})
 	t.Run("limit", func(t *testing.T) {
-		api := NewStateAPI(node, observe, WithGetUnits(true), WithShardConf(pdr), WithResponseItemLimit(1))
+		api := NewStateAPI(node, observe, WithGetUnits(true), WithUnitTypeExtractor(pdr.ExtractUnitType), WithResponseItemLimit(1))
 
 		unitIDs, err := api.GetUnits(nil, nil, nil)
 		require.NoError(t, err)

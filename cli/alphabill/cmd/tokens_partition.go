@@ -52,7 +52,7 @@ func (p *TokensPartition) NewGenesisState(pdr *types.PartitionDescriptionRecord)
 func (p *TokensPartition) CreateTxSystem(flags *ShardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error) {
 	stateFilePath := flags.PathWithDefault(flags.StateFile, StateFileName)
 	state, header, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
-		return tokenssdk.NewUnitData(ui, nodeConf.ShardConf())
+		return tokenssdk.NewUnitData(ui, nodeConf.ShardConf().ExtractUnitType)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to load state file: %w", err)
@@ -64,7 +64,7 @@ func (p *TokensPartition) CreateTxSystem(flags *ShardNodeRunFlags, nodeConf *par
 	}
 
 	// register all unit- and attribute types from token tx system
-	enc, err := encoder.New(nodeConf.PartitionID(), tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders, tokenc.RegisterAuthProof)
+	enc, err := encoder.New(nodeConf.ShardConf().GetPartitionID(), tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders, tokenc.RegisterAuthProof)
 	if err != nil {
 		return nil, fmt.Errorf("creating encoders for WASM predicate engine: %w", err)
 	}
@@ -93,10 +93,10 @@ func (p *TokensPartition) CreateTxSystem(flags *ShardNodeRunFlags, nodeConf *par
 	}
 
 	txs, err := tokens.NewTxSystem(
-		*nodeConf.ShardConf(),
+		nodeConf.ShardConf(),
 		nodeConf.Observability(),
 		tokens.WithHashAlgorithm(nodeConf.HashAlgorithm()),
-		tokens.WithTrustBase(nodeConf.TrustBase()),
+		tokens.WithTrustBaseStore(nodeConf.TrustBaseStore()),
 		tokens.WithState(state),
 		tokens.WithPredicateExecutor(predEng.Execute),
 		tokens.WithAdminOwnerPredicate(params.AdminOwnerPredicate),

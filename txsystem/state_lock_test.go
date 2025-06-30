@@ -526,7 +526,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 		targetUnits := []types.UnitID{unitID}
 		idGen := money.PrndSh(tx)
 		for range attr.TargetUnits {
-			newUnitID, err := txSys.pdr.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
+			newUnitID, err := txSys.shardConf.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
 			require.NoError(t, err)
 			targetUnits = append(targetUnits, newUnitID)
 		}

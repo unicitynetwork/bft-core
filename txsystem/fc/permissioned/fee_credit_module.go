@@ -39,21 +39,25 @@ In addition, the module can be configured in two modes: normal and feeless.
 In normal mode the non-fee transaction costs are calculated normally.
 In feeless mode the non-fee transactions are "free" i.e. no actual fees are charged.
 */
-type FeeCreditModule struct {
-	state                   *state.State
-	hashAlgorithm           crypto.Hash
-	execPredicate           predicates.PredicateRunner
-	feeCreditRecordUnitType uint32
-	feeBalanceValidator     *feeModule.FeeBalanceValidator
-	adminOwnerPredicate     types.PredicateBytes
-	feelessMode             bool
-	pdr                     types.PartitionDescriptionRecord
-}
-
-func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, state *state.State, feeCreditRecordUnitType uint32, adminOwnerPredicate []byte, obs txsystem.Observability, opts ...Option) (*FeeCreditModule, error) {
-	if err := pdr.IsValid(); err != nil {
-		return nil, fmt.Errorf("invalid target PDR: %w", err)
+type (
+	FeeCreditModule struct {
+		state                   *state.State
+		hashAlgorithm           crypto.Hash
+		execPredicate           predicates.PredicateRunner
+		feeCreditRecordUnitType uint32
+		feeBalanceValidator     *feeModule.FeeBalanceValidator
+		adminOwnerPredicate     types.PredicateBytes
+		feelessMode             bool
+		shardConf               ShardConf
 	}
+
+	ShardConf interface {
+		ExtractUnitType(unitID types.UnitID) (uint32, error)
+		ComposeUnitID(shardID types.ShardID, unitType uint32, prndSh func([]byte) error) (types.UnitID, error)
+	}
+)
+
+func NewFeeCreditModule(shardConf ShardConf, state *state.State, feeCreditRecordUnitType uint32, adminOwnerPredicate []byte, obs txsystem.Observability, opts ...Option) (*FeeCreditModule, error) {
 	if state == nil {
 		return nil, ErrStateIsNil
 	}
@@ -64,7 +68,7 @@ func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, state *state.State
 		return nil, ErrMissingAdminOwnerPredicate
 	}
 	m := &FeeCreditModule{
-		pdr:                     pdr,
+		shardConf:               shardConf,
 		state:                   state,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
 		adminOwnerPredicate:     adminOwnerPredicate,
@@ -85,7 +89,7 @@ func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, state *state.State
 		m.execPredicate = predicates.NewPredicateRunner(predEng.Execute)
 	}
 	if m.feeBalanceValidator == nil {
-		m.feeBalanceValidator = feeModule.NewFeeBalanceValidator(m.pdr, m.state, m.execPredicate, m.feeCreditRecordUnitType)
+		m.feeBalanceValidator = feeModule.NewFeeBalanceValidator(m.shardConf.ExtractUnitType, m.state, m.execPredicate, m.feeCreditRecordUnitType)
 	}
 	return m, nil
 }

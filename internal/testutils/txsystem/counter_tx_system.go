@@ -234,6 +234,6 @@ func (m MockState) Serialize(writer io.Writer, committed bool, executedTransacti
 	return nil
 }
 
-func (m MockState) GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error) {
+func (m MockState) GetUnits(unitTypeID *uint32, ute types.UnitTypeExtractor) ([]types.UnitID, error) {
 	return nil, nil
 }

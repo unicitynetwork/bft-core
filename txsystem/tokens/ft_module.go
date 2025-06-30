@@ -4,29 +4,30 @@ import (
 	"crypto"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 var _ txtypes.Module = &FungibleTokensModule{}
 
 type FungibleTokensModule struct {
-	state         *state.State
-	hashAlgorithm crypto.Hash
-	trustBase     types.RootTrustBase
-	execPredicate predicates.PredicateRunner
-	pdr           types.PartitionDescriptionRecord
+	state          *state.State
+	hashAlgorithm  crypto.Hash
+	trustBaseStore *trustbase.TrustBaseStore
+	execPredicate  predicates.PredicateRunner
+	shardConf      txsystem.ShardConf
 }
 
-func NewFungibleTokensModule(pdr types.PartitionDescriptionRecord, options *Options) (*FungibleTokensModule, error) {
+func NewFungibleTokensModule(shardConf txsystem.ShardConf, options *Options) (*FungibleTokensModule, error) {
 	return &FungibleTokensModule{
-		state:         options.state,
-		hashAlgorithm: options.hashAlgorithm,
-		trustBase:     options.trustBase,
-		execPredicate: predicates.NewPredicateRunner(options.exec),
-		pdr:           pdr,
+		state:          options.state,
+		hashAlgorithm:  options.hashAlgorithm,
+		trustBaseStore: options.trustBaseStore,
+		execPredicate:  predicates.NewPredicateRunner(options.exec),
+		shardConf:      shardConf,
 	}, nil
 }
 

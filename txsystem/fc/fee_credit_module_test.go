@@ -8,9 +8,12 @@ import (
 	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 )
 
@@ -24,30 +27,29 @@ func TestFC_Validation(t *testing.T) {
 	targetPDR := moneyid.PDR()
 	observe := observability.Default(t)
 
-	t.Run("new fc module validation errors", func(t *testing.T) {
-		invalidPDR := targetPDR
-		invalidPDR.PartitionID = 0
-		_, err := NewFeeCreditModule(invalidPDR, partitionID, s, trustBase, observe)
-		require.EqualError(t, err, `invalid fee credit module configuration: invalid PDR: invalid partition identifier: 00000000`)
+	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(trustBase))
 
-		_, err = NewFeeCreditModule(targetPDR, 0, s, trustBase, observe)
+	t.Run("new fc module validation errors", func(t *testing.T) {
+		_, err = NewFeeCreditModule(&targetPDR, 0, s, trustBaseStore, observe)
 		require.ErrorIs(t, err, ErrMoneyPartitionIDMissing)
 
-		_, err = NewFeeCreditModule(targetPDR, partitionID, nil, trustBase, observe)
+		_, err = NewFeeCreditModule(&targetPDR, partitionID, nil, trustBaseStore, observe)
 		require.ErrorIs(t, err, ErrStateIsNil)
 
-		_, err = NewFeeCreditModule(targetPDR, partitionID, s, nil, observe)
-		require.ErrorIs(t, err, ErrTrustBaseIsNil)
+		_, err = NewFeeCreditModule(&targetPDR, partitionID, s, nil, observe)
+		require.ErrorIs(t, err, ErrTrustBaseStoreIsNil)
 	})
 
 	t.Run("new fc module validation", func(t *testing.T) {
-		fc, err := NewFeeCreditModule(targetPDR, partitionID, s, trustBase, observe)
+		fc, err := NewFeeCreditModule(&targetPDR, partitionID, s, trustBaseStore, observe)
 		require.NoError(t, err)
 		require.NotNil(t, fc)
 	})
 
 	t.Run("new fc module executors", func(t *testing.T) {
-		fc, err := NewFeeCreditModule(targetPDR, partitionID, s, trustBase, observe)
+		fc, err := NewFeeCreditModule(&targetPDR, partitionID, s, trustBaseStore, observe)
 		require.NoError(t, err)
 		fcExecutors := fc.TxHandlers()
 		require.Len(t, fcExecutors, 2)
@@ -60,7 +62,12 @@ func TestFC_Validation(t *testing.T) {
 func TestFC_CalculateCost(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	fcModule, err := NewFeeCreditModule(moneyid.PDR(), 1, state.NewEmptyState(), trustBase, observability.Default(t))
+	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(trustBase))
+
+	shardConf := moneyid.PDR()
+	fcModule, err := NewFeeCreditModule(&shardConf, 1, state.NewEmptyState(), trustBaseStore, observability.Default(t))
 	require.NoError(t, err)
 	require.NotNil(t, fcModule)
 	gas := fcModule.BuyGas(10)

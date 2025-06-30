@@ -21,34 +21,26 @@ func TestNewFeeCreditModule(t *testing.T) {
 	targetPDR := moneyid.PDR()
 	observe := observability.Default(t)
 
-	t.Run("invalid target PDR", func(t *testing.T) {
-		invalidPDR := targetPDR
-		invalidPDR.NetworkID = 0
-		m, err := NewFeeCreditModule(invalidPDR, stateTree, feeCreditRecordUnitType, adminOwnerPredicate, observe)
-		require.Nil(t, m)
-		require.EqualError(t, err, `invalid target PDR: invalid network identifier: 0`)
-	})
-
 	t.Run("state is nil", func(t *testing.T) {
-		m, err := NewFeeCreditModule(targetPDR, nil, feeCreditRecordUnitType, adminOwnerPredicate, observe)
+		m, err := NewFeeCreditModule(&targetPDR, nil, feeCreditRecordUnitType, adminOwnerPredicate, observe)
 		require.Nil(t, m)
 		require.ErrorIs(t, err, ErrStateIsNil)
 	})
 
 	t.Run("fee credit record unit type is nil", func(t *testing.T) {
-		m, err := NewFeeCreditModule(targetPDR, stateTree, 0, adminOwnerPredicate, observe)
+		m, err := NewFeeCreditModule(&targetPDR, stateTree, 0, adminOwnerPredicate, observe)
 		require.Nil(t, m)
 		require.ErrorIs(t, err, ErrMissingFeeCreditRecordUnitType)
 	})
 
 	t.Run("admin owner predicate is nil", func(t *testing.T) {
-		m, err := NewFeeCreditModule(targetPDR, stateTree, feeCreditRecordUnitType, nil, observe)
+		m, err := NewFeeCreditModule(&targetPDR, stateTree, feeCreditRecordUnitType, nil, observe)
 		require.Nil(t, m)
 		require.ErrorIs(t, err, ErrMissingAdminOwnerPredicate)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		m, err := NewFeeCreditModule(targetPDR, stateTree, feeCreditRecordUnitType, adminOwnerPredicate, observe)
+		m, err := NewFeeCreditModule(&targetPDR, stateTree, feeCreditRecordUnitType, adminOwnerPredicate, observe)
 		require.NoError(t, err)
 		require.NotNil(t, m)
 		require.NotNil(t, m.execPredicate, "execPredicate should not be nil")

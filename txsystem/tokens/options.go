@@ -9,6 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
@@ -17,7 +18,7 @@ type (
 	Options struct {
 		moneyPartitionID     types.PartitionID
 		hashAlgorithm        gocrypto.Hash
-		trustBase            types.RootTrustBase
+		trustBaseStore       *trustbase.TrustBaseStore
 		state                *state.State
 		executedTransactions map[string]uint64
 		exec                 predicates.PredicateExecutor
@@ -69,9 +70,9 @@ func WithHashAlgorithm(algorithm gocrypto.Hash) Option {
 	}
 }
 
-func WithTrustBase(trustBase types.RootTrustBase) Option {
+func WithTrustBaseStore(trustBaseStore *trustbase.TrustBaseStore) Option {
 	return func(c *Options) {
-		c.trustBase = trustBase
+		c.trustBaseStore = trustBaseStore
 	}
 }
 

@@ -20,15 +20,13 @@ type NopModule struct {
 	state         *state.State
 	hashAlgorithm crypto.Hash
 	execPredicate predicates.PredicateRunner
-	pdr           types.PartitionDescriptionRecord
 }
 
-func NewNopModule(pdr types.PartitionDescriptionRecord, options *Options) *NopModule {
+func NewNopModule(options *Options) *NopModule {
 	return &NopModule{
 		state:         options.state,
 		hashAlgorithm: options.hashAlgorithm,
 		execPredicate: predicates.NewPredicateRunner(options.exec),
-		pdr:           pdr,
 	}
 }
 

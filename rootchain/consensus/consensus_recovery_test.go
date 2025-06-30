@@ -18,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -27,6 +28,7 @@ import (
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
+	tbstore "github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
@@ -287,7 +289,7 @@ func Test_recoverState(t *testing.T) {
 
 		// tweak configurations - use "constant leader" to take leader selection out of test
 		cmLeader := cms[0]
-		allNodes := cmLeader.leaderSelector.GetNodes()
+		allNodes := cmLeader.Validators()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes}
 		}
@@ -353,7 +355,7 @@ func Test_recoverState(t *testing.T) {
 		}()
 
 		cmLeader := cms[0]
-		allNodes := cmLeader.leaderSelector.GetNodes()
+		allNodes := cmLeader.Validators()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes}
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
@@ -393,7 +395,7 @@ func Test_recoverState(t *testing.T) {
 			require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 3*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
 		}()
 
-		allNodes := cms[0].leaderSelector.GetNodes()
+		allNodes := cms[0].Validators()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cms[0].id, nodes: allNodes} // to take leader selection out of test
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
@@ -494,7 +496,7 @@ func Test_recoverState(t *testing.T) {
 		}()
 
 		cmLeader := cms[0]
-		allNodes := cmLeader.leaderSelector.GetNodes()
+		allNodes := cmLeader.Validators()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes} // use "const leader" to take leader selection out of test
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
@@ -626,11 +628,7 @@ func Test_recoverState(t *testing.T) {
 		}()
 
 		cmLeader := cms[0]
-		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
-			rrLeader, err := leader.NewRoundRobin(allNodes, 1)
-			require.NoError(t, err)
-			v.leaderSelector = rrLeader
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
@@ -662,11 +660,7 @@ func Test_recoverState(t *testing.T) {
 		}()
 
 		cmLeader := cms[0]
-		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
-			rrLeader, err := leader.NewRoundRobin(allNodes, 1)
-			require.NoError(t, err)
-			v.leaderSelector = rrLeader
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
@@ -719,7 +713,7 @@ func Test_recoverState(t *testing.T) {
 			require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 3*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
 		}()
 
-		allNodes := cms[0].leaderSelector.GetNodes()
+		allNodes := cms[0].Validators()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cms[1].id, nodes: allNodes} // use "const leader" to take leader selection out of test
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
@@ -788,10 +782,15 @@ func createConsensusManagers(t *testing.T, count int, shardNodes []*types.NodeIn
 		require.NoError(t, err)
 
 		obs := observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID)))
+
+		trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), obs.Logger())
+		require.NoError(t, err)
+		require.NoError(t, trustBaseStore.Store(trustBase))
+
 		rootDB, orchestration := createStorage(t, shardConf, rootSigners, obs)
 		cm, err := NewConsensusManager(
 			nodeID,
-			trustBase,
+			trustBaseStore,
 			orchestration,
 			rootNet.Connect(nodeID),
 			rootSigners[v.NodeID],
@@ -834,9 +833,11 @@ type constLeader struct {
 
 func (cl constLeader) GetLeaderForRound(round uint64) peer.ID { return cl.leader }
 
-func (cl constLeader) GetNodes() []peer.ID { return cl.nodes }
-
 func (cl constLeader) Update(qc *drctypes.QuorumCert, currentRound uint64, b leader.BlockLoader) error {
+	return nil
+}
+
+func (cl constLeader) UpdateWithTrustBase(trustBase types.RootTrustBase, currentRound uint64) error {
 	return nil
 }
 

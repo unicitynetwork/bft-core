@@ -13,8 +13,7 @@ func TestMemDBTx_Nil(t *testing.T) {
 }
 
 func TestMemDBTx_StartAndCommit(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -25,8 +24,7 @@ func TestMemDBTx_StartAndCommit(t *testing.T) {
 }
 
 func TestMemDBTx_StartAndRollback(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -37,8 +35,7 @@ func TestMemDBTx_StartAndRollback(t *testing.T) {
 }
 
 func TestMemDBTx_SimpleCommit(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -65,8 +62,7 @@ func TestMemDBTx_SimpleCommit(t *testing.T) {
 }
 
 func TestBoltTx_UseAfterClose(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -88,8 +84,7 @@ func TestBoltTx_UseAfterClose(t *testing.T) {
 }
 
 func TestMemDBTx_SimpleRollback(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -115,8 +110,7 @@ func TestMemDBTx_SimpleRollback(t *testing.T) {
 }
 
 func TestMemDBTx_Delete(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -153,8 +147,7 @@ func TestMemDBTx_Delete(t *testing.T) {
 }
 
 func TestMemDBTx_WriteEncodeError(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)

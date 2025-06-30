@@ -198,21 +198,23 @@ func TestAddShardConfig_TestAddingShardConfForPreviousEpoch(t *testing.T) {
 
 	// add second shardConf
 	shardConf2 := &types.PartitionDescriptionRecord{
-		NetworkID:   networkID,
-		PartitionID: partitionID,
-		ShardID:     shardID,
-		Epoch:       1,
-		EpochStart:  100,
+		NetworkID:       networkID,
+		PartitionID:     partitionID,
+		PartitionTypeID: shardConf.PartitionTypeID,
+		ShardID:         shardID,
+		Epoch:           1,
+		EpochStart:      100,
 	}
 	require.NoError(t, o.AddShardConfig(shardConf2))
 
 	// try to add third shardConf with epoch number same as in the previous shardConf
 	shardConf3 := &types.PartitionDescriptionRecord{
-		NetworkID:   networkID,
-		PartitionID: partitionID,
-		ShardID:     shardID,
-		Epoch:       1,
-		EpochStart:  200,
+		NetworkID:       networkID,
+		PartitionID:     partitionID,
+		PartitionTypeID: shardConf.PartitionTypeID,
+		ShardID:         shardID,
+		Epoch:           1,
+		EpochStart:      200,
 	}
 	require.ErrorContains(t, o.AddShardConfig(shardConf3), "invalid epoch, provided 1 previous 1")
 }

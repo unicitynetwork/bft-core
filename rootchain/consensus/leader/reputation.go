@@ -5,6 +5,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -12,8 +14,6 @@ import (
 /*
 NewReputationBased creates "leader election based on reputation" strategy implementation.
 
-  - "validators" is (sorted!) list of peer IDs to use for round-robin leader selection
-    when there is no elected leader for the round;
   - the "windowSize" is number of committed blocks to use to determine list of active
     validators (ie those which voted). It must not be larger than the "block history"
     available to the blockLoader, IOW the "blockLoader" must be able to return blocks
@@ -22,22 +22,15 @@ NewReputationBased creates "leader election based on reputation" strategy implem
     list when electing leader for the next round. Generally should be between f and 2f
     (where f is max allowed number of faulty nodes).
 */
-func NewReputationBased(validators []peer.ID, windowSize, excludeSize int) (*ReputationBased, error) {
-	if len(validators) == 0 {
-		return nil, fmt.Errorf("peer list (validators) must not be empty")
-	}
-	if len(validators) <= excludeSize {
-		return nil, fmt.Errorf("excludeSize value must be smaller than the number of validators in the system (%d validators, exclude %d)", len(validators), excludeSize)
-	}
-
+func NewReputationBased(windowSize, excludeSize int, trustBaseStore *trustbase.TrustBaseStore) (*ReputationBased, error) {
 	if windowSize == 0 {
 		return nil, fmt.Errorf("window size must be greater than zero")
 	}
 
 	return &ReputationBased{
-		windowSize:  windowSize,
-		excludeSize: excludeSize,
-		validators:  validators,
+		windowSize:     windowSize,
+		excludeSize:    excludeSize,
+		trustBaseStore: trustBaseStore,
 	}, nil
 }
 
@@ -57,8 +50,7 @@ Remarks:
 type ReputationBased struct {
 	windowSize  int // number of latest commits to take into account when determining which validators are active
 	excludeSize int // number of excluded authors of last committed blocks (should be between f and 2f)
-
-	validators peer.IDSlice // sorted! list of all peers in the system
+	trustBaseStore *trustbase.TrustBaseStore
 
 	// Elected leaders.
 	// We do not (need to) keep history and we can only elect leader for the next
@@ -72,7 +64,7 @@ type ReputationBased struct {
 
 /*
 GetLeaderForRound returns either elected leader or (in case the round doesn't have
-elected leader) falls back to round-robin of all validators.
+elected leader) falls back to round-robin of all epoch validators.
 Undefined behavior for round==0.
 */
 func (rb *ReputationBased) GetLeaderForRound(round uint64) peer.ID {
@@ -84,14 +76,43 @@ func (rb *ReputationBased) GetLeaderForRound(round uint64) peer.ID {
 			return l.leader
 		}
 	}
-	return pickLeader(rb.validators, round)
+
+	tb, err := rb.trustBaseStore.GetByRound(round)
+	if err != nil {
+		return UnknownLeader // TODO: also log, or return err?
+	}
+	leader := pickLeader(tb.GetRootNodes(), round)
+	leaderID, err := peer.Decode(leader.NodeID)
+	if err != nil {
+		return UnknownLeader // TODO: also log
+	}
+	return leaderID
 }
 
-/*
-GetNodes returns all currently active root nodes
-*/
-func (rb *ReputationBased) GetNodes() []peer.ID {
-	return rb.validators
+func (rb *ReputationBased) UpdateWithTrustBase(trustBase types.RootTrustBase, currentRound uint64) error {
+	// NB! leader selector algorithm makes the assumption that the validators slice is sorted
+	rb.m.Lock()
+	defer rb.m.Unlock()
+
+	currentRoundLeader := pickLeader(trustBase.GetRootNodes(), currentRound)
+	currentLeaderID, err := peer.Decode(currentRoundLeader.NodeID)
+	if err != nil {
+		return fmt.Errorf("invalid peer id %q: %w", currentRoundLeader.NodeID, err)
+	}
+	idx := rb.slotIndex(currentRound)
+	rb.leaders[idx].round = currentRound
+	rb.leaders[idx].leader = currentLeaderID
+
+	nextRoundLeader := pickLeader(trustBase.GetRootNodes(), currentRound+1)
+	nextLeaderID, err := peer.Decode(nextRoundLeader.NodeID)
+	if err != nil {
+		return fmt.Errorf("invalid peer id %q: %w", nextRoundLeader.NodeID, err)
+	}
+	idx = rb.slotIndex(currentRound+1)
+	rb.leaders[idx].round = currentRound+1
+	rb.leaders[idx].leader = nextLeaderID
+
+	return nil
 }
 
 /*
@@ -108,9 +129,30 @@ func (rb *ReputationBased) Update(qc *abtypes.QuorumCert, currentRound uint64, b
 		return fmt.Errorf("not updating leaders because rounds are not consecutive {parent: %d, QC: %d, current: %d}", exR, qcR, currentRound)
 	}
 
-	leader, err := rb.electLeader(qc, blockLoader)
-	if err != nil {
-		return fmt.Errorf("failed to elect leader for round %d: %w", currentRound+1, err)
+	nextTrustBase, err := rb.trustBaseStore.GetByEpoch(qc.VoteInfo.Epoch+1)
+	if err != nil && err != trustbase.ErrNotFound {
+		return fmt.Errorf("failed to load trustBase for epoch %d: %w", qc.VoteInfo.Epoch+1, err)
+	}
+
+	// If we elect leader for next epoch, pick a leader from the set of all validators.
+	var leader peer.ID
+	if nextTrustBase != nil && nextTrustBase.EpochStart <= currentRound+1 {
+		// NB! leader selector algorithm makes the assumption that the validators slice is sorted
+		// validators, err := toPeerIDs(trustBase.GetRootNodes())
+		// if err != nil {
+		// 	return nil, fmt.Errorf("failed to get root validator peerIDs: %w", err)
+		// }
+
+		leaderNode := pickLeader(nextTrustBase.RootNodes, leaderSeed(qc))
+		leader, err = peer.Decode(leaderNode.NodeID)
+		if err != nil {
+			return fmt.Errorf("invalid peer id %q: %w", leaderNode, err)
+		}
+	} else {
+		leader, err = rb.electLeader(qc, blockLoader)
+		if err != nil {
+			return fmt.Errorf("failed to elect leader for round %d: %w", currentRound+1, err)
+		}
 	}
 
 	rb.m.Lock()
@@ -139,9 +181,7 @@ func (rb *ReputationBased) slotIndex(round uint64) int {
 
 func (rb *ReputationBased) electLeader(qc *abtypes.QuorumCert, blockLoader BlockLoader) (peer.ID, error) {
 	qcRound := qc.GetRound()
-	extra := qc.LedgerCommitInfo.PreviousHash
-	leaderSeed := qcRound + (uint64(extra[0]) | uint64(extra[1])<<8 | uint64(extra[2])<<16 | uint64(extra[3])<<24)
-
+	leaderSeed := leaderSeed(qc)
 	authors := make(map[string]struct{}) // block authors of the recent rounds
 	active := make(map[string]struct{})  // validators that signed the committed blocks
 	round := qc.GetParentRound()
@@ -164,11 +204,11 @@ func (rb *ReputationBased) electLeader(qc *abtypes.QuorumCert, blockLoader Block
 		round = qc.GetRound()
 	}
 
-	for id := range authors {
-		delete(active, id)
-	}
-	if len(active) == 0 {
-		return UnknownLeader, fmt.Errorf("no active validators left after eliminating %d recent authors", len(authors))
+	if len(authors) < len(active) {
+		// Only remove recent authros if we have enough active validators
+		for id := range authors {
+			delete(active, id)
+		}
 	}
 
 	leader := pickLeader(toSortedSlice(active), leaderSeed)
@@ -180,11 +220,15 @@ func (rb *ReputationBased) electLeader(qc *abtypes.QuorumCert, blockLoader Block
 }
 
 /*
-pickLeader selects an item from "leaders" slice on a round-robin basis
-using (current)round as a "seed". The "leaders" slice must not be empty.
+pickLeader picks a leader from validators based on seed. The validators slice must be sorted and not empty.
 */
-func pickLeader[T any](leaders []T, round uint64) T {
-	return leaders[round%uint64(len(leaders))]
+func pickLeader[T any](validators []T, seed uint64) T {
+	return validators[seed%uint64(len(validators))]
+}
+
+func leaderSeed(qc *abtypes.QuorumCert) uint64 {
+	extra := qc.LedgerCommitInfo.PreviousHash
+	return qc.GetRound() + (uint64(extra[0]) | uint64(extra[1])<<8 | uint64(extra[2])<<16 | uint64(extra[3])<<24)
 }
 
 /*
@@ -199,4 +243,16 @@ func toSortedSlice(leaders map[string]struct{}) []string {
 	}
 	sort.Strings(s)
 	return s
+}
+
+func toPeerIDs(nodes []*types.NodeInfo) ([]peer.ID, error) {
+	peerIDs := make([]peer.ID, len(nodes))
+	for n, v := range nodes {
+		peerID, err := peer.Decode(v.NodeID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert node ID %q: %w", v.NodeID, err)
+		}
+		peerIDs[n] = peerID
+	}
+	return peerIDs, nil
 }

@@ -20,7 +20,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 	var ok bool
 	idGen := money.PrndSh(tx)
 	for _, targetUnit := range attr.TargetUnits {
-		newUnitID, err := m.pdr.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
+		newUnitID, err := m.shardConf.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate new bill id: %w", err)
 		}
@@ -70,7 +70,7 @@ func (m *Module) splitTxTargetUnits(tx *types.TransactionOrder, attr *money.Spli
 	targetUnits = append(targetUnits, tx.UnitID)
 	idGen := money.PrndSh(tx)
 	for range attr.TargetUnits {
-		newUnitID, err := m.pdr.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
+		newUnitID, err := m.shardConf.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate new bill id: %w", err)
 		}

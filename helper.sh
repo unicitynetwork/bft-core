@@ -94,7 +94,7 @@ function init_root_nodes() {
   done
 
   # Generate trust-base once to testab
-  build/alphabill trust-base generate --home testab --network-id 3 $nodeInfoFiles
+  build/alphabill trust-base generate --home testab --epoch 0 --epoch-start 1 --network-id 3 $nodeInfoFiles
 
   # Sign trust-base by each node
   for i in $(seq 1 "$1")

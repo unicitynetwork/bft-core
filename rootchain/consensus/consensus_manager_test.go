@@ -28,6 +28,7 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -35,6 +36,7 @@ import (
 	abdrctu "github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	tbstore "github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
@@ -81,9 +83,14 @@ func initConsensusManager(t *testing.T, rootNet RootNet, opts ...Option) (*Conse
 	}
 	rootDB, orchestration := createStorage(t, shardConf, rootSigners, observe)
 
+	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), observe.Logger())
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(trustBase))
+
+
 	cm, err := NewConsensusManager(
 		rootNode.PeerConf.ID,
-		trustBase,
+		trustBaseStore,
 		orchestration,
 		rootNet,
 		rootNode.Signer,
@@ -418,7 +425,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	require.NoError(t, err)
 	shardConfHash, err := shardConf.Hash(crypto.SHA256)
 	require.NoError(t, err)
-	require.NoError(t, result.Verify(cm.trustBase, crypto.SHA256, partitionID, shardConfHash))
+	require.NoError(t, result.Verify(cm.trustBase.Load(), crypto.SHA256, partitionID, shardID, shardConfHash))
 
 	// root will continue and next proposal is also triggered by the same QC
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
@@ -511,9 +518,13 @@ func TestGetState_WithoutShards(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = rootDB.Close() })
 
+	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), observe.Logger())
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(trustBase))
+
 	cm, err := NewConsensusManager(
 		rootNode.PeerConf.ID,
-		trustBase,
+		trustBaseStore,
 		orchestration,
 		mockNet,
 		rootNode.Signer,
@@ -802,7 +813,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		cms, rootNet := createConsensusManagers(t, 2, shardNodeInfos)
 		cmLeader := cms[0]
 		nonLeaderNode := cms[1]
-		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
+		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.Validators()} // use "const leader" to take leader selection out of test
 		// eavesdrop the network and copy IR change message sent by non-leader to leader
 		irCh := make(chan *abdrc.IrChangeReqMsg, 1)
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
@@ -845,7 +856,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 
 		cmOther := cms[1]
 		cmLeader := cms[0]
-		cmLeader.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
+		cmLeader.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.Validators()} // use "const leader" to take leader selection out of test
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -897,7 +908,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		cms, rootNet := createConsensusManagers(t, 2, shardNodeInfos)
 		cmLeader := cms[0]
 		nonLeaderNode := cms[1]
-		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()}
+		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.Validators()}
 
 		irCh := make(chan *abdrc.IrChangeReqMsg, 1)
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
@@ -1312,7 +1323,7 @@ func Test_ConsensusManager_RestoreVote(t *testing.T) {
 	require.NoError(t, cm.blockStore.GetDB().WriteVote(timeoutVote))
 
 	// replace leader selector
-	allNodes := cm.leaderSelector.GetNodes()
+	allNodes := cm.Validators()
 	leaderId, err := p2ptest.RandPeerID()
 	require.NoError(t, err)
 	allNodes = append(allNodes, leaderId)

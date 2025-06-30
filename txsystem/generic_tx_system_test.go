@@ -66,16 +66,8 @@ func Test_NewGenericTxSystem(t *testing.T) {
 	}
 	require.NoError(t, validPDR.IsValid())
 
-	t.Run("partition ID param is mandatory", func(t *testing.T) {
-		pdr := validPDR
-		pdr.PartitionID = 0
-		txSys, err := NewGenericTxSystem(pdr, nil, nil, nil)
-		require.Nil(t, txSys)
-		require.EqualError(t, err, `invalid Partition Description: invalid partition identifier: 00000000`)
-	})
-
 	t.Run("observability must not be nil", func(t *testing.T) {
-		txSys, err := NewGenericTxSystem(validPDR, nil, nil, nil)
+		txSys, err := NewGenericTxSystem(&validPDR, nil, nil, nil)
 		require.Nil(t, txSys)
 		require.EqualError(t, err, "observability must not be nil")
 	})
@@ -83,12 +75,12 @@ func Test_NewGenericTxSystem(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		obs := observability.Default(t)
 		txSys, err := NewGenericTxSystem(
-			validPDR,
+			&validPDR,
 			nil,
 			obs,
 		)
 		require.NoError(t, err)
-		require.EqualValues(t, mockPartitionID, txSys.pdr.PartitionID)
+		require.EqualValues(t, mockPartitionID, txSys.shardConf.GetPartitionID())
 		require.NotNil(t, txSys.log)
 		require.NotNil(t, txSys.fees)
 		// default is no fee handling, which will give you a huge gas budget
@@ -502,7 +494,7 @@ func createTxSystemWithFees(t *testing.T, options ...txSystemTestOption) *Generi
 	obs := observability.Default(t)
 	feeModule := newMockFeeModule(16)
 	m := NewMockTxModule(nil)
-	txSys, err := NewGenericTxSystem(pdr, []txtypes.Module{m}, obs, WithFeeCredits(feeModule))
+	txSys, err := NewGenericTxSystem(&pdr, []txtypes.Module{m}, obs, WithFeeCredits(feeModule))
 	require.NoError(t, err)
 	for _, opt := range options {
 		require.NoError(t, opt(txSys))
@@ -517,8 +509,8 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		return &types.TransactionOrder{
 			Version: 1,
 			Payload: types.Payload{
-				NetworkID:   txs.pdr.NetworkID,
-				PartitionID: txs.pdr.PartitionID,
+				NetworkID:   txs.shardConf.GetNetworkID(),
+				PartitionID: txs.shardConf.GetPartitionID(),
 				UnitID:      make(types.UnitID, 33),
 				ClientMetadata: &types.ClientMetadata{
 					Timeout: txs.currentRoundNumber + 1,
@@ -538,7 +530,7 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	t.Run("partition ID is checked", func(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
-		txo.PartitionID = txSys.pdr.PartitionID + 1
+		txo.PartitionID = txSys.shardConf.GetPartitionID() + 1
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrInvalidPartitionID)
 	})
 
@@ -661,13 +653,13 @@ func Test_GenericTxSystem_RInit(t *testing.T) {
 		fcrUnitType := uint32(16)
 		ordinaryUnitType := uint32(1)
 		deletionRound := uint64(10)
-		fcrID1, err := txSys.pdr.ComposeUnitID(types.ShardID{}, fcrUnitType, random)
+		fcrID1, err := txSys.shardConf.ComposeUnitID(types.ShardID{}, fcrUnitType, random)
 		require.NoError(t, err)
-		fcrID2, err := txSys.pdr.ComposeUnitID(types.ShardID{}, fcrUnitType, random)
+		fcrID2, err := txSys.shardConf.ComposeUnitID(types.ShardID{}, fcrUnitType, random)
 		require.NoError(t, err)
-		unitID3, err := txSys.pdr.ComposeUnitID(types.ShardID{}, ordinaryUnitType, random)
+		unitID3, err := txSys.shardConf.ComposeUnitID(types.ShardID{}, ordinaryUnitType, random)
 		require.NoError(t, err)
-		unitID4, err := txSys.pdr.ComposeUnitID(types.ShardID{}, ordinaryUnitType, random)
+		unitID4, err := txSys.shardConf.ComposeUnitID(types.ShardID{}, ordinaryUnitType, random)
 		require.NoError(t, err)
 
 		require.NoError(t, txSys.state.Apply(state.AddUnit(fcrID1, fcsdk.NewFeeCreditRecord(0, nil, deletionRound-1))))
@@ -831,7 +823,7 @@ func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTx
 		T2Timeout:       2500 * time.Millisecond,
 	}
 	// default configuration has no fee handling
-	txSys, err := NewGenericTxSystem(pdr, modules, observability.Default(t))
+	txSys, err := NewGenericTxSystem(&pdr, modules, observability.Default(t))
 	require.NoError(t, err)
 	return txSys
 }

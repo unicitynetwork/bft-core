@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/txsystem"
 
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
@@ -31,7 +32,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.NoError(t, abNetwork.Start(t))
 	t.Cleanup(func() { abNetwork.WaitClose(t) })
 
-	abNetwork.AddShard(t, shardConf, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNetwork.AddShard(t, shardConf, 3, func(tbs *trustbase.TrustBaseStore) txsystem.TransactionSystem {
 		return &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	})
 

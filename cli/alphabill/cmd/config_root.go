@@ -189,7 +189,7 @@ func (r *baseFlags) loadConf(path string, defaultFileName string, conf any) erro
 	return nil
 }
 
-func (f *baseFlags) initStore(path string, defaultFileName string) (keyvaluedb.KeyValueDB, error) {
+func (f *baseFlags) initDB(path string, defaultFileName string) (keyvaluedb.KeyValueDB, error) {
 	path = f.PathWithDefault(path, defaultFileName)
 
 	db, err := boltdb.New(path)

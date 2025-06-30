@@ -33,7 +33,7 @@ func TestValidateDeleteFCR(t *testing.T) {
 	partitionID := types.PartitionID(5)
 	const fcrUnitType = 1
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate, observability.Default(t))
+	m, err := NewFeeCreditModule(&targetPDR, stateTree, fcrUnitType, adminOwnerPredicate, observability.Default(t))
 	require.NoError(t, err)
 
 	// common default values used in each test
@@ -120,7 +120,7 @@ func TestExecuteDeleteFCR(t *testing.T) {
 	partitionID := types.PartitionID(5)
 	const fcrUnitType = 1
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate, observability.Default(t))
+	m, err := NewFeeCreditModule(&targetPDR, stateTree, fcrUnitType, adminOwnerPredicate, observability.Default(t))
 	require.NoError(t, err)
 
 	// add unit to state tree

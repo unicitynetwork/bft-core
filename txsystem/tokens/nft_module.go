@@ -4,9 +4,9 @@ import (
 	"crypto"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
@@ -16,15 +16,15 @@ type NonFungibleTokensModule struct {
 	state         *state.State
 	hashAlgorithm crypto.Hash
 	execPredicate predicates.PredicateRunner
-	pdr           types.PartitionDescriptionRecord
+	shardConf     txsystem.ShardConf
 }
 
-func NewNonFungibleTokensModule(pdr types.PartitionDescriptionRecord, options *Options) (*NonFungibleTokensModule, error) {
+func NewNonFungibleTokensModule(shardConf txsystem.ShardConf, options *Options) (*NonFungibleTokensModule, error) {
 	return &NonFungibleTokensModule{
 		state:         options.state,
 		hashAlgorithm: options.hashAlgorithm,
 		execPredicate: predicates.NewPredicateRunner(options.exec),
-		pdr:           pdr,
+		shardConf:     shardConf,
 	}, nil
 }
 

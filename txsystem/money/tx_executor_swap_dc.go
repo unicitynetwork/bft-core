@@ -71,7 +71,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	}
 
 	// verify individual dust transfers (without proofs, proofs are check as the last step)
-	dcSum, err := m.verifyDustTransfers(attr.DustTransferProofs, tx.UnitID, billData.Counter)
+	dcSum, err := m.verifyDustTransfers(tx, attr.DustTransferProofs, tx.UnitID, billData.Counter)
 	if err != nil {
 		return fmt.Errorf("dust transaction verification failed: %w", err)
 	}
@@ -91,7 +91,17 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 
 	// verify dust transfer proofs
 	for i, proof := range attr.DustTransferProofs {
-		if err = types.VerifyTxProof(proof, m.trustBase, m.hashAlgorithm); err != nil {
+		// get trust base to verify transferDC
+		proofUC, err := proof.TxProof.GetUC()
+		if err != nil {
+			return fmt.Errorf("dust transfer proof is not valid at index %d: %w", i, err)
+		}
+		trustBase, err := m.trustBaseStore.GetByEpoch(proofUC.InputRecord.Epoch)
+		if err != nil {
+			return fmt.Errorf("failed to get trust base for dust transfer proof at index %d: %w", i, err)
+		}
+
+		if err = types.VerifyTxProof(proof, trustBase, m.hashAlgorithm); err != nil {
 			return fmt.Errorf("dust transfer proof is not valid at index %d: %w", i, err)
 		}
 	}
@@ -102,14 +112,14 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 	return nil
 }
 
-func (m *Module) verifyDustTransfers(dustTransferProofs []*types.TxRecordProof, targetUnitID types.UnitID, targetUnitCounter uint64) (uint64, error) {
+func (m *Module) verifyDustTransfers(swapTx *types.TransactionOrder, dustTransferProofs []*types.TxRecordProof, targetUnitID types.UnitID, targetUnitCounter uint64) (uint64, error) {
 	var dcSum uint64
 	var prevDcProof *types.TxRecordProof
 	for i, dcProof := range dustTransferProofs {
 		if i > 0 {
 			prevDcProof = dustTransferProofs[i-1]
 		}
-		dcVal, err := m.verifyDustTransfer(dcProof, prevDcProof, targetUnitID, targetUnitCounter)
+		dcVal, err := m.verifyDustTransfer(swapTx, dcProof, prevDcProof, targetUnitID, targetUnitCounter)
 		if err != nil {
 			return 0, fmt.Errorf("failed to verify dust transfer at index %d: %w", i, err)
 		}
@@ -122,7 +132,7 @@ func (m *Module) verifyDustTransfers(dustTransferProofs []*types.TxRecordProof, 
 	return dcSum, nil
 }
 
-func (m *Module) verifyDustTransfer(dcProof *types.TxRecordProof, prevDustTransfer *types.TxRecordProof, targetUnitID types.UnitID, targetUnitCounter uint64) (uint64, error) {
+func (m *Module) verifyDustTransfer(swapTx *types.TransactionOrder, dcProof *types.TxRecordProof, prevDustTransfer *types.TxRecordProof, targetUnitID types.UnitID, targetUnitCounter uint64) (uint64, error) {
 	if err := dcProof.IsValid(); err != nil {
 		return 0, err
 	}
@@ -135,13 +145,13 @@ func (m *Module) verifyDustTransfer(dcProof *types.TxRecordProof, prevDustTransf
 		return 0, fmt.Errorf("invalid TransferDC attributes: %w", err)
 	}
 	// transfers were in this network
-	if dcTxo.NetworkID != m.pdr.NetworkID {
-		return 0, fmt.Errorf("dust transfer invalid network: expected %d vs provided %d", m.pdr.NetworkID, dcTxo.PartitionID)
+	if dcTxo.NetworkID != swapTx.NetworkID {
+		return 0, fmt.Errorf("dust transfer invalid network: expected %d vs provided %d", swapTx.NetworkID, dcTxo.PartitionID)
 	}
 	// transfers were in the money partition
-	if dcTxo.PartitionID != m.pdr.PartitionID {
+	if dcTxo.PartitionID != swapTx.PartitionID {
 		return 0, fmt.Errorf("dust transfer partition id is not money partition partition id: expected %d vs provided %d",
-			m.pdr.PartitionID, dcTxo.PartitionID)
+			swapTx.PartitionID, dcTxo.PartitionID)
 	}
 	// bills were transferred to DC
 	if dcTxo.Type != money.TransactionTypeTransDC {

@@ -27,7 +27,7 @@ var _ TransactionSystem = (*GenericTxSystem)(nil)
 
 type (
 	GenericTxSystem struct {
-		pdr                 types.PartitionDescriptionRecord
+		shardConf           ShardConf
 		hashAlgorithm       crypto.Hash
 		state               *state.State
 		currentRoundNumber  uint64
@@ -47,12 +47,21 @@ type (
 		Logger() *slog.Logger
 		RoundLogger(curRound func() uint64) *slog.Logger
 	}
+
+	// Part of the shard config that is not supposed to change between epochs
+	ShardConf interface {
+		GetNetworkID() types.NetworkID
+		GetPartitionTypeID() types.PartitionTypeID
+		GetPartitionID() types.PartitionID
+		GetShardID() types.ShardID
+		GetPartitionParams() map[string]string
+		ExtractUnitType(unitID types.UnitID) (uint32, error)
+		ComposeUnitID(shardID types.ShardID, unitType uint32, prndSh func([]byte) error) (types.UnitID, error)
+		UnitIDValidator(shardID types.ShardID) func(unitID types.UnitID) error
+	}
 )
 
-func NewGenericTxSystem(shardConf types.PartitionDescriptionRecord, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
-	if err := shardConf.IsValid(); err != nil {
-		return nil, fmt.Errorf("invalid Partition Description: %w", err)
-	}
+func NewGenericTxSystem(shardConf ShardConf, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
 	if observe == nil {
 		return nil, errors.New("observability must not be nil")
 	}
@@ -68,10 +77,10 @@ func NewGenericTxSystem(shardConf types.PartitionDescriptionRecord, modules []tx
 	}
 
 	txs := &GenericTxSystem{
-		pdr:                 shardConf,
+		shardConf:           shardConf,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
-		unitIDValidator:     shardConf.UnitIDValidator(shardConf.ShardID),
+		unitIDValidator:     shardConf.UnitIDValidator(shardConf.GetShardID()),
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
 		handlers:            make(txtypes.TxExecutors),
@@ -94,7 +103,7 @@ func NewGenericTxSystem(shardConf types.PartitionDescriptionRecord, modules []tx
 		}
 
 	}
-	if err := txs.initMetrics(observe.Meter("txsystem"), shardConf.ShardID); err != nil {
+	if err := txs.initMetrics(observe.Meter("txsystem"), shardConf.GetShardID()); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
 
@@ -166,7 +175,7 @@ func (m *GenericTxSystem) rInit(roundNumber uint64) error {
 		if err != nil {
 			return fmt.Errorf("failed to extract unit v1: %w", err)
 		}
-		unitType, err := m.pdr.ExtractUnitType(unitID)
+		unitType, err := m.shardConf.ExtractUnitType(unitID)
 		if err != nil {
 			return fmt.Errorf("failed to extract unit type: %w", err)
 		}
@@ -478,12 +487,12 @@ See Yellowpaper chapter 4.6 "Transaction Processing".
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
 	// T.α = S.α – transaction is sent to this network
-	if m.pdr.NetworkID != tx.NetworkID {
-		return fmt.Errorf("invalid network id: %d (expected %d)", tx.NetworkID, m.pdr.NetworkID)
+	if m.shardConf.GetNetworkID() != tx.NetworkID {
+		return fmt.Errorf("invalid network id: %d (expected %d)", tx.NetworkID, m.shardConf.GetNetworkID())
 	}
 
 	// T.β = S.β – transaction is sent to this partition
-	if m.pdr.PartitionID != tx.PartitionID {
+	if m.shardConf.GetPartitionID() != tx.PartitionID {
 		return ErrInvalidPartitionID
 	}
 
@@ -546,7 +555,7 @@ func (m *GenericTxSystem) CurrentRound() uint64 {
 }
 
 func (m *GenericTxSystem) TypeID() types.PartitionTypeID {
-	return m.pdr.PartitionTypeID
+	return m.shardConf.GetPartitionTypeID()
 }
 
 func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
@@ -554,7 +563,7 @@ func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (state.Unit, 
 }
 
 func (m *GenericTxSystem) initMetrics(mtr metric.Meter, shardID types.ShardID) error {
-	shardAttr := observability.Shard(m.pdr.PartitionID, shardID)
+	shardAttr := observability.Shard(m.shardConf.GetPartitionID(), shardID)
 	if _, err := mtr.Int64ObservableUpDownCounter(
 		"unit.count",
 		metric.WithDescription(`Number of units in the state.`),

@@ -33,7 +33,7 @@ type (
 		PartitionTypeID() types.PartitionTypeID
 		PartitionTypeIDString() string
 		DefaultPartitionParams(flags *ShardConfGenerateFlags) map[string]string
-		NewGenesisState(pdr *types.PartitionDescriptionRecord) (*state.State, error)
+		NewGenesisState(shardConf *types.PartitionDescriptionRecord) (*state.State, error)
 		CreateTxSystem(flags *ShardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error)
 	}
 )

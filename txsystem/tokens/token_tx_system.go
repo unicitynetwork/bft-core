@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	basetypes "github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/permissioned"
@@ -30,7 +29,7 @@ var (
 	errInvalidIconDataLength = fmt.Errorf("icon data length exceeds the allowed maximum of %d KiB", maxIconDataLength/1024)
 )
 
-func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(shardConf txsystem.ShardConf, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("tokens transaction system default config: %w", err)
@@ -52,7 +51,7 @@ func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsyste
 		return nil, fmt.Errorf("failed to load fungible tokens module: %w", err)
 	}
 
-	nopModule := NewNopModule(shardConf, options)
+	nopModule := NewNopModule(options)
 
 	var feeCreditModule txtypes.FeeCreditModule
 	if len(options.adminOwnerPredicate) > 0 {
@@ -65,7 +64,7 @@ func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsyste
 			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)
 		}
 	} else {
-		feeCreditModule, err = fc.NewFeeCreditModule(shardConf, options.moneyPartitionID, options.state, options.trustBase, observe,
+		feeCreditModule, err = fc.NewFeeCreditModule(shardConf, options.moneyPartitionID, options.state, options.trustBaseStore, observe,
 			fc.WithHashAlgorithm(options.hashAlgorithm),
 			fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 		)

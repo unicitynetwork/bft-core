@@ -14,10 +14,12 @@ import (
 
 var (
 	ErrBlockProposalIsNil     = errors.New("block proposal is nil")
+	ErrShardConfIsNil         = errors.New("shard conf is nil")
 	ErrTrustBaseIsNil         = errors.New("trust base is nil")
 	ErrSignerIsNil            = errors.New("signer is nil")
 	ErrNodeVerifierIsNil      = errors.New("node signature verifier is nil")
 	ErrInvalidPartitionID     = errors.New("invalid partition identifier")
+	ErrInvalidShardID         = errors.New("invalid shard identifier")
 	errBlockProposerIDMissing = errors.New("block proposer id is missing")
 )
 
@@ -32,23 +34,34 @@ type BlockProposal struct {
 	Signature          []byte
 }
 
-func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.RootTrustBase, algorithm gocrypto.Hash, partitionID types.PartitionID, shardConfHash []byte) error {
+func (x *BlockProposal) IsValid(trustBase types.RootTrustBase, shardConf *types.PartitionDescriptionRecord, hashAlg gocrypto.Hash) error {
 	if x == nil {
 		return ErrBlockProposalIsNil
 	}
-	if nodeSignatureVerifier == nil {
-		return ErrNodeVerifierIsNil
+	if shardConf == nil {
+		return ErrShardConfIsNil
+	}
+	if trustBase == nil {
+		return ErrTrustBaseIsNil
+	}
+	if shardConf.PartitionID != x.PartitionID {
+		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionID, shardConf.PartitionID, x.PartitionID)
+	}
+	if !shardConf.ShardID.Equal(x.ShardID) {
+		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidShardID, shardConf.ShardID, x.ShardID)
 	}
 	if len(x.NodeID) == 0 {
 		return errBlockProposerIDMissing
 	}
-	if tb == nil {
-		return ErrTrustBaseIsNil
+	proposer := shardConf.FindValidator(x.NodeID.String())
+	if proposer == nil {
+		return fmt.Errorf("block proposal from unknown validator %s", x.NodeID)
 	}
-	if partitionID != x.PartitionID {
-		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionID, partitionID, x.PartitionID)
+	sigVerifier, err := proposer.SigVerifier()
+	if err != nil {
+		return fmt.Errorf("failed to get block proposer signature verifier: %w", err)
 	}
-	if err := x.UnicityCertificate.Verify(tb, algorithm, partitionID, shardConfHash); err != nil {
+	if err := x.UnicityCertificate.Verify(trustBase, hashAlg, shardConf.PartitionID, shardConf.ShardID, nil); err != nil {
 		return err
 	}
 	if err := x.Technical.IsValid(); err != nil {
@@ -57,7 +70,7 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.
 	if err := x.Technical.HashMatches(x.UnicityCertificate.TRHash); err != nil {
 		return fmt.Errorf("comparing TechnicalRecord hash to UC.TRHash: %w", err)
 	}
-	return x.Verify(algorithm, nodeSignatureVerifier)
+	return x.Verify(hashAlg, sigVerifier)
 }
 
 func (x *BlockProposal) Hash(algorithm gocrypto.Hash) ([]byte, error) {

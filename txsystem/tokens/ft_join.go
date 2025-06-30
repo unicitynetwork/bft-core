@@ -80,7 +80,17 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		if btxAttr.TargetTokenCounter != tokenData.Counter {
 			return fmt.Errorf("burn transaction target token counter does not match with target unit counter: burn transaction counter %d, unit counter %d", btxAttr.TargetTokenCounter, tokenData.Counter)
 		}
-		if err = types.VerifyTxProof(btx, m.trustBase, m.hashAlgorithm); err != nil {
+
+		proofUC, err := btx.TxProof.GetUC()
+		if err != nil {
+			return fmt.Errorf("invalid burn transaction proof: %w", err)
+		}
+		trustBase, err := m.trustBaseStore.GetByEpoch(proofUC.InputRecord.Epoch)
+		if err != nil {
+			return fmt.Errorf("failed to get trust base for transFC proof: %w", err)
+		}
+
+		if err = types.VerifyTxProof(btx, trustBase, m.hashAlgorithm); err != nil {
 			return fmt.Errorf("proof is not valid: %w", err)
 		}
 		prevUnitID = burnTxo.UnitID

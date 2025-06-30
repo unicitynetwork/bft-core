@@ -11,7 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network"
@@ -24,7 +23,7 @@ import (
 
 type AlwaysValidCertificateValidator struct{}
 
-func (c *AlwaysValidCertificateValidator) Validate(_ *types.UnicityCertificate, _ []byte) error {
+func (c *AlwaysValidCertificateValidator) Validate(*types.UnicityCertificate, *types.PartitionDescriptionRecord, types.RootTrustBase) error {
 	return nil
 }
 
@@ -69,9 +68,8 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	tp := newSingleValidatorNodePartition(t, txs)
 
 	// Replace blockStore before node is run
-	db, err := memorydb.New()
-	require.NoError(t, err)
-	tp.nodeConf.blockStore = db
+	db := memorydb.New()
+	tp.nodeConf.blockDB = db
 
 	// initial uc with stateHash == nil
 	uc0 := txs.CommittedUC()
@@ -236,8 +234,8 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 func TestNode_InvalidCertificateResponse(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	cr := &certification.CertificationResponse{
-		Partition: tp.nodeConf.PartitionID(),
-		Shard:     tp.nodeConf.ShardID(),
+		Partition: tp.nodeConf.ShardConf().GetPartitionID(),
+		Shard:     tp.nodeConf.ShardConf().GetShardID(),
 	}
 	tp.mockNet.Receive(cr)
 	ContainsError(t, tp, "invalid CertificationResponse: UnicityTreeCertificate is unassigned")
@@ -259,7 +257,7 @@ func TestNode_HandleStaleCertificationResponse(t *testing.T) {
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
-	luc, found := tp.certs[tp.nodeConf.PartitionID()]
+	luc, found := tp.certs[tp.nodeConf.ShardConf().GetPartitionID()]
 	require.True(t, found)
 	// Mock and skip some root rounds
 	tp.eh.Reset()
@@ -450,7 +448,9 @@ func TestNode_HandleUnicityCertificate_SwitchToNonValidator(t *testing.T) {
 
 	// Create ShardConf for epoch 1
 	// epoch 1 validators are [epoch0Node, thisNode, epoch1Node]
-	shardConf1 := createShardConfWithNewNode(t, tp.nodeConf.shardConf)
+	shardConf0, err := tp.nodeConf.shardConfStore.Get(0)
+	require.NoError(t, err)
+	shardConf1 := createShardConfWithNewNode(t, shardConf0)
 	require.NoError(t, tp.node.RegisterShardConf(shardConf1))
 
 	ir2 := tp.GetCommittedUC(t).InputRecord.NewRepeatIR()
@@ -462,7 +462,7 @@ func TestNode_HandleUnicityCertificate_SwitchToNonValidator(t *testing.T) {
 
 	// Create ShardConf for epoch 2
 	// epoch 2 validators are [epoch0Node, epoch1Node]
-	shardConf2 := createShardConfWithRemovedNode(t, shardConf1, 1)
+	shardConf2 := createShardConfWithRemovedNode(t, shardConf1, tp.node.peer.ID().String())
 	require.NoError(t, tp.node.RegisterShardConf(shardConf2))
 
 	tp.ReceiveCertResponseWithEpoch(t, ir2.NewRepeatIR(), 300, 2)
@@ -497,19 +497,6 @@ func TestBlockProposal_BlockProposalIsNil(t *testing.T) {
 	ContainsError(t, tp, blockproposal.ErrBlockProposalIsNil.Error())
 }
 
-func TestBlockProposal_InvalidNodeID(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
-	tp.WaitHandshake(t)
-	uc := tp.GetCommittedUC(t)
-	transfer := testtransaction.NewTransactionOrder(t)
-
-	require.NoError(t, tp.SubmitTx(transfer))
-	tp.CreateBlock(t)
-	require.Eventually(t, NextBlockReceived(t, tp, uc), test.WaitDuration, test.WaitTick)
-	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeID: "1", UnicityCertificate: uc})
-	ContainsError(t, tp, "block proposal from unknown node")
-}
-
 func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
@@ -519,13 +506,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(transfer))
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, uc), test.WaitDuration, test.WaitTick)
-	verifier, err := tp.rootSigner.Verifier()
-	require.NoError(t, err)
-	rootTrust := trustbase.NewTrustBase(t, verifier)
-	val, err := NewDefaultBlockProposalValidator(
-		tp.nodeConf.PartitionID(), tp.nodeConf.ShardID(), rootTrust, gocrypto.SHA256)
-	require.NoError(t, err)
-	tp.node.conf.bpValidator = val
+	tp.node.conf.bpValidator = NewDefaultBlockProposalValidator(gocrypto.SHA256)
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
 		NodeID:             tp.nodeID(t),
@@ -547,8 +528,8 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
 		NodeID:             tp.nodeID(t),
-		PartitionID:        tp.nodeConf.PartitionID(),
-		ShardID:            tp.nodeConf.ShardID(),
+		PartitionID:        tp.nodeConf.ShardConf().GetPartitionID(),
+		ShardID:            tp.nodeConf.ShardConf().GetShardID(),
 		UnicityCertificate: uc,
 	})
 
@@ -670,8 +651,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 
 func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
-	indexDB, err := memorydb.New()
-	require.NoError(t, err)
+	indexDB := memorydb.New()
 	tp := runSingleValidatorNodePartition(t, system, WithProofIndex(indexDB, 0))
 	tp.WaitHandshake(t)
 	require.NoError(t, tp.node.startNewRound(context.Background()))
@@ -707,8 +687,7 @@ func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
 		ExecuteError: errors.New("failed to execute tx"),
 	}
 
-	indexDB, err := memorydb.New()
-	require.NoError(t, err)
+	indexDB := memorydb.New()
 	tp := runSingleValidatorNodePartition(t, txSystem, WithProofIndex(indexDB, 0))
 	tp.WaitHandshake(t)
 
@@ -730,8 +709,7 @@ func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
 
 func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
-	db, err := memorydb.New()
-	require.NoError(t, err)
+	db := memorydb.New()
 	tp := runSingleValidatorNodePartition(t, system, WithProofIndex(db, 0))
 	proof, err := tp.node.GetTransactionRecordProof(context.Background(), test.RandomBytes(32))
 	require.ErrorIs(t, err, ErrIndexNotFound)

@@ -73,7 +73,7 @@ type (
 		// Serialize writes the serialized state to the given writer.
 		Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error
 
-		GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error)
+		GetUnits(unitTypeID *uint32, ute types.UnitTypeExtractor) ([]types.UnitID, error)
 	}
 
 	TransactionExecutor interface {

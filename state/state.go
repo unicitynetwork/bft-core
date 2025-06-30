@@ -434,11 +434,11 @@ func (s *State) Traverse(traverser avl.Traverser[types.UnitID, Unit]) error {
 	return s.committedTree.Traverse(traverser)
 }
 
-func (s *State) GetUnits(unitTypeIDPtr *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error) {
+func (s *State) GetUnits(unitTypeIDPtr *uint32, ute types.UnitTypeExtractor) ([]types.UnitID, error) {
 	var unitTypeID uint32
 	if unitTypeIDPtr != nil {
-		if pdr == nil {
-			return nil, errors.New("partition description record is nil")
+		if ute == nil {
+			return nil, errors.New("unit type extractor is nil")
 		}
 		unitTypeID = *unitTypeIDPtr
 	}
@@ -446,7 +446,7 @@ func (s *State) GetUnits(unitTypeIDPtr *uint32, pdr *types.PartitionDescriptionR
 	err := s.Traverse(NewInorderTraverser(func(unitID types.UnitID, unit Unit) error {
 		// filter by type if unit type is provided
 		if unitTypeIDPtr != nil {
-			unitIDType, err := pdr.ExtractUnitType(unitID)
+			unitIDType, err := ute(unitID)
 			if err != nil {
 				return fmt.Errorf("extracting unit type from unit ID: %w", err)
 			}

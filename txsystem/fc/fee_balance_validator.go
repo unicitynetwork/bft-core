@@ -16,7 +16,7 @@ type (
 		state                   StateReader
 		execPredicate           predicates.PredicateRunner
 		feeCreditRecordUnitType uint32
-		pdr                     types.PartitionDescriptionRecord
+		unitTypeExtractor       types.UnitTypeExtractor
 	}
 
 	StateReader interface {
@@ -24,9 +24,9 @@ type (
 	}
 )
 
-func NewFeeBalanceValidator(pdr types.PartitionDescriptionRecord, stateReader StateReader, execPredicate predicates.PredicateRunner, feeCreditRecordUnitType uint32) *FeeBalanceValidator {
+func NewFeeBalanceValidator(ute types.UnitTypeExtractor, stateReader StateReader, execPredicate predicates.PredicateRunner, feeCreditRecordUnitType uint32) *FeeBalanceValidator {
 	return &FeeBalanceValidator{
-		pdr:                     pdr,
+		unitTypeExtractor:       ute,
 		state:                   stateReader,
 		execPredicate:           execPredicate,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
@@ -42,7 +42,7 @@ func (f *FeeBalanceValidator) IsCredible(exeCtx txtypes.ExecutionContext, tx *ty
 	if len(fcrID) == 0 {
 		return errors.New("fee credit record missing")
 	}
-	if err := types.UnitID(fcrID).TypeMustBe(f.feeCreditRecordUnitType, &f.pdr); err != nil {
+	if err := types.UnitID(fcrID).TypeMustBe(f.feeCreditRecordUnitType, f.unitTypeExtractor); err != nil {
 		return fmt.Errorf("invalid fee credit record id: %w", err)
 	}
 	fcrUnit, _ := f.state.GetUnit(fcrID, false)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
@@ -113,8 +115,9 @@ type (
 		epochChangeEvent     chan struct{}
 		peer                 *network.Peer
 
-		rootNodes         peer.IDSlice
-		shardStore        *shardStore
+		shardConf         atomic.Pointer[types.PartitionDescriptionRecord] // current shard conf
+		shardConfStore    *ShardConfStore
+		trustBaseStore    *trustbase.TrustBaseStore
 		network           ValidatorNetwork
 		eventCh           chan event.Event
 		lastLedgerReqTime time.Time
@@ -160,20 +163,6 @@ func NewNode(ctx context.Context, txSystem txsystem.TransactionSystem, conf *Nod
 	ctx, span := tracer.Start(ctx, "partition.NewNode")
 	defer span.End()
 
-	shardStore := newShardStore(conf.shardStore, conf.observability.Logger())
-
-	if err := shardStore.StoreShardConf(conf.shardConf); err != nil {
-		return nil, fmt.Errorf("failed to store shard configuration: %w", err)
-	}
-	if err := shardStore.LoadEpoch(conf.shardConf.Epoch); err != nil {
-		return nil, fmt.Errorf("failed to load shard configuration: %w", err)
-	}
-
-	rootNodes, err := conf.getRootNodes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get root nodes: %w", err)
-	}
-
 	// load owner indexer
 	if conf.ownerIndexer != nil {
 		if err := conf.ownerIndexer.LoadState(txSystem.State()); err != nil {
@@ -184,23 +173,29 @@ func NewNode(ctx context.Context, txSystem txsystem.TransactionSystem, conf *Nod
 	n := &Node{
 		conf:              conf,
 		transactionSystem: txSystem,
-		blockStore:        conf.blockStore,
+		blockStore:        conf.blockDB,
 		ownerIndexer:      conf.ownerIndexer,
 		t1event:           make(chan struct{}), // do not buffer!
 		epochChangeEvent:  make(chan struct{}, 1),
 		eventHandler:      conf.eventHandler,
-		rootNodes:         rootNodes,
-		shardStore:        shardStore,
+		shardConfStore:    conf.shardConfStore,
+		trustBaseStore:    conf.trustBaseStore,
 		network:           conf.validatorNetwork,
 		lastLedgerReqTime: time.Time{},
 		tracer:            tracer,
 	}
 	n.log = conf.observability.RoundLogger(n.currentRoundNumber)
-	n.proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store,
+	n.proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.db,
 		conf.proofIndexConfig.historyLen, observability.WithLogger(conf.observability, n.log))
 	n.resetProposal()
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
+
+	shardConf, err := n.shardConfStore.GetFirst()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load initial shard conf: %w", err)
+	}
+	n.shardConf.Store(shardConf)
 
 	n.log.InfoContext(ctx, fmt.Sprintf("Node '%s' initializing, starting round #%d", peerConf.ID, txSystem.CommittedUC().GetRoundNumber()))
 
@@ -416,7 +411,12 @@ func (n *Node) currentRoundNumber() uint64 {
 func (n *Node) sendHandshake(ctx context.Context) {
 	n.log.DebugContext(ctx, "sending handshake to root chain")
 	// select some random root nodes
-	rootIDs, err := randomNodeSelector(n.rootNodes, defaultHandshakeNodes)
+	rootValidators, err := n.RootValidators()
+	if err != nil {
+		n.log.WarnContext(ctx, "selecting root nodes for handshake", logger.Error(err))
+		return
+	}
+	rootIDs, err := randomNodeSelector(rootValidators, defaultHandshakeNodes)
 	if err != nil {
 		// error should only happen in case the root nodes are not initialized
 		n.log.WarnContext(ctx, "selecting root nodes for handshake", logger.Error(err))
@@ -675,7 +675,7 @@ func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOr
 		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txTypeAttr)), n.fixedAttr)
 	}(time.Now())
 
-	if err := n.conf.txValidator.Validate(tx, round); err != nil {
+	if err := n.conf.txValidator.Validate(tx, n.shardConf.Load(), round); err != nil {
 		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
 	txr, err := n.transactionSystem.Execute(tx)
@@ -708,16 +708,17 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
-	sigVerifier := n.shardStore.Verifier(prop.NodeID)
-	if sigVerifier == nil {
-		return fmt.Errorf("block proposal from unknown node %s", prop.NodeID.String())
-	}
-	// Let's not verify shardConfHash inside the UC of BlockProposal,
-	// we might not have the shardConf for it.
-	if err := n.conf.bpValidator.Validate(prop, sigVerifier, nil); err != nil {
-		return fmt.Errorf("block proposal validation failed, %w", err)
+
+	trustBase, err := n.trustBaseStore.GetByEpoch(prop.UnicityCertificate.GetRootEpoch())
+	if err != nil {
+		return fmt.Errorf("failed to load trust base for block proposal validation: %w", err)
 	}
 
+	// Let's not verify shardConfHash inside the UC of BlockProposal,
+	// we might not have the shardConf for it.
+	if err := n.conf.bpValidator.Validate(prop, n.shardConf.Load(), trustBase); err != nil {
+		return fmt.Errorf("block proposal validation failed, %w", err)
+	}
 	n.log.DebugContext(ctx, fmt.Sprintf("Handling block proposal, its UC IR Hash %X, Block hash %X",
 		prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash))
 	uc := prop.UnicityCertificate
@@ -783,18 +784,15 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 		return fmt.Errorf("unicity certificate is nil")
 	}
 
-	// Only verify shardConfHash if we have received a supposedly current UC (with TR) _and_
-	// UC epoch matches the loaded epoch. If loaded epoch doesn't match then shardConfHashes can't match either,
-	// but we still need to process the UC to trigger epoch change.
-	var shardConfHash []byte
-	if tr != nil && n.shardStore.LoadedEpoch() == uc.InputRecord.Epoch {
-		shardConfHash = n.shardStore.ShardConfHash()
+	trustBase, err := n.trustBaseStore.GetByEpoch(uc.GetRootEpoch())
+	if err != nil {
+		return fmt.Errorf("failed to load trust base for UC validation: %w", err)
 	}
 
 	// UC is validated cryptographically.
 	// TR has already been validated to match the hash in UC
 	// when receiving a CertificationResponse or a BlockProposal.
-	if err := n.conf.ucValidator.Validate(uc, shardConfHash); err != nil {
+	if err := n.conf.ucValidator.Validate(uc, n.shardConf.Load(), trustBase); err != nil {
 		n.sendEvent(event.Error, err)
 		return fmt.Errorf("certificate invalid, %w", err)
 	}
@@ -847,7 +845,7 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 
 	newEpoch := n.currentEpoch()
 	// Either epoch has changed or we have not managed to load the correct configuration for the epoch yet
-	if prevEpoch != newEpoch || n.shardStore.LoadedEpoch() != newEpoch {
+	if prevEpoch != newEpoch || n.shardConf.Load().Epoch != newEpoch {
 		// Schedule epoch change. The handling of current message is finished with the old configuration.
 		// This might be problematic if epoch change is triggered by a TR in BlockProposal, which should
 		// be validated according to the new epoch configuration already.
@@ -1161,10 +1159,16 @@ func (n *Node) handleEpochChangeEvent(ctx context.Context) {
 	wasValidator := n.IsValidator()
 	newEpoch := n.currentEpoch()
 
-	if err := n.shardStore.LoadEpoch(newEpoch); err != nil {
+	shardConf, err := n.shardConfStore.Get(newEpoch)
+	if err != nil {
 		// Log the error and let the node continue with the old configuration
 		n.log.ErrorContext(ctx, fmt.Sprintf("failed to load shard configuration for epoch %d", newEpoch), logger.Error(err))
-	} else if wasValidator != n.IsValidator() {
+		return
+	}
+
+	n.shardConf.Store(shardConf)
+
+	if wasValidator != n.IsValidator() {
 		// Configuration loaded for the new epoch, and our validator status changed
 		if wasValidator {
 			n.stopValidating(ctx)
@@ -1182,7 +1186,7 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockRe
 
 	// check if we have not heard from root validator for T2 timeout + 1 sec
 	// a new repeat UC must have been made by now (assuming root is fine) try and get it from other root nodes
-	if n.IsValidator() && time.Since(lastUCReceived) > n.conf.GetT2Timeout()+time.Second {
+	if n.IsValidator() && time.Since(lastUCReceived) > n.shardConf.Load().T2Timeout+time.Second {
 		// query latest UC from root
 		n.sendHandshake(ctx)
 	}
@@ -1576,7 +1580,13 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, ET hash %X, fee sum %d",
 		uc.GetRoundNumber(), stateHash, ir.BlockHash, state.ETHash(), uc.GetFeeSum()))
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
-	rootIDs, err := rootNodesSelector(luc, n.rootNodes, defaultNofRootNodes)
+
+	rootValidators, err := n.RootValidators()
+	if err != nil {
+		return fmt.Errorf("failed to get current root validators: %w", err)
+	}
+
+	rootIDs, err := rootNodesSelector(luc, rootValidators, defaultNofRootNodes)
 	if err != nil {
 		return fmt.Errorf("selecting root nodes: %w", err)
 	}
@@ -1589,7 +1599,7 @@ func (n *Node) resetProposal() {
 }
 
 func (n *Node) SubmitTx(ctx context.Context, tx *types.TransactionOrder) (txOrderHash []byte, err error) {
-	if err = n.conf.txValidator.Validate(tx, n.currentRoundNumber()); err != nil {
+	if err = n.conf.txValidator.Validate(tx, n.shardConf.Load(), n.currentRoundNumber()); err != nil {
 		return nil, err
 	}
 
@@ -1653,19 +1663,19 @@ func (n *Node) GetTransactionRecordProof(ctx context.Context, txoHash []byte) (*
 }
 
 func (n *Node) NetworkID() types.NetworkID {
-	return n.conf.NetworkID()
+	return n.shardConf.Load().NetworkID
 }
 
 func (n *Node) PartitionID() types.PartitionID {
-	return n.conf.PartitionID()
+	return n.shardConf.Load().PartitionID
 }
 
 func (n *Node) PartitionTypeID() types.PartitionTypeID {
-	return n.transactionSystem.TypeID()
+	return n.shardConf.Load().PartitionTypeID
 }
 
 func (n *Node) ShardID() types.ShardID {
-	return n.conf.ShardID()
+	return n.shardConf.Load().ShardID
 }
 
 func (n *Node) Peer() *network.Peer {
@@ -1673,16 +1683,45 @@ func (n *Node) Peer() *network.Peer {
 }
 
 func (n *Node) Validators() peer.IDSlice {
-	return n.shardStore.Validators()
+	validators := n.shardConf.Load().Validators
+	validatorIDs := make(peer.IDSlice, len(validators))
+	for idx, validator := range validators {
+		validatorID, err := peer.Decode(validator.NodeID)
+		if err != nil {
+			n.log.Error(fmt.Sprintf("failed to decode shard validator ID %s", validator.NodeID), logger.Error(err))
+			continue
+		}
+		validatorIDs[idx] = validatorID
+	}
+	return validatorIDs
+}
+
+func (n *Node) RootValidators() (peer.IDSlice, error) {
+	rootEpoch := n.luc.Load().GetRootEpoch()
+	trustBase, err := n.trustBaseStore.GetByEpoch(rootEpoch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load trust base for epoch %d: %w", rootEpoch, err)
+	}
+
+	validators := trustBase.RootNodes
+	validatorIDs := make(peer.IDSlice, len(validators))
+	for idx, validator := range validators {
+		validatorID, err := peer.Decode(validator.NodeID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode root validator ID %s: %w", validator.NodeID, err)
+		}
+		validatorIDs[idx] = validatorID
+	}
+	return validatorIDs, nil
 }
 
 func (n *Node) IsValidator() bool {
-	return n.shardStore.IsValidator(n.peer.ID())
+	return n.shardConf.Load().FindValidator(n.peer.ID().String()) != nil
 }
 
 func (n *Node) RegisterShardConf(shardConf *types.PartitionDescriptionRecord) error {
 	n.log.Info(fmt.Sprintf("Registering shard conf for epoch %d", shardConf.Epoch))
-	if err := n.shardStore.StoreShardConf(shardConf); err != nil {
+	if err := n.shardConfStore.Store(shardConf); err != nil {
 		n.log.Error(fmt.Sprintf("Failed to register shard conf for epoch %d", shardConf.Epoch), logger.Error(err))
 		return err
 	}
@@ -1709,14 +1748,8 @@ func (n *Node) CurrentRoundInfo(ctx context.Context) (*RoundInfo, error) {
 	}, nil
 }
 
-func (n *Node) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
-	// TODO verify epoch number after epoch switching is implemented
-	// fast-track solution is to restart all partition nodes with new config on epoch change
-	trustBase := n.conf.trustBase
-	if trustBase == nil {
-		return nil, fmt.Errorf("trust base for epoch %d does not exist", epochNumber)
-	}
-	return trustBase, nil
+func (n *Node) GetTrustBase(rootEpoch uint64) (types.RootTrustBase, error) {
+	return n.trustBaseStore.GetByEpoch(rootEpoch)
 }
 
 func (n *Node) FilterValidatorNodes(exclude peer.ID) []peer.ID {
@@ -1766,7 +1799,7 @@ func (n *Node) startProcessingTransactions(ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		processCtx := txCtx
-		receiverFunc := n.shardStore.RandomValidator
+		var receiverFunc network.TxReceiver
 
 		if n.IsValidator() {
 			ctx, span := n.tracer.Start(txCtx, "node.processTransactions", trace.WithNewRoot(), trace.WithLinks(trace.LinkFromContext(txCtx)))
@@ -1775,6 +1808,16 @@ func (n *Node) startProcessingTransactions(ctx context.Context) {
 
 			// Validator knows the leader and can forward directly to it
 			receiverFunc = n.leader.Get
+		} else {
+			validators := n.shardConf.Load().Validators
+			// Non-validator forwards to a random validator
+			receiverFunc = func() peer.ID {
+				if len(validators) == 0 {
+					return UnknownLeader
+				}
+				randIdx := rand.Intn(len(validators))
+				return peer.ID(validators[randIdx].NodeID)
+			}
 		}
 
 		if n.leader.IsLeader(n.peer.ID()) {

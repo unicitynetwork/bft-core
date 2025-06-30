@@ -27,11 +27,11 @@ func (n *NonFungibleTokensModule) validateDefineNFT(tx *types.TransactionOrder, 
 		return errors.New("defNFT transaction cannot contain state lock")
 	}
 	unitID := tx.GetUnitID()
-	if err := unitID.TypeMustBe(tokens.NonFungibleTokenTypeUnitType, &n.pdr); err != nil {
+	if err := unitID.TypeMustBe(tokens.NonFungibleTokenTypeUnitType, n.shardConf.ExtractUnitType); err != nil {
 		return fmt.Errorf("invalid nft ID: %w", err)
 	}
 	if attr.ParentTypeID != nil {
-		if err := attr.ParentTypeID.TypeMustBe(tokens.NonFungibleTokenTypeUnitType, &n.pdr); err != nil {
+		if err := attr.ParentTypeID.TypeMustBe(tokens.NonFungibleTokenTypeUnitType, n.shardConf.ExtractUnitType); err != nil {
 			return fmt.Errorf("invalid parent type ID: %w", err)
 		}
 	}

@@ -4,11 +4,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
-
-const UnknownLeader = ""
 
 type RoundRobin struct {
 	validators []peer.ID
@@ -41,5 +40,9 @@ func (r *RoundRobin) GetNodes() []peer.ID {
 }
 
 func (r *RoundRobin) Update(qc *abtypes.QuorumCert, currentRound uint64, b BlockLoader) error {
+	return nil
+}
+
+func (r *RoundRobin) UpdateWithTrustBase(trustBase types.RootTrustBase, currentRound uint64) error {
 	return nil
 }

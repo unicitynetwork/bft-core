@@ -134,7 +134,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
-		tx.NetworkID = module.pdr.NetworkID
+		tx.NetworkID = types.NetworkLocal
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid proof: verify tx inclusion: proof block hash does not match to block hash in unicity certificate")
 	})
 }

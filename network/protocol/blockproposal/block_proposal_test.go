@@ -13,14 +13,38 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/libp2p/go-libp2p/core/peer"
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/stretchr/testify/require"
 )
 
 const partitionID types.PartitionID = 1
 
+func newNodeInfo(t *testing.T) (*types.NodeInfo, crypto.Signer) {
+	t.Helper()
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+
+	sigKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+
+	publicKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+
+	libp2pPublicKey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(publicKey)
+	require.NoError(t, err)
+	nodeID, err := peer.IDFromPublicKey(libp2pPublicKey)
+	require.NoError(t, err)
+
+	return &types.NodeInfo{
+		NodeID: nodeID.String(),
+		SigKey: sigKey,
+		Stake:  1,
+	}, signer
+}
+
 func TestBlockProposal_IsValid_NotOk(t *testing.T) {
-	_, nodeVerifier := testsig.CreateSignerAndVerifier(t)
-	ucSigner, ucVerifier := testsig.CreateSignerAndVerifier(t)
+	shardNode, _ := newNodeInfo(t)
+	rootNode, rootNodeSigner := newNodeInfo(t)
+
 	type fields struct {
 		PartitionID         types.PartitionID
 		NodeID              peer.ID
@@ -29,15 +53,18 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		Transactions        []*types.TransactionRecord
 	}
 	type args struct {
-		nodeSignatureVerifier crypto.Verifier
-		ucTrustBase           types.RootTrustBase
-		algorithm             gocrypto.Hash
-		partitionID           types.PartitionID
-		systemDescriptionHash []byte
+		trustBase types.RootTrustBase
+		shardConf *types.PartitionDescriptionRecord
+		algorithm gocrypto.Hash
 	}
 
-	pdr := &types.PartitionDescriptionRecord{
+	rootNodeVerifier, err := rootNode.SigVerifier()
+	require.NoError(t, err)
+	trustBase := trustbase.NewTrustBase(t, rootNodeVerifier)
+
+	shardConf := &types.PartitionDescriptionRecord{
 		PartitionID: partitionID,
+		Validators: []*types.NodeInfo{shardNode},
 	}
 	tr := certification.TechnicalRecord{
 		Round:    1,
@@ -47,6 +74,9 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		FeeHash:  []byte{0},
 	}
 
+	proposerID, err := peer.Decode(shardNode.NodeID)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -54,65 +84,57 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "node signature verifier is nil",
+			name: "trust base is nil",
 			fields: fields{
 				PartitionID:  partitionID,
-				NodeID:       "1",
+				NodeID:       proposerID,
 				Transactions: []*types.TransactionRecord{},
 			},
 			args: args{
-				nodeSignatureVerifier: nil,
-				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
-				algorithm:             gocrypto.SHA256,
-				partitionID:           partitionID,
-				systemDescriptionHash: test.RandomBytes(32),
-			},
-			wantErr: ErrNodeVerifierIsNil.Error(),
-		},
-		{
-			name: "uc trust base verifier is nil",
-			fields: fields{
-				PartitionID:  partitionID,
-				NodeID:       "1",
-				Transactions: []*types.TransactionRecord{},
-			},
-			args: args{
-				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           nil,
-				algorithm:             gocrypto.SHA256,
-				partitionID:           partitionID,
-				systemDescriptionHash: test.RandomBytes(32),
+				trustBase: nil,
+				shardConf: shardConf,
+				algorithm: gocrypto.SHA256,
 			},
 			wantErr: ErrTrustBaseIsNil.Error(),
+		},
+		{
+			name: "shard conf is nil",
+			fields: fields{
+				PartitionID:  partitionID,
+				NodeID:       proposerID,
+				Transactions: []*types.TransactionRecord{},
+			},
+			args: args{
+				trustBase: trustBase,
+				shardConf: nil,
+				algorithm: gocrypto.SHA256,
+			},
+			wantErr: ErrShardConfIsNil.Error(),
 		},
 		{
 			name: "invalid partition identifier",
 			fields: fields{
 				PartitionID:  partitionID,
-				NodeID:       "1",
+				NodeID:       proposerID,
 				Transactions: []*types.TransactionRecord{},
 			},
 			args: args{
-				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
-				algorithm:             gocrypto.SHA256,
-				partitionID:           2,
-				systemDescriptionHash: test.RandomBytes(32),
+				trustBase: trustBase,
+				shardConf: &types.PartitionDescriptionRecord{PartitionID: 2},
+				algorithm: gocrypto.SHA256,
 			},
 			wantErr: ErrInvalidPartitionID.Error(),
 		},
 		{
 			name: "block proposer id is missing",
 			fields: fields{
-				PartitionID: partitionID,
-				Transactions:        []*types.TransactionRecord{},
+				PartitionID:  partitionID,
+				Transactions: []*types.TransactionRecord{},
 			},
 			args: args{
-				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
-				algorithm:             gocrypto.SHA256,
-				partitionID:   partitionID,
-				systemDescriptionHash: test.RandomBytes(32),
+				trustBase: trustBase,
+				shardConf: shardConf,
+				algorithm: gocrypto.SHA256,
 			},
 			wantErr: errBlockProposerIDMissing.Error(),
 		},
@@ -120,16 +142,14 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			name: "uc is nil",
 			fields: fields{
 				PartitionID:        partitionID,
-				NodeID:             "1",
+				NodeID:             proposerID,
 				UnicityCertificate: nil,
 				Transactions:       []*types.TransactionRecord{},
 			},
 			args: args{
-				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
-				algorithm:             gocrypto.SHA256,
-				partitionID:   partitionID,
-				systemDescriptionHash: test.RandomBytes(32),
+				trustBase: trustBase,
+				shardConf: shardConf,
+				algorithm: gocrypto.SHA256,
 			},
 			wantErr: types.ErrUnicityCertificateIsNil.Error(),
 		},
@@ -137,25 +157,23 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			name: "tr hash mismatch",
 			fields: fields{
 				PartitionID:        partitionID,
-				NodeID:             "1",
+				NodeID:             proposerID,
 				UnicityCertificate: testcerts.CreateUnicityCertificate(
-					t, ucSigner, &types.InputRecord{
+					t, rootNodeSigner, &types.InputRecord{
 						Version:      1,
 						PreviousHash: test.RandomBytes(32),
 						Hash:         test.RandomBytes(32),
 						BlockHash:    test.RandomBytes(32),
 						SummaryValue: test.RandomBytes(32),
 						Timestamp:    1,
-					}, pdr, 1, []byte{0}, make([]byte, 32)),
+					}, shardConf, 1, []byte{0}, make([]byte, 32)),
 				TechnicalRecord: tr,
 				Transactions:    []*types.TransactionRecord{},
 			},
 			args: args{
-				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustbase.NewTrustBase(t, ucVerifier),
-				algorithm:             gocrypto.SHA256,
-				partitionID:   partitionID,
-				systemDescriptionHash: test.DoHash(t, pdr),
+				trustBase: trustBase,
+				shardConf: shardConf,
+				algorithm: gocrypto.SHA256,
 			},
 			wantErr: "hash mismatch",
 		},
@@ -169,7 +187,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				Technical:          tt.fields.TechnicalRecord,
 				Transactions:       tt.fields.Transactions,
 			}
-			err := bp.IsValid(tt.args.nodeSignatureVerifier, tt.args.ucTrustBase, tt.args.algorithm, tt.args.partitionID, tt.args.systemDescriptionHash)
+			err := bp.IsValid(tt.args.trustBase, tt.args.shardConf, tt.args.algorithm)
 			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
@@ -178,8 +196,12 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 func TestBlockProposal_IsValid_BlockProposalIsNil(t *testing.T) {
 	var bp *BlockProposal
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	ucTrustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": verifier})
-	err := bp.IsValid(verifier, ucTrustBase, gocrypto.SHA256, partitionID, test.RandomBytes(32))
+	shardConf := &types.PartitionDescriptionRecord{
+		PartitionID: partitionID,
+	}
+
+	trustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": verifier})
+	err := bp.IsValid(trustBase, shardConf, gocrypto.SHA256)
 	require.ErrorIs(t, err, ErrBlockProposalIsNil)
 }
 
