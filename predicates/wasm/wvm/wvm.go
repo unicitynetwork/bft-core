@@ -12,20 +12,20 @@ import (
 	"github.com/tetratelabs/wazero/api"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/bumpallocator"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/instrument"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-go-base/predicates/wasm"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 // WASM of "env" module which exports memory so data can be shared between host
 // and other WASM module(s).
 // envWasm was compiled using `wat2wasm --debug-names env.wat`
 //
-//go:embed ab_env.wasm
+//go:embed ubft_env.wasm
 var envWasm []byte
 
 type rtCtxKey string
@@ -159,7 +159,7 @@ func (vmCtx *vmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 		return 0, errors.New("module doesn't export memory")
 	}
 
-	size := uint32(len(buf))
+	size := uint32(len(buf)) /* #nosec G115 */
 	addr, err := vmCtx.memMngr.Alloc(mem, size)
 	if err != nil {
 		return 0, fmt.Errorf("allocating memory: %w", err)
@@ -169,7 +169,7 @@ func (vmCtx *vmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 		return 0, errors.New("out of range when writing data into memory")
 	}
 
-	return api.EncodeI64(int64(newPointerSize(addr, size))), nil
+	return api.EncodeI64(int64(newPointerSize(addr, size))), nil /* #nosec G115 */
 }
 
 // New - creates new wazero based wasm vm
@@ -195,8 +195,8 @@ func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor,
 	if err := addCBORModule(ctx, rt, observe); err != nil {
 		return nil, fmt.Errorf("adding CBOR API module: %w", err)
 	}
-	if err := addAlphabillModule(ctx, rt, observe); err != nil {
-		return nil, fmt.Errorf("adding alphabill API module: %w", err)
+	if err := addModule(ctx, rt, observe); err != nil {
+		return nil, fmt.Errorf("adding API module: %w", err)
 	}
 
 	return &WasmVM{

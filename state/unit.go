@@ -5,8 +5,8 @@ import (
 	"crypto"
 	"fmt"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var _ Unit = (*UnitV1)(nil)
@@ -29,7 +29,7 @@ func NewUnit(data types.UnitData) *UnitV1 {
 	}
 }
 
-func (u *UnitV1) GetVersion() types.ABVersion {
+func (u *UnitV1) GetVersion() types.Version {
 	// no need for the version field
 	// because this struct is not serialized directly
 	return 1

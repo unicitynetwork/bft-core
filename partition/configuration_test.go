@@ -6,12 +6,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	tbstore "github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestNewNodeConf(t *testing.T) {

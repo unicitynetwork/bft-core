@@ -3,7 +3,7 @@ package boltdb
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
 	bolt "go.etcd.io/bbolt"
 )
 

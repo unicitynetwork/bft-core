@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 )
 
 func Test_TrustBase_Quorum(t *testing.T) {

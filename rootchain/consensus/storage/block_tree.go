@@ -9,9 +9,9 @@ import (
 	"slices"
 	"sync"
 
-	rcnet "github.com/alphabill-org/alphabill/network/protocol/abdrc"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	rcnet "github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	abdrc "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
 type (

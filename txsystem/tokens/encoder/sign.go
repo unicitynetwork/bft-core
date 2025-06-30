@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/encoder"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func RegisterAuthProof(partition types.PartitionID, reg func(id encoder.PartitionTxType, enc encoder.AuthProof) error) error {

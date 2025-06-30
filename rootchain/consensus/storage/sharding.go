@@ -10,10 +10,10 @@ import (
 	"slices"
 	"time"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type ShardStates struct {
@@ -505,7 +505,7 @@ func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) 
 
 func (si *ShardInfo) GetQuorum() uint64 {
 	// at least 50%
-	return uint64(len(si.trustBase)/2) + 1
+	return (uint64(len(si.trustBase)) / 2) + 1
 }
 
 func (si *ShardInfo) GetTotalNodes() uint64 {

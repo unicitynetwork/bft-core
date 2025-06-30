@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/rpc"
+	"github.com/unicitynetwork/bft-core/rpc"
 )
 
 type (

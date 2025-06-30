@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
+	"github.com/unicitynetwork/bft-core/predicates/wasm/wvm/encoder"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func RegisterTxAttributeEncoders(reg func(id encoder.PartitionTxType, enc encoder.TxAttributesEncoder) error) error {

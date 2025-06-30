@@ -4,27 +4,27 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
-	"github.com/alphabill-org/alphabill/state"
-	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	"github.com/unicitynetwork/bft-core/state"
+	testfc "github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
+	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	bftcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/types"
 
 	"github.com/stretchr/testify/require"
 )
 
-func newTrustBaseStore(t *testing.T, verifier abcrypto.Verifier) *trustbase.TrustBaseStore {
+func newTrustBaseStore(t *testing.T, verifier bftcrypto.Verifier) *trustbase.TrustBaseStore {
 	trustBase := testtb.NewTrustBase(t, verifier)
 	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)

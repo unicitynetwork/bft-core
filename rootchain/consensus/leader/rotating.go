@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/libp2p/go-libp2p/core/peer"
+	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type RoundRobin struct {
@@ -21,14 +21,15 @@ func NewRoundRobin(validators []peer.ID, contRounds uint32) (*RoundRobin, error)
 	if len(validators) < 1 {
 		return nil, errors.New("empty root validator node id list")
 	}
-	if contRounds < 1 || contRounds > uint32(len(validators)) {
-		return nil, fmt.Errorf("invalid number of continuous rounds %d (must be between 1 and %d)", contRounds, len(validators))
+	nofValidators := uint32(len(validators)) /* #nosec G115 its unlikely that validators count exceeds uint32 max value */
+	if contRounds < 1 || contRounds > nofValidators {
+		return nil, fmt.Errorf("invalid number of continuous rounds %d (must be between 1 and %d)", contRounds, nofValidators)
 	}
 	return &RoundRobin{validators: validators, nofRounds: contRounds}, nil
 }
 
 func (r *RoundRobin) GetLeaderForRound(round uint64) peer.ID {
-	index := uint32(round/uint64(r.nofRounds)) % uint32(len(r.validators))
+	index := (round / uint64(r.nofRounds)) % uint64(len(r.validators))
 	return r.validators[index]
 }
 

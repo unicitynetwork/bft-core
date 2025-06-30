@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-go-base/predicates"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const MaxPredicateBinSize = 65536
@@ -113,8 +113,8 @@ for most tx systems and "translates" between two interfaces:
     evaluates to "false".
 */
 func NewPredicateRunner(
-	// executor is the function which takes raw predicate binary and routes it to correct predicate engine.
-	// usually it is PredicateEngines.Execute
+// executor is the function which takes raw predicate binary and routes it to correct predicate engine.
+// usually it is PredicateEngines.Execute
 	executor PredicateExecutor,
 ) PredicateRunner {
 	return func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env TxContext) error {

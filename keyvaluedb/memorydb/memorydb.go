@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 
-	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
 )
 
 type (

@@ -3,12 +3,12 @@ package permissioned
 import (
 	"testing"
 
-	predtempl "github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/state"
+	predtempl "github.com/unicitynetwork/bft-go-base/predicates/templates"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
 )
 
 func TestNewFeeCreditModule(t *testing.T) {

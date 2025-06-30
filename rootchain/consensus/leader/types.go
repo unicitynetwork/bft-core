@@ -1,7 +1,7 @@
 package leader
 
 import (
-	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
 )
 
 const UnknownLeader = ""

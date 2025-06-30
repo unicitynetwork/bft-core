@@ -7,19 +7,19 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-core/partition"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type (
-	AlphabillApp struct {
+	UnicityBFTApp struct {
 		baseCmd    *cobra.Command
 		baseConfig *baseFlags
 	}
@@ -38,10 +38,9 @@ type (
 	}
 )
 
-// New creates a new Alphabill application
-func New(obsF Factory, opts ...interface{}) *AlphabillApp {
+func New(obsF Factory, opts ...interface{}) *UnicityBFTApp {
 	baseCmd, baseConfig := newBaseCmd(obsF)
-	app := &AlphabillApp{baseCmd: baseCmd, baseConfig: baseConfig}
+	app := &UnicityBFTApp{baseCmd: baseCmd, baseConfig: baseConfig}
 	app.AddSubcommands(opts)
 	app.addPartition(NewMoneyPartition())
 	app.addPartition(NewTokensPartition())
@@ -51,7 +50,7 @@ func New(obsF Factory, opts ...interface{}) *AlphabillApp {
 }
 
 // Execute runs the application
-func (a *AlphabillApp) Execute(ctx context.Context) (err error) {
+func (a *UnicityBFTApp) Execute(ctx context.Context) (err error) {
 	defer func() {
 		if a.baseConfig.observe != nil {
 			err = errors.Join(err, a.baseConfig.observe.Shutdown())
@@ -61,7 +60,7 @@ func (a *AlphabillApp) Execute(ctx context.Context) (err error) {
 	return a.baseCmd.ExecuteContext(ctx)
 }
 
-func (a *AlphabillApp) AddSubcommands(opts []interface{}) {
+func (a *UnicityBFTApp) AddSubcommands(opts []interface{}) {
 	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newTrustBaseCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newShardNodeCmd(a.baseConfig, convertOptsToRunnable(opts)))
@@ -69,7 +68,7 @@ func (a *AlphabillApp) AddSubcommands(opts []interface{}) {
 	a.baseCmd.AddCommand(newNodeIDCmd(a.baseConfig))
 }
 
-func (a *AlphabillApp) RegisterPartition(partition Partition) error {
+func (a *UnicityBFTApp) RegisterPartition(partition Partition) error {
 	if _, ok := a.baseConfig.partitions[partition.PartitionTypeID()]; ok {
 		return fmt.Errorf("partition type %s already registered", partition.PartitionTypeIDString())
 	}
@@ -77,7 +76,7 @@ func (a *AlphabillApp) RegisterPartition(partition Partition) error {
 	return nil
 }
 
-func (a *AlphabillApp) addPartition(partition Partition) {
+func (a *UnicityBFTApp) addPartition(partition Partition) {
 	a.baseConfig.partitions[partition.PartitionTypeID()] = partition
 }
 
@@ -87,9 +86,9 @@ func newBaseCmd(obsF Factory) (*cobra.Command, *baseFlags) {
 	}
 	// baseCmd represents the base command when called without any subcommands
 	var baseCmd = &cobra.Command{
-		Use:           "alphabill",
-		Short:         "The alphabill CLI",
-		Long:          `The alphabill CLI includes commands for shard and rootchain validators, generating genesis files etc.`,
+		Use:           "ubft",
+		Short:         "The Unicity BFT CLI",
+		Long:          `The Unicity BFT CLI includes commands for shard and rootchain validators, generating genesis files etc.`,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -159,7 +158,7 @@ func (r *baseFlags) initializeConfig(cmd *cobra.Command) error {
 
 	// When we bind flags to environment variables expect that the
 	// environment variables are prefixed, e.g. a flag like --number
-	// binds to an environment variable AB_NUMBER. This helps
+	// binds to an environment variable UBFT_NUMBER. This helps
 	// avoid conflicts.
 	v.SetEnvPrefix(envPrefix)
 
@@ -186,7 +185,7 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 		}
 
 		// Environment variables can't have dashes in them, so bind them to their equivalent
-		// keys with underscores, e.g. --favorite-color to AB_FAVORITE_COLOR
+		// keys with underscores, e.g. --favorite-color to UBFT_FAVORITE_COLOR
 		if strings.Contains(f.Name, "-") {
 			envVarSuffix := strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_"))
 			if err := v.BindEnv(f.Name, fmt.Sprintf("%s_%s", envPrefix, envVarSuffix)); err != nil {

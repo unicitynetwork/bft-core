@@ -25,8 +25,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	tnop "go.opentelemetry.io/otel/trace/noop"
 
-	testlogr "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/logger"
+	testlogr "github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	"github.com/unicitynetwork/bft-core/logger"
 )
 
 /*
@@ -58,12 +58,12 @@ func New(t *testing.T, metrics, traces string, logBuilder func(*logger.LogConfig
 	}
 
 	res := resource.NewWithAttributes(semconv.SchemaURL,
-		semconv.ServiceName("alphabill"),
+		semconv.ServiceName("unicity-bft"),
 		attribute.String("test.name", t.Name()),
 		attribute.Int64("test.id", testID(t)),
 	)
 
-	if traceExp := env("AB_TEST_TRACER", traces); traceExp != "" {
+	if traceExp := env("UBFT_TEST_TRACER", traces); traceExp != "" {
 		tp, err := newTraceProvider(traceExp, res)
 		if err != nil {
 			t.Fatal("failed to init trace exporter", err)

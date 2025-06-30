@@ -9,17 +9,17 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/nop"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill/predicates"
-	"github.com/alphabill-org/alphabill/state"
-	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
-	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/state"
+	abfc "github.com/unicitynetwork/bft-core/txsystem/fc"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/unit"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/nop"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -570,8 +570,8 @@ func (m *GenericTxSystem) initMetrics(mtr metric.Meter, shardID types.ShardID) e
 		metric.WithUnit("{unit}"),
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
 			snc := state.NewStateNodeCounter()
-			m.state.Traverse(snc)
-			io.Observe(int64(snc.NodeCount()), shardAttr)
+			_ = m.state.Traverse(snc)
+			io.Observe(int64(snc.NodeCount()), shardAttr) /* #nosec G115 its unlikely that node count exceeds int64 max value */
 			return nil
 		}),
 	); err != nil {

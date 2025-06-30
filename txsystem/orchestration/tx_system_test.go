@@ -7,16 +7,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	orchid "github.com/alphabill-org/alphabill-go-base/testutils/orchestration"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	orchid "github.com/unicitynetwork/bft-go-base/testutils/orchestration"
+	"github.com/unicitynetwork/bft-go-base/txsystem/orchestration"
+	"github.com/unicitynetwork/bft-go-base/types"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 )
 
 func TestNewTxSystem_OK(t *testing.T) {

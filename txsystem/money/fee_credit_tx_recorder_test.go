@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestTxRecording(t *testing.T) {

@@ -1,8 +1,8 @@
-# Bootstrapping in Alphabill - DRAFT
-Alphabill uses a P2P network for communication between nodes. When a new node joins the network, it needs to connect to nodes that are already on the network to discover new peers. These nodes are called bootnodes. A list of bootnodes is provided via the `--bootnodes` configuration flag at node startup.
+# Bootstrapping in Unicity BFT - DRAFT
+Unicity BFT uses a P2P network for communication between nodes. When a new node joins the network, it needs to connect to nodes that are already on the network to discover new peers. These nodes are called bootnodes. A list of bootnodes is provided via the `--bootnodes` configuration flag at node startup.
 
 ## Bootnode
-There are no dedicated bootnodes; each Alphabill node can be used as a bootnode.
+There are no dedicated bootnodes; each Unicity BFT node can be used as a bootnode.
 
 ## Node Startup
 At node startup, a list of bootnodes is provided via the `--bootnodes` configuration flag. The node will attempt to connect to all the provided bootnodes to speed up peer discovery. At least one of the connections must succeed for the node to proceed with startup. Otherwise, the node will exit with an error.
@@ -11,7 +11,7 @@ A node started without the `--bootnodes` configuration flag will not try to conn
 
 ### Example Command
 ```sh
-./alphabill root-node run --bootnodes "/ip4/127.0.0.1/tcp/26662/p2p/<node-id>,/ip4/127.0.0.1/tcp/26663/p2p/<node-id>" ...
+./bft root-node run --bootnodes "/ip4/127.0.0.1/tcp/26662/p2p/<node-id>,/ip4/127.0.0.1/tcp/26663/p2p/<node-id>" ...
 ```
 
 ## Limitations

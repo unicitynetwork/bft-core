@@ -3,12 +3,12 @@ package testutils
 import (
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
+	testblock "github.com/unicitynetwork/bft-core/internal/testutils/block"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func NewReclaimFC(t *testing.T, pdr *types.PartitionDescriptionRecord, signer abcrypto.Signer, reclaimFCAttr *fc.ReclaimFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {

@@ -4,17 +4,17 @@ import (
 	"bytes"
 	"testing"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/state"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testlogger "github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	"github.com/unicitynetwork/bft-core/state"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 )
 
 func TestOwnerIndexer(t *testing.T) {
@@ -237,7 +237,7 @@ func (m mockUnitData) Owner() []byte {
 	return m.ownerPredicate
 }
 
-func (m mockUnitData) GetVersion() types.ABVersion {
+func (m mockUnitData) GetVersion() types.Version {
 	return 0
 }
 

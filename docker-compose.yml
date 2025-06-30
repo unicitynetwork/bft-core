@@ -1,14 +1,14 @@
 services:
-  alphabill:
+  ubft:
     platform: linux/amd64
     user: root
     build:
       context: ./
       dockerfile: ./scripts/Dockerfile
 
-  alphabill-root-genesis:
+  ubft-root-genesis:
     extends:
-      service: alphabill
+      service: ubft
     volumes:
       - genesis:/genesis
       - root:/genesis/root
@@ -16,22 +16,22 @@ services:
     command:
       - |
         echo "Creating root genesis..." && \
-        alphabill root-node init \
+        ubft root-node init \
           --home /genesis/root \
           --generate && \
         echo "Creating root trust base..." && \
-        alphabill trust-base generate \
+        ubft trust-base generate \
           --home /genesis \
           --network-id 3 \
           --node-info /genesis/root/node-info.json &&  \
         echo "Signing root trust base..." && \
-        alphabill trust-base sign \
+        ubft trust-base sign \
           --home /genesis/root \
           --trust-base /genesis/trust-base.json
 
-  alphabill-money-genesis:
+  ubft-money-genesis:
     extends:
-      service: alphabill
+      service: ubft
     volumes:
       - genesis:/genesis
       - money:/genesis/money
@@ -39,11 +39,11 @@ services:
     command:
       - |
         echo "Creating money genesis..." && \
-        alphabill shard-node init \
+        ubft shard-node init \
           --home /genesis/money \
           --generate && \
         echo "Creating money partition configuration..." && \
-        alphabill shard-conf generate \
+        ubft shard-conf generate \
           --home /genesis \
           --network-id 3 \
           --partition-id 1 \
@@ -52,13 +52,13 @@ services:
           --initial-bill-owner-predicate 0x830041025820786C9F82FCD2CFB4190A690725E85734F2D25B86DBC35186D85D08F3CFC2B7CA \
           --node-info=/genesis/money/node-info.json && \
         echo "Creating money partition state..." && \
-        alphabill shard-conf genesis \
+        ubft shard-conf genesis \
           --home /genesis/money \
           --shard-conf /genesis/shard-conf-1_0.json
 
-  alphabill-tokens-genesis:
+  ubft-tokens-genesis:
     extends:
-      service: alphabill
+      service: ubft
     volumes:
       - genesis:/genesis
       - tokens:/genesis/tokens
@@ -66,10 +66,10 @@ services:
     command:
       - |
         echo "Creating tokens genesis..." && \
-        alphabill shard-node init \
+        ubft shard-node init \
           --home /genesis/tokens --generate && \
         echo "Creating tokens partition configuration..." && \
-        alphabill shard-conf generate \
+        ubft shard-conf generate \
           --home /genesis \
           --network-id 3 \
           --partition-id 2 \
@@ -77,13 +77,13 @@ services:
           --epoch-start 10 \
           --node-info=/genesis/tokens/node-info.json && \
         echo "Creating tokens partition state..." && \
-        alphabill shard-conf genesis \
+        ubft shard-conf genesis \
           --home /genesis/tokens \
           --shard-conf /genesis/shard-conf-2_0.json
 
-  alphabill-permissioned-tokens-genesis:
+  ubft-permissioned-tokens-genesis:
     extends:
-      service: alphabill
+      service: ubft
     volumes:
       - genesis:/genesis
       - permissioned-tokens:/genesis/permissioned-tokens
@@ -91,11 +91,11 @@ services:
     command:
       - |
         echo "Creating permissioned tokens genesis..." && \
-        alphabill shard-node init \
+        ubft shard-node init \
           --home /genesis/permissioned-tokens \
           --generate && \
         echo "Creating permissioned tokens partition configuration..." && \
-        alphabill shard-conf generate \
+        ubft shard-conf generate \
           --home /genesis \
           --network-id 3 \
           --partition-id 5 \
@@ -105,27 +105,27 @@ services:
           --admin-owner-predicate 0x830041025820786C9F82FCD2CFB4190A690725E85734F2D25B86DBC35186D85D08F3CFC2B7CA \
           --node-info=/genesis/permissioned-tokens/node-info.json && \
         echo "Creating permissioned tokens partition state..." && \
-        alphabill shard-conf genesis \
+        ubft shard-conf genesis \
           --home "/genesis/permissioned-tokens" \
           --shard-conf /genesis/shard-conf-5_0.json
 
-  alphabill-root:
+  ubft-root:
     extends:
-      service: alphabill
+      service: ubft
     volumes:
       - genesis:/genesis
       - root:/genesis/root
     depends_on:
-      alphabill-root-genesis:
+      ubft-root-genesis:
         condition: service_completed_successfully
-      alphabill-money-genesis:
+      ubft-money-genesis:
         condition: service_completed_successfully
-      alphabill-tokens-genesis:
+      ubft-tokens-genesis:
         condition: service_completed_successfully
-      alphabill-permissioned-tokens-genesis:
+      ubft-permissioned-tokens-genesis:
         condition: service_completed_successfully
     healthcheck:
-      test: [ "CMD", "nc", "-zv", "alphabill-root", "8000" ]
+      test: [ "CMD", "nc", "-zv", "ubft-root", "8000" ]
       interval: 5s
     networks:
       - default
@@ -133,7 +133,7 @@ services:
     command:
       - |
         echo "Starting root node..." && \
-        alphabill root-node run \
+        ubft root-node run \
           --home /genesis/root \
           --shard-conf=/genesis/shard-conf-1_0.json \
           --shard-conf=/genesis/shard-conf-2_0.json \
@@ -142,22 +142,22 @@ services:
           --trust-base /genesis/trust-base.json \
           --rpc-server-address "$(hostname -i):8002"
 
-  alphabill-money:
+  ubft-money:
     extends:
-      service: alphabill
+      service: ubft
     volumes:
       - genesis:/genesis
       - root:/genesis/root
       - money:/genesis/money
     depends_on:
-      alphabill-money-genesis:
+      ubft-money-genesis:
         condition: service_completed_successfully
-      alphabill-root:
+      ubft-root:
         condition: service_healthy
     ports:
       - "9003:9003"
     healthcheck:
-      test: [ "CMD", "nc", "-zv", "alphabill-money", "9001" ]
+      test: [ "CMD", "nc", "-zv", "ubft-money", "9001" ]
       interval: 2s
     networks:
       - default
@@ -165,30 +165,30 @@ services:
     command:
       - |
         echo "Starting money partition..." && \
-        alphabill shard-node run \
+        ubft shard-node run \
           --home /genesis/money \
           --trust-base /genesis/trust-base.json \
           --shard-conf /genesis/shard-conf-1_0.json \
           --address "/ip4/$(hostname -i)/tcp/9001" \
-          --bootnodes "/dns/alphabill-root/tcp/8000/p2p/$(alphabill node-id --home /genesis/root | tail -n1)" \
+          --bootnodes "/dns/ubft-root/tcp/8000/p2p/$(ubft node-id --home /genesis/root | tail -n1)" \
           --rpc-server-address "$(hostname -i):9003"
 
-  alphabill-tokens:
+  ubft-tokens:
     extends:
-      service: alphabill
+      service: ubft
     volumes:
       - genesis:/genesis
       - root:/genesis/root
       - tokens:/genesis/tokens
     depends_on:
-      alphabill-tokens-genesis:
+      ubft-tokens-genesis:
         condition: service_completed_successfully
-      alphabill-root:
+      ubft-root:
         condition: service_healthy
     ports:
       - "10003:10003"
     healthcheck:
-      test: [ "CMD", "nc", "-zv", "alphabill-tokens", "10001" ]
+      test: [ "CMD", "nc", "-zv", "ubft-tokens", "10001" ]
       interval: 2s
     networks:
       - default
@@ -196,30 +196,30 @@ services:
     command:
       - |
         echo "Starting tokens partition..." && \
-        alphabill shard-node run \
+        ubft shard-node run \
           --home "/genesis/tokens" \
           --trust-base /genesis/trust-base.json \
           --shard-conf /genesis/shard-conf-2_0.json \
           --address "/ip4/$(hostname -i)/tcp/10001" \
-          --bootnodes "/dns/alphabill-root/tcp/8000/p2p/$(alphabill node-id --home /genesis/root | tail -n1)" \
+          --bootnodes "/dns/ubft-root/tcp/8000/p2p/$(ubft node-id --home /genesis/root | tail -n1)" \
           --rpc-server-address "$(hostname -i):10003"
 
-  alphabill-permissioned-tokens:
+  ubft-permissioned-tokens:
     extends:
-      service: alphabill
+      service: ubft
     volumes:
       - genesis:/genesis
       - root:/genesis/root
       - permissioned-tokens:/genesis/permissioned-tokens
     depends_on:
-      alphabill-permissioned-tokens-genesis:
+      ubft-permissioned-tokens-genesis:
         condition: service_completed_successfully
-      alphabill-root:
+      ubft-root:
         condition: service_healthy
     ports:
       - "11003:11003"
     healthcheck:
-      test: [ "CMD", "nc", "-zv", "alphabill-permissioned-tokens", "11001" ]
+      test: [ "CMD", "nc", "-zv", "ubft-permissioned-tokens", "11001" ]
       interval: 2s
     networks:
       - default
@@ -227,12 +227,12 @@ services:
     command:
       - |
         echo "Starting permissioned tokens partition..." && \
-        alphabill shard-node run \
+        ubft shard-node run \
           --home /genesis/permissioned-tokens \
           --trust-base /genesis/trust-base.json \
           --shard-conf /genesis/shard-conf-5_0.json \
           --address "/ip4/$(hostname -i)/tcp/11001" \
-          --bootnodes "/dns/alphabill-root/tcp/8000/p2p/$(alphabill node-id --home /genesis/root | tail -n1)" \
+          --bootnodes "/dns/ubft-root/tcp/8000/p2p/$(ubft node-id --home /genesis/root | tail -n1)" \
           --rpc-server-address "$(hostname -i):11003"
 
 networks:

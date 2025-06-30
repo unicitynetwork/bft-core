@@ -3,13 +3,13 @@ package permissioned
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/state"
-	feeModule "github.com/alphabill-org/alphabill/txsystem/fc"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/unicitynetwork/bft-core/state"
+	feeModule "github.com/unicitynetwork/bft-core/txsystem/fc"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc/permissioned"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func (f *FeeCreditModule) validateDeleteFC(tx *types.TransactionOrder, attr *permissioned.DeleteFeeCreditAttributes, authProof *permissioned.DeleteFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) error {

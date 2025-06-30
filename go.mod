@@ -1,10 +1,9 @@
-module github.com/alphabill-org/alphabill
+module github.com/unicitynetwork/bft-core
 
 go 1.24
 
 require (
 	github.com/ainvaltin/httpsrv v0.3.1
-	github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250519095234-2160e35d7afb
 	github.com/ethereum/go-ethereum v1.14.11
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/google/uuid v1.6.0
@@ -23,6 +22,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tetratelabs/wazero v1.8.1
+	github.com/unicitynetwork/bft-go-base v1.0.2
 	go.etcd.io/bbolt v1.4.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.32.0

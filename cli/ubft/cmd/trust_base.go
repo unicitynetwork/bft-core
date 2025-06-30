@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/spf13/cobra"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 const trustBaseFileName = "trust-base.json"
@@ -156,7 +156,7 @@ func loadNodeInfoFiles(paths []string) ([]*types.NodeInfo, error) {
 
 func (f *trustBaseFlags) addTrustBaseFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVarP(&f.TrustBaseFiles, "trust-base", "t", []string{},
-		fmt.Sprintf("path to trust base (default: %s)", filepath.Join("$AB_HOME", trustBaseFileName)))
+		fmt.Sprintf("path to trust base (default: %s)", filepath.Join("$UBFT_HOME", trustBaseFileName)))
 }
 
 func (f *trustBaseFlags) trustBasePath(baseFlags *baseFlags, idx int) string {

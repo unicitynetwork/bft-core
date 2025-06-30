@@ -5,10 +5,10 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 /*

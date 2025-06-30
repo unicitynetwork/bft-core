@@ -4,10 +4,10 @@ import (
 	"crypto"
 	"fmt"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/tree/mt"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/unicitynetwork/bft-core/tree/avl"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/tree/mt"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 // stateHasher calculates the root hash of the state tree (see "Invariants of the State Tree" chapter from the

@@ -21,20 +21,20 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/network/protocol/replication"
-	"github.com/alphabill-org/alphabill/observability"
-	"github.com/alphabill-org/alphabill/partition/event"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/network"
+	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/network/protocol/handshake"
+	"github.com/unicitynetwork/bft-core/network/protocol/replication"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-core/partition/event"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	"github.com/unicitynetwork/bft-core/txsystem"
 )
 
 const (
@@ -223,7 +223,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 
 	_, err = m.Int64ObservableCounter("round", metric.WithDescription("current round"),
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
-			io.Observe(int64(n.currentRoundNumber()))
+			io.Observe(int64(n.currentRoundNumber())) /* #nosec G115 its unlikely that value of currentRoundNumber exceeds int64 max value */
 			return nil
 		}))
 	if err != nil {
@@ -1277,7 +1277,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 			lastFetchedBlockNumber = roundNo
 			blocks = append(blocks, lastFetchedBlock)
 			blockCnt++
-			countTx += uint32(len(bl.Transactions))
+			countTx += uint32(len(bl.Transactions)) /* #nosec G115 its unlikely that transactions count in block exceeds uint32 max value */
 			if countTx >= n.conf.replicationConfig.maxTx ||
 				blockCnt >= n.conf.replicationConfig.maxReturnBlocks ||
 				(roundNo >= lr.EndBlockNumber && lr.EndBlockNumber > 0) {
@@ -1433,7 +1433,7 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 
 func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	startingBlockNr := n.committedUC().GetRoundNumber() + 1
-	ctx, span := n.tracer.Start(ctx, "node.sendLedgerReplicationRequest", trace.WithAttributes(attribute.Int64("starting_block", int64(startingBlockNr))))
+	ctx, span := n.tracer.Start(ctx, "node.sendLedgerReplicationRequest", trace.WithAttributes(attribute.Int64("starting_block", int64(startingBlockNr)))) /* #nosec G115 its unlikely that value of startingBlockNr exceeds int64 max value */
 	defer span.End()
 	n.recoveryReq.Add(ctx, 1, n.fixedAttr)
 

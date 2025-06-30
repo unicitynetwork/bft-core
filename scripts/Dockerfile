@@ -21,6 +21,6 @@ USER nonroot
 SHELL [ "/busybox/sh", "-c" ]
 WORKDIR /app
 ENV PATH="/app:${PATH}"
-COPY --from=builder /usr/src/app/build/alphabill /app/
+COPY --from=builder /usr/src/app/build/ubft /app/
 COPY --from=builder /target/lib/libgcc_s.so.1 /lib/libgcc_s.so.1
-ENTRYPOINT ["alphabill"]
+ENTRYPOINT ["ubft"]

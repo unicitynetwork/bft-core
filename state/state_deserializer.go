@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/unicitynetwork/bft-core/tree/avl"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 func readState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*State, *Header, error) {

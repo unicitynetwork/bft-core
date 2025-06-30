@@ -3,8 +3,8 @@ package txsystem
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/internal/testutils"
 )
 
 func TestNewStateSummary(t *testing.T) {

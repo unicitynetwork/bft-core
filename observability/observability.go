@@ -166,9 +166,9 @@ func serviceName() string {
 	for _, v := range os.Args {
 		switch v {
 		case "root", "tokens", "money":
-			return "ab." + v
+			return "ubft." + v
 		}
 	}
 
-	return "alphabill"
+	return "unicity-bft"
 }

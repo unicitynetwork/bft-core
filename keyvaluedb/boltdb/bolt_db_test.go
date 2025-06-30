@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
 )
 
 type testStruct struct {

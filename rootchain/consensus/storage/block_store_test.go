@@ -10,12 +10,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
-	"github.com/alphabill-org/alphabill/rootchain/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-core/rootchain/partitions"
+	testpartition "github.com/unicitynetwork/bft-core/rootchain/partitions/testutils"
+	"github.com/unicitynetwork/bft-core/rootchain/testutils"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func initBlockStoreFromGenesis(t *testing.T, shardConf *types.PartitionDescriptionRecord) *BlockStore {

@@ -4,17 +4,17 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testcerts "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/libp2p/go-libp2p/core/peer"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testcerts "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 const partitionID types.PartitionID = 1
@@ -46,11 +46,11 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	rootNode, rootNodeSigner := newNodeInfo(t)
 
 	type fields struct {
-		PartitionID         types.PartitionID
-		NodeID              peer.ID
-		UnicityCertificate  *types.UnicityCertificate
-		TechnicalRecord     certification.TechnicalRecord
-		Transactions        []*types.TransactionRecord
+		PartitionID        types.PartitionID
+		NodeID             peer.ID
+		UnicityCertificate *types.UnicityCertificate
+		TechnicalRecord    certification.TechnicalRecord
+		Transactions       []*types.TransactionRecord
 	}
 	type args struct {
 		trustBase types.RootTrustBase

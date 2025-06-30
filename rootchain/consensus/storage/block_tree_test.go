@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func mockExecutedBlock(round, qcRound uint64) ExecutedBlock {

@@ -7,7 +7,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const TxTypeKey attribute.Key = "tx.type"
@@ -16,7 +16,7 @@ const UnitIDKey attribute.Key = "unit_id"
 const NodeIDKey attribute.Key = "service.node.name" // ECS convention
 
 func Round(round uint64) attribute.KeyValue {
-	return attribute.Int64("round", int64(round))
+	return attribute.Int64("round", int64(round)) /* #nosec G115 its unlikely that value of round exceeds int64 max value */
 }
 
 func UnitID(id []byte) attribute.KeyValue {

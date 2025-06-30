@@ -3,7 +3,7 @@ package wvm
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 // AB "common types", ie not tx system specific stuff

@@ -5,12 +5,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/types"
 
-	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	testblock "github.com/unicitynetwork/bft-core/internal/testutils/block"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 )
 
 var (

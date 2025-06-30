@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func Test_BlockCertificationRequest_IsValid(t *testing.T) {

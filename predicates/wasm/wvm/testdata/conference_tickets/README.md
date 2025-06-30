@@ -1,9 +1,6 @@
-# Custom Alphabill Predicate
+# Custom Predicate
 
-This directory contains precompiled WASM modules for the
-["Transferable Conference Tickets"](https://guardtime.atlassian.net/wiki/spaces/AB/pages/3538419747/Example+Use-Case+Transferable+Conference+Tickets)
-example use-case, implemented in 
-[alphabill-experiments repository](https://gitdc.ee.guardtime.com/alphabill/alphabill-experiments/-/tree/master/rust-sdk/predicates/conference-tickets).
+This directory contains precompiled WASM modules for the "Transferable Conference Tickets" example use-case, implemented in rust-predicates-sdk repository.
 
 These are meant for testing, for both unit-testing backward compatibility and
 for testers (ie don't have to install Rust in order to compile the predicates

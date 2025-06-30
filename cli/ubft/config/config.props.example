@@ -1,5 +1,5 @@
 # log file path (default output to stderr)
-log-file=/home/test/ab.log
+log-file=/home/test/ubft.log
 
 # logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)
 log-level=DEBUG

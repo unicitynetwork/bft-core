@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/rootchain/partitions"
 )
 
 func NewOrchestration(t *testing.T, log *slog.Logger) *partitions.Orchestration {

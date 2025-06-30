@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
-	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
-	"github.com/alphabill-org/alphabill/rootchain/testutils"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
+	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	testpartition "github.com/unicitynetwork/bft-core/rootchain/partitions/testutils"
+	"github.com/unicitynetwork/bft-core/rootchain/testutils"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type (

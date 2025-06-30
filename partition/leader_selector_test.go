@@ -6,8 +6,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill/network"
+	"github.com/unicitynetwork/bft-core/network"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 )
 
 func Test_Leader(t *testing.T) {

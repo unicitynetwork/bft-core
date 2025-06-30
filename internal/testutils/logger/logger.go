@@ -10,7 +10,7 @@ import (
 
 	"github.com/neilotoole/slogt"
 
-	"github.com/alphabill-org/alphabill/logger"
+	"github.com/unicitynetwork/bft-core/logger"
 )
 
 /*
@@ -54,7 +54,7 @@ func newLogger(t testing.TB, cfg logger.LogConfiguration) *slog.Logger {
 }
 
 func defaultLogCfg() logger.LogConfiguration {
-	lvl := os.Getenv("AB_TEST_LOG_LEVEL")
+	lvl := os.Getenv("UBFT_TEST_LOG_LEVEL")
 	if lvl == "" {
 		lvl = slog.LevelDebug.String()
 	}
@@ -66,7 +66,7 @@ func defaultLogCfg() logger.LogConfiguration {
 		// slogt is logging into bytes.Buffer so can't use w to detect
 		// is the destination console or not (ie for color support).
 		// So by default use colors unless env var disables it.
-		ConsoleSupportsColor: func(w io.Writer) bool { return os.Getenv("AB_TEST_LOG_NO_COLORS") != "true" },
+		ConsoleSupportsColor: func(w io.Writer) bool { return os.Getenv("UBFT_TEST_LOG_NO_COLORS") != "true" },
 	}
 }
 

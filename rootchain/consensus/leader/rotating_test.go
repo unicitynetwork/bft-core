@@ -5,8 +5,8 @@ import (
 	"sort"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/stretchr/testify/require"
+	test "github.com/unicitynetwork/bft-core/internal/testutils/peer"
 
 	p2ppeer "github.com/libp2p/go-libp2p/core/peer"
 )

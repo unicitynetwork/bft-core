@@ -6,13 +6,13 @@ function stop() {
   local program=""
   case $1 in
     all)
-      program="build/alphabill"
+      program="build/ubft"
       ;;
     shard)
-      program="build/alphabill shard-node"
+      program="build/ubft shard-node"
       ;;
     root)
-      program="build/alphabill root-node"
+      program="build/ubft root-node"
       ;;
     *)
       echo "error: unknown argument $1" >&2

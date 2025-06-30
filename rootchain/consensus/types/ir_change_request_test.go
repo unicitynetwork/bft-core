@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestIRChangeReqMsg_IsValid(t *testing.T) {

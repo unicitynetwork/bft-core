@@ -5,11 +5,11 @@ import (
 	"io"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/util"
 
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
 )
 
 type CounterTxSystem struct {
@@ -157,11 +157,11 @@ func (m *CounterTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 	}
 
 	txr := &types.TransactionRecord{
-		Version: 1,
+		Version:          1,
 		TransactionOrder: txBytes,
 		ServerMetadata: &types.ServerMetadata{
-			ActualFee: m.Fee,
-			TargetUnits: []types.UnitID{tx.UnitID},
+			ActualFee:        m.Fee,
+			TargetUnits:      []types.UnitID{tx.UnitID},
 			SuccessIndicator: types.TxStatusSuccessful,
 		},
 	}
@@ -200,9 +200,9 @@ func (m *CounterTxSystem) Clone() *CounterTxSystem {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return &CounterTxSystem{
-		InitCount: m.counter(),
-		FixedState: m.FixedState,
-		Fee: m.Fee,
+		InitCount:            m.counter(),
+		FixedState:           m.FixedState,
+		Fee:                  m.Fee,
 		EndBlockChangesState: m.EndBlockChangesState,
 	}
 }

@@ -16,12 +16,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
-	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-core/internal/testutils/net"
+	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testtime "github.com/unicitynetwork/bft-core/internal/testutils/time"
+	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestRootValidator_OK(t *testing.T) {

@@ -12,10 +12,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/observability"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
+	"github.com/unicitynetwork/bft-core/observability"
+	"github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type (
@@ -208,21 +208,22 @@ func (rs *requestBuffer) reset() {
 
 func (rs *requestBuffer) isConsensusReceived(tb QuorumInfo) ([]*certification.BlockCertificationRequest, QuorumStatus) {
 	// find most voted IR
-	votes := 0
+	votes := uint64(0)
 	var bcReqs []*certification.BlockCertificationRequest
 	for _, reqs := range rs.requests {
-		if votes < len(reqs) {
-			votes = len(reqs)
+		nofReps := uint64(len(reqs))
+		if votes < nofReps {
+			votes = nofReps
 			bcReqs = reqs
 		}
 	}
 
-	quorum := int(tb.GetQuorum())
+	quorum := tb.GetQuorum()
 	if votes >= quorum {
 		return bcReqs, QuorumAchieved
 	}
 
-	if int(tb.GetTotalNodes())-len(rs.nodeRequest)+votes < quorum {
+	if tb.GetTotalNodes()-uint64(len(rs.nodeRequest))+votes < quorum {
 		// enough nodes have voted and even if the rest of the votes are for
 		// the most popular option, quorum is still not possible
 		allReq := make([]*certification.BlockCertificationRequest, 0, len(rs.nodeRequest))

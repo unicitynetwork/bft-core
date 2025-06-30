@@ -3,11 +3,11 @@ package money
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/types"
 
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/unicitynetwork/bft-core/state"
 )
 
 const defaultDustBillDeletionTimeout uint64 = 65536

@@ -4,9 +4,9 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/tree/mt"
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/tree/avl"
+	"github.com/unicitynetwork/bft-core/tree/avl"
+	"github.com/unicitynetwork/bft-go-base/tree/mt"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const CBORChecksumLength = 5
@@ -14,7 +14,7 @@ const CBORChecksumLength = 5
 type (
 	Header struct {
 		_       struct{} `cbor:",toarray"`
-		Version types.ABVersion
+		Version types.Version
 		// new version of UC implies new version of the header struct
 		UnicityCertificate   *types.UnicityCertificate
 		NodeRecordCount      uint64
@@ -23,7 +23,7 @@ type (
 
 	nodeRecord struct {
 		_                  struct{} `cbor:",toarray"`
-		Version            types.ABVersion
+		Version            types.Version
 		UnitID             types.UnitID
 		UnitData           types.RawCBOR
 		UnitLedgerHeadHash []byte

@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 /*
 TestFile creates file with name "filename" in the directory denoted by the
-AB_RUST_SDK_ROOT environment variable (ie the filename should be relative to that
+UBFT_RUST_SDK_ROOT environment variable (ie the filename should be relative to that
 path). If the env var is not set (empty) the test "t" will be skipped.
 
 The "src" will be written into the file, ie this can be used to set the file header,
@@ -25,10 +25,10 @@ automatically closed at the end of the test "t".
 
 To generate tests using this function run
 
-	AB_RUST_SDK_ROOT="/path/to/alphabill-rust-predicates-sdk" go test ./...
+	UBFT_RUST_SDK_ROOT="/path/to/rust-predicates-sdk" go test ./...
 */
 func TestFile(t *testing.T, filename, src string) *os.File {
-	sdkRoot := os.Getenv("AB_RUST_SDK_ROOT")
+	sdkRoot := os.Getenv("UBFT_RUST_SDK_ROOT")
 	if sdkRoot == "" {
 		t.Skip("Rust SDK root directory not provided")
 	}

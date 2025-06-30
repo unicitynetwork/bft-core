@@ -5,11 +5,11 @@ import (
 	"hash"
 	"testing"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func Test_stateSize(t *testing.T) {
@@ -94,7 +94,7 @@ func (t *ud) Owner() []byte {
 	return nil
 }
 
-func (t *ud) GetVersion() types.ABVersion {
+func (t *ud) GetVersion() types.Version {
 	return 0
 }
 
