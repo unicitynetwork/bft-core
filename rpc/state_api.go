@@ -47,6 +47,7 @@ type (
 		SerializeState(w io.Writer) error
 		Validators() peer.IDSlice
 		RegisterShardConf(shardConf *types.PartitionDescriptionRecord) error
+		RegisterTrustBase(trustBase types.RootTrustBase) error
 		GetTrustBase(epochNumber uint64) (types.RootTrustBase, error)
 		IsPermissionedMode() bool
 		IsFeelessMode() bool

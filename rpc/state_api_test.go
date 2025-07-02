@@ -549,6 +549,10 @@ func (mn *MockNode) RegisterShardConf(shardConf *types.PartitionDescriptionRecor
 	return nil
 }
 
+func (mn *MockNode) RegisterTrustBase(types.RootTrustBase) error {
+	return nil
+}
+
 func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte, sinceUnitID *types.UnitID, limit int) ([]types.UnitID, error) {
 	if mn.err != nil {
 		return nil, mn.err

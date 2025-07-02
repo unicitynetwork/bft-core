@@ -18,6 +18,7 @@ func NodeEndpoints(node partitionNode, obs Observability) RegistrarFunc {
 		// get the state file
 		r.HandleFunc("/state", getState(node, log)).Methods("GET")
 		r.HandleFunc("/configurations", putShardConf(node.RegisterShardConf)).Methods("PUT")
+		r.HandleFunc("/trustbases", putTrustBase(node.RegisterTrustBase)).Methods("PUT")
 	}
 }
 
@@ -51,6 +52,24 @@ func putShardConf(registerShardConf func(shardConf *types.PartitionDescriptionRe
 		if err := registerShardConf(shardConf); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "failed to register shard conf: %v", err)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func putTrustBase(registerTrustBase func(trustBase types.RootTrustBase) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		defer request.Body.Close()
+		trustBase := &types.RootTrustBaseV1{}
+		if err := json.NewDecoder(request.Body).Decode(&trustBase); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "failed to parse trust base: %v", err)
+			return
+		}
+		if err := registerTrustBase(trustBase); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to register trust base: %v", err)
 			return
 		}
 		w.WriteHeader(http.StatusOK)

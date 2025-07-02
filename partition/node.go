@@ -1728,6 +1728,15 @@ func (n *Node) RegisterShardConf(shardConf *types.PartitionDescriptionRecord) er
 	return nil
 }
 
+func (n *Node) RegisterTrustBase(trustBase types.RootTrustBase) error {
+	n.log.Info(fmt.Sprintf("Registering trust base for epoch %d", trustBase.GetEpoch()))
+	if err := n.trustBaseStore.Store(trustBase); err != nil {
+		n.log.Error(fmt.Sprintf("Failed to register trust base for epoch %d", trustBase.GetEpoch()), logger.Error(err))
+		return err
+	}
+	return nil
+}
+
 func (n *Node) IsPermissionedMode() bool {
 	return n.transactionSystem.IsPermissionedMode()
 }

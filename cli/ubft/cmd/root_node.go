@@ -243,7 +243,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 			mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
 		}
 		mux.HandleFunc("PUT /api/v1/configurations", putShardConfigHandler(orchestration.AddShardConfig))
-		mux.HandleFunc("PUT /api/v1/trustbase", putTrustBaseHandler(trustBaseStore.Store))
+		mux.HandleFunc("PUT /api/v1/trustbases", putTrustBaseHandler(trustBaseStore.Store))
 		mux.HandleFunc("GET /api/v1/roundInfo", getRoundInfoHandler(cm.GetState, obs))
 		return httpsrv.Run(ctx,
 			&http.Server{
