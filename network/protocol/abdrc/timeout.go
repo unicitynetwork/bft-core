@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	abdrc "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 	"github.com/unicitynetwork/bft-go-base/util"
 )
@@ -59,18 +59,22 @@ func (x *TimeoutMsg) IsValid() error {
 	return nil
 }
 
-func (x *TimeoutMsg) Verify(tb types.RootTrustBase) error {
+func (x *TimeoutMsg) Verify(tbs *trustbase.TrustBaseStore) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
-	if _, err := tb.VerifySignature(x.Bytes(), x.Signature, x.Author); err != nil {
+	timeoutTrustBase, err := tbs.GetByEpoch(x.Timeout.Epoch)
+	if err != nil {
+		return fmt.Errorf("failed to get trust base for timeout verification: %w", err)
+	}
+	if _, err := timeoutTrustBase.VerifySignature(x.Bytes(), x.Signature, x.Author); err != nil {
 		return fmt.Errorf("signature verification failed: %w", err)
 	}
-	if err := x.Timeout.Verify(tb); err != nil {
+	if err := x.Timeout.Verify(tbs); err != nil {
 		return fmt.Errorf("timeout data verification failed: %w", err)
 	}
 	if x.LastTC != nil {
-		if err := x.LastTC.Verify(tb); err != nil {
+		if err := x.LastTC.Verify(tbs); err != nil {
 			return fmt.Errorf("invalid last TC: %w", err)
 		}
 	}

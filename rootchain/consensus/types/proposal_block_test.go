@@ -103,10 +103,10 @@ func TestBlockData_IsValid(t *testing.T) {
 }
 
 func TestBlockData_Verify(t *testing.T) {
-	sb := newStructBuilder(t, 3)
-	rootTrust := sb.trustBase
-
 	t.Run("IsValid is called", func(t *testing.T) {
+		sb := newStructBuilder(t, 3)
+		rootTrust, err := sb.trustBaseStore.LoadFirst()
+		require.NoError(t, err)
 		bd := sb.BlockData(t)
 		bd.Round = 0
 		require.ErrorIs(t, bd.Verify(rootTrust), errRoundNumberUnassigned)
@@ -115,10 +115,11 @@ func TestBlockData_Verify(t *testing.T) {
 	t.Run("no quorum for QC", func(t *testing.T) {
 		// basically check that QC.Verify is called
 		sb := newStructBuilder(t, 3)
+		rootTrust, err := sb.trustBaseStore.LoadFirst()
+		require.NoError(t, err)
 		bd := sb.BlockData(t)
-		tb := sb.trustBase
-		tb.QuorumThreshold = 4
-		err := bd.Verify(tb)
+		rootTrust.QuorumThreshold = 4
+		err = bd.Verify(rootTrust)
 		require.EqualError(t, err, `invalid block data QC: failed to verify quorum signatures: quorum not reached, signed_votes=3 quorum_threshold=4`)
 	})
 }

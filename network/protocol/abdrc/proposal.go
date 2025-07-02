@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	abdrc "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
@@ -46,11 +46,14 @@ func (x *ProposalMsg) IsValid() error {
 	return nil
 }
 
-func (x *ProposalMsg) Verify(tb types.RootTrustBase) error {
+func (x *ProposalMsg) Verify(tbs *trustbase.TrustBaseStore) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
-
+	tb, err := tbs.GetByEpoch(x.Block.Epoch)
+	if err != nil {
+		return fmt.Errorf("failed to get trust base for block verification: %w", err)
+	}
 	if err := x.Block.Verify(tb); err != nil {
 		return fmt.Errorf("block verification failed: %w", err)
 	}
@@ -64,7 +67,7 @@ func (x *ProposalMsg) Verify(tb types.RootTrustBase) error {
 
 	// Optional timeout certificate
 	if x.LastRoundTc != nil {
-		if err := x.LastRoundTc.Verify(tb); err != nil {
+		if err := x.LastRoundTc.Verify(tbs); err != nil {
 			return fmt.Errorf("invalid timeout certificate: %w", err)
 		}
 	}

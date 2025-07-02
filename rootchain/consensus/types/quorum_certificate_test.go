@@ -48,7 +48,9 @@ func TestQuorumCert_IsValid(t *testing.T) {
 
 func TestQuorumCert_Verify(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	rootTrust := sb.trustBase
+	rootTrust, err := sb.trustBaseStore.LoadFirst()
+	require.NoError(t, err)
+
 	require.NoError(t, sb.QC(t, 10).Verify(rootTrust), `sb.QC must return valid QuorumCert struct`)
 
 	t.Run("IsValid is called", func(t *testing.T) {

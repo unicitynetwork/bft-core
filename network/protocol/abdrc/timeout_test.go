@@ -6,9 +6,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/testutils"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
@@ -215,6 +218,11 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
+
+	tbs, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, tbs.Store(rootTrust))
+
 	commitQcInfo := testutils.NewDummyRootRoundInfo(votedRound - 1)
 	commitInfo := testutils.NewDummyCommitInfo(t, gocrypto.SHA256, commitQcInfo)
 	sig1, err := s1.SignBytes(testcertificates.UnicitySealBytes(t, commitInfo))
@@ -231,7 +239,7 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	// unknown signer
 	tmoMsg := NewTimeoutMsg(types.NewTimeout(votedRound, 0, highQc), "12", nil)
 	require.NoError(t, tmoMsg.Sign(s1))
-	require.ErrorContains(t, tmoMsg.Verify(rootTrust), `author '12' is not part of the trust base`)
+	require.ErrorContains(t, tmoMsg.Verify(tbs), `author '12' is not part of the trust base`)
 
 	// all ok
 	lastTC := &types.TimeoutCert{
@@ -244,16 +252,16 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	}
 	tmoMsg = NewTimeoutMsg(types.NewTimeout(highQc.GetRound()+2, 0, highQc), "1", lastTC)
 	require.NoError(t, tmoMsg.Sign(s1))
-	require.NoError(t, tmoMsg.Verify(rootTrust))
+	require.NoError(t, tmoMsg.Verify(tbs))
 
 	// adjust after signing
 	tmoMsg.Timeout.Epoch = 99
-	require.ErrorContains(t, tmoMsg.Verify(rootTrust), "signature verification failed")
+	require.ErrorContains(t, tmoMsg.Verify(tbs), "failed to get trust base for timeout verification: trust base not found")
 
 	// check that lastTC.Verify is called
 	tmoMsg.Timeout.Epoch = 0
 	tmoMsg.LastTC.Timeout.Epoch = 99
-	require.ErrorContains(t, tmoMsg.Verify(rootTrust), `invalid last TC: timeout certificate signature verification failed: verify bytes failed: verification failed`)
+	require.ErrorContains(t, tmoMsg.Verify(tbs), "invalid last TC: failed to get trust base for vote verification: trust base not found")
 }
 
 func TestTimeoutMsg_GetRound(t *testing.T) {

@@ -137,13 +137,12 @@ func TestTimeoutCert_IsValid(t *testing.T) {
 
 func TestTimeoutCert_Verify(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	trustBase := sb.trustBase
 
 	t.Run("IsValid is called", func(t *testing.T) {
 		// trigger error from IsValid to make sure it is called
 		tc := sb.TimeoutCert(t)
 		tc.Timeout = nil
-		err := tc.Verify(trustBase)
+		err := tc.Verify(sb.trustBaseStore)
 		require.EqualError(t, err, `invalid certificate: timeout data is unassigned`)
 	})
 
@@ -154,7 +153,7 @@ func TestTimeoutCert_Verify(t *testing.T) {
 			delete(tc.Timeout.HighQc.Signatures, k)
 			break
 		}
-		err := tc.Verify(trustBase)
+		err := tc.Verify(sb.trustBaseStore)
 		require.EqualError(t, err, `invalid timeout data: invalid high QC: failed to verify quorum signatures: quorum not reached, signed_votes=2 quorum_threshold=3`)
 	})
 
@@ -164,7 +163,7 @@ func TestTimeoutCert_Verify(t *testing.T) {
 			delete(tc.Signatures, k)
 			break
 		}
-		err := tc.Verify(trustBase)
+		err := tc.Verify(sb.trustBaseStore)
 		require.EqualError(t, err, `quorum requires 3 votes but certificate has 2`)
 	})
 
@@ -175,14 +174,14 @@ func TestTimeoutCert_Verify(t *testing.T) {
 			v.HqcRound++ // works because v is a pointer pointing to the same item stored to map
 			break
 		}
-		err := tc.Verify(trustBase)
+		err := tc.Verify(sb.trustBaseStore)
 		require.ErrorContains(t, err, `timeout certificate signature verification failed: verify bytes failed: verification failed`)
 	})
 
 	t.Run("unknown signer", func(t *testing.T) {
 		tc := sb.TimeoutCert(t)
 		tc.Signatures["foobar"] = &TimeoutVote{}
-		err := tc.Verify(trustBase)
+		err := tc.Verify(sb.trustBaseStore)
 		require.EqualError(t, err, `timeout certificate signature verification failed: author 'foobar' is not part of the trust base`)
 	})
 
@@ -197,7 +196,7 @@ func TestTimeoutCert_Verify(t *testing.T) {
 			}
 			break
 		}
-		err := tc.Verify(trustBase)
+		err := tc.Verify(sb.trustBaseStore)
 		require.EqualError(t, err, `high QC round 10 does not match max signed QC round 11`)
 	})
 }
@@ -275,13 +274,12 @@ func Test_Timeout_IsValid(t *testing.T) {
 
 func Test_Timeout_Verify(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	rootTrust := sb.trustBase
-	require.NoError(t, sb.Timeout(t).Verify(rootTrust), `sb.Timeout must return valid Timeout struct`)
+	require.NoError(t, sb.Timeout(t).Verify(sb.trustBaseStore), `sb.Timeout must return valid Timeout struct`)
 
 	t.Run("IsValid is called", func(t *testing.T) {
 		timeout := sb.Timeout(t)
 		timeout.HighQc = nil
-		require.EqualError(t, timeout.Verify(rootTrust), `invalid timeout data: high QC is unassigned`)
+		require.EqualError(t, timeout.Verify(sb.trustBaseStore), `invalid timeout data: high QC is unassigned`)
 	})
 }
 

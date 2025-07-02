@@ -544,7 +544,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 		return fmt.Errorf("stale vote for round %d from %s", vote.VoteInfo.RoundNumber, vote.Author)
 	}
 	// verify signature on vote
-	if err := vote.Verify(x.trustBase.Load()); err != nil {
+	if err := vote.Verify(x.trustBaseStore); err != nil {
 		return fmt.Errorf("invalid vote: %w", err)
 	}
 	// if a vote is received for future round it is intended for the node which is going to be the
@@ -615,7 +615,7 @@ func (x *ConsensusManager) onTimeoutMsg(ctx context.Context, vote *abdrc.Timeout
 		return fmt.Errorf("stale timeout vote for round %d from %s", vote.Timeout.Round, vote.Author)
 	}
 	// verify signature on vote
-	if err := vote.Verify(x.trustBase.Load()); err != nil {
+	if err := vote.Verify(x.trustBaseStore); err != nil {
 		return fmt.Errorf("invalid timeout vote: %w", err)
 	}
 	// SyncState, compare last handled QC
@@ -681,9 +681,7 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 		return fmt.Errorf("stale proposal for round %d from %s", proposal.Block.Round, proposal.Block.Author)
 	}
 	// verify signature on proposal (does not verify partition request signatures)
-	// TODO: proposal might not verify with old trustBase, check proposal epoch?
-	// proposal.Block.Epoch
-	if err := proposal.Verify(x.trustBase.Load()); err != nil {
+	if err := proposal.Verify(x.trustBaseStore); err != nil {
 		return fmt.Errorf("invalid proposal: %w", err)
 	}
 	// Check current state against new QC

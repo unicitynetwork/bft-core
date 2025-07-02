@@ -5,9 +5,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/testutils"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
@@ -189,6 +192,10 @@ func TestProposalMsg_Verify(t *testing.T) {
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 
+	tbs, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, tbs.Store(rootTrust))
+
 	validProposal := func(t *testing.T) *ProposalMsg {
 		t.Helper()
 		voteInfo := testutils.NewDummyRootRoundInfo(9)
@@ -212,34 +219,34 @@ func TestProposalMsg_Verify(t *testing.T) {
 		return proposeMsg
 	}
 
-	require.NoError(t, validProposal(t).Verify(rootTrust))
+	require.NoError(t, validProposal(t).Verify(tbs))
 
 	t.Run("IsValid is called", func(t *testing.T) {
 		prop := validProposal(t)
 		prop.Block = nil
-		require.EqualError(t, prop.Verify(rootTrust), `validation failed: block is nil`)
+		require.EqualError(t, prop.Verify(tbs), `validation failed: block is nil`)
 	})
 
 	t.Run("unknown signer", func(t *testing.T) {
 		prop := validProposal(t)
 		prop.Block.Author = "xyz"
-		require.EqualError(t, prop.Verify(rootTrust), `signature verification failed: author 'xyz' is not part of the trust base`)
+		require.EqualError(t, prop.Verify(tbs), `signature verification failed: author 'xyz' is not part of the trust base`)
 	})
 
 	t.Run("invalid signature", func(t *testing.T) {
 		prop := validProposal(t)
 		prop.Block.Timestamp = 0x11111111 // changing block after signing makes signature invalid
-		require.ErrorContains(t, prop.Verify(rootTrust), `signature verification failed: verify bytes failed`)
+		require.ErrorContains(t, prop.Verify(tbs), `signature verification failed: verify bytes failed`)
 
 		prop.Signature = []byte{0, 1, 2, 3, 4}
-		require.ErrorContains(t, prop.Verify(rootTrust), `signature verification failed: verify bytes failed: signature length is 5 b (expected 64 b)`)
+		require.ErrorContains(t, prop.Verify(tbs), `signature verification failed: verify bytes failed: signature length is 5 b (expected 64 b)`)
 	})
 
 	t.Run("no quorum signatures", func(t *testing.T) {
 		// this basically tests that Block.Verify is called
 		prop := validProposal(t)
 		delete(prop.Block.Qc.Signatures, "3")
-		require.ErrorContains(t, prop.Verify(rootTrust), `block verification failed: invalid block data QC: failed to verify quorum signatures: quorum not reached, signed_votes=2 quorum_threshold=3`)
+		require.ErrorContains(t, prop.Verify(tbs), `block verification failed: invalid block data QC: failed to verify quorum signatures: quorum not reached, signed_votes=2 quorum_threshold=3`)
 	})
 }
 
@@ -248,6 +255,11 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
+
+	tbs, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, tbs.Store(rootTrust))
+
 	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(8)
 	h, err := lastRoundVoteInfo.Hash(gocrypto.SHA256)
 	require.NoError(t, err)
@@ -285,7 +297,7 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 		LastRoundTc: lastRoundTc,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
-	require.NoError(t, proposeMsg.Verify(rootTrust))
+	require.NoError(t, proposeMsg.Verify(tbs))
 }
 
 func newQuorumCertificate(t *testing.T, voteInfo *drctypes.RoundInfo, commitHash []byte) (*drctypes.QuorumCert, error) {

@@ -5,6 +5,7 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
@@ -40,7 +41,7 @@ func (x *VoteMsg) Sign(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *VoteMsg) Verify(tb types.RootTrustBase) error {
+func (x *VoteMsg) Verify(tbs *trustbase.TrustBaseStore) error {
 	if x.Author == "" {
 		return fmt.Errorf("author is missing")
 	}
@@ -64,14 +65,25 @@ func (x *VoteMsg) Verify(tb types.RootTrustBase) error {
 	if x.HighQc == nil {
 		return fmt.Errorf("vote from '%s' high QC is nil", x.Author)
 	}
-	if err := x.HighQc.Verify(tb); err != nil {
+	if x.HighQc.VoteInfo == nil {
+		return fmt.Errorf("vote from '%s' high QC is missing vote info", x.Author)
+	}
+	highQcTrustBase, err := tbs.GetByEpoch(x.HighQc.VoteInfo.Epoch)
+	if err != nil {
+		return fmt.Errorf("failed to get trust base for high QC verification: %w", err)
+	}
+	if err := x.HighQc.Verify(highQcTrustBase); err != nil {
 		return fmt.Errorf("vote from '%s' high QC error: %w", x.Author, err)
 	}
 	bs, err := x.LedgerCommitInfo.SigBytes()
 	if err != nil {
 		return fmt.Errorf("failed to marshal unicity seal: %w", err)
 	}
-	if _, err := tb.VerifySignature(bs, x.Signature, x.Author); err != nil {
+	voteTrustBase, err := tbs.GetByEpoch(x.VoteInfo.Epoch)
+	if err != nil {
+		return fmt.Errorf("failed to get trust base for vote verification: %w", err)
+	}
+	if _, err := voteTrustBase.VerifySignature(bs, x.Signature, x.Author); err != nil {
 		return fmt.Errorf("vote from '%s' signature verification error: %w", x.Author, err)
 	}
 	return nil
