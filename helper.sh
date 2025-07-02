@@ -94,7 +94,7 @@ function init_root_nodes() {
   done
 
   # Generate trust-base once to test-nodes
-  build/ubft trust-base generate --home testab --epoch 0 --epoch-start 1 --network-id 3 $nodeInfoFiles
+  build/ubft trust-base generate --home test-nodes --epoch 0 --epoch-start 1 --network-id 3 $nodeInfoFiles
 
   # Sign trust-base by each node
   for i in $(seq 1 "$1")
