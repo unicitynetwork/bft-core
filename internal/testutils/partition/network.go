@@ -166,11 +166,11 @@ func (a *UnicityNetwork) AddShard(t *testing.T, shardConf *types.PartitionDescri
 
 		shardConfStore, err := partition.NewShardConfStore(memorydb.New(), log)
 		require.NoError(t, err)
-		shardConfStore.Store(shardConf)
+		require.NoError(t, shardConfStore.Store(shardConf))
 
 		trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), log)
 		require.NoError(t, err)
-		trustBaseStore.Store(a.RootChain.TrustBase)
+		require.NoError(t, trustBaseStore.Store(a.RootChain.TrustBase))
 
 		nodeConf, err := partition.NewNodeConf(
 			node.KeyConf(t),
@@ -337,7 +337,7 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 
 		trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), log)
 		require.NoError(t, err)
-		trustBaseStore.Store(r.TrustBase)
+		require.NoError(t, trustBaseStore.Store(r.TrustBase))
 
 		cm, err := consensus.NewConsensusManager(
 			rootPeer.ID(),
