@@ -1824,7 +1824,7 @@ func (n *Node) startProcessingTransactions(ctx context.Context) {
 				if len(validators) == 0 {
 					return UnknownLeader
 				}
-				// #nosec G401
+				// #nosec G404
 				randIdx := rand.Intn(len(validators))
 				return peer.ID(validators[randIdx].NodeID)
 			}
