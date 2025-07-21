@@ -27,6 +27,7 @@ type (
 		ShardID         string
 		Epoch           uint64
 		EpochStart      uint64
+		T2Timeout       uint64
 		NodeInfoFiles   []string
 
 		MoneyInitialBillOwnerPredicate string
@@ -52,6 +53,7 @@ func shardConfGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 
 	cmd.Flags().Uint64Var(&flags.Epoch, "epoch", 0, "epoch assigned to this configuration, must be one greater than the epoch of the previous configuration")
 	cmd.Flags().Uint64Var(&flags.EpochStart, "epoch-start", 0, "root round in which this configuration is activated")
+	cmd.Flags().Uint64Var(&flags.T2Timeout, "t2-timeout", 2500, "T2 timeout in milliseconds")
 	if err := cmd.MarkFlagRequired("epoch-start"); err != nil {
 		panic(err)
 	}
@@ -98,7 +100,7 @@ func shardConfGenerate(flags *ShardConfGenerateFlags) error {
 		EpochStart:      flags.EpochStart,
 		TypeIDLen:       8,
 		UnitIDLen:       256,
-		T2Timeout:       2500 * time.Millisecond,
+		T2Timeout:       time.Duration(flags.T2Timeout) * time.Millisecond,
 		Validators:      nodes,
 		PartitionParams: defaultPartitionParams(types.PartitionTypeID(flags.PartitionTypeID), flags),
 	}
