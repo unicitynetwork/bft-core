@@ -162,6 +162,9 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return err
 	}
 	trustBaseStore, err := trustbase.NewTrustBaseStore(trustBaseDB, log)
+	if err != nil {
+		return err
+	}
 
 	for _, trustBase := range trustBases {
 		if err := trustBaseStore.Store(trustBase); err != nil {
