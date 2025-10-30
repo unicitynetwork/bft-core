@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/internal/debug"
 	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-core/network"
@@ -19,7 +21,6 @@ import (
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/rpc"
 	"github.com/unicitynetwork/bft-core/txsystem"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const (
@@ -224,6 +225,9 @@ func createNode(ctx context.Context, flags *ShardNodeRunFlags) (*partition.Node,
 		return nil, nil, err
 	}
 	trustBaseStore, err := trustbase.NewTrustBaseStore(trustBaseDB, log)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create trust base store: %w", err)
+	}
 	for _, trustBase := range trustBases {
 		if err := trustBaseStore.Store(trustBase); err != nil {
 			return nil, nil, fmt.Errorf("failed to store trust base: %w", err)
