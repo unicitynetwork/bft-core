@@ -37,7 +37,7 @@ func NewTrustBaseStore(db keyvaluedb.KeyValueDB, log *slog.Logger) (*TrustBaseSt
 	}, nil
 }
 
-// Load returns trust base for the given epoch.
+// GetByEpoch returns trust base for the given epoch.
 func (s *TrustBaseStore) GetByEpoch(epoch uint64) (*types.RootTrustBaseV1, error) {
 	s.mu.RLock()
 	if tb, found := s.cache[epoch]; found {
@@ -67,7 +67,7 @@ func (s *TrustBaseStore) GetByEpoch(epoch uint64) (*types.RootTrustBaseV1, error
 	return tb, nil
 }
 
-// Load returns the trust base for the given root round.
+// GetByRound returns the trust base for the given root round.
 func (s *TrustBaseStore) GetByRound(round uint64) (*types.RootTrustBaseV1, error) {
 	trustBase, err := s.LoadFirst()
 	if err != nil {
@@ -78,11 +78,11 @@ func (s *TrustBaseStore) GetByRound(round uint64) (*types.RootTrustBaseV1, error
 		return nil, fmt.Errorf("trust base not found for round %d", round)
 	}
 	for {
-		nextTrustBase, err := s.GetByEpoch(trustBase.Epoch+1)
-		if err != nil && err != ErrNotFound {
+		nextTrustBase, err := s.GetByEpoch(trustBase.Epoch + 1)
+		if err != nil && !errors.Is(err, ErrNotFound) {
 			return nil, err
 		}
-		if err == ErrNotFound || round < nextTrustBase.EpochStart {
+		if errors.Is(err, ErrNotFound) || round < nextTrustBase.EpochStart {
 			// We reached a not yet active trustBase
 			break
 		}
@@ -91,6 +91,7 @@ func (s *TrustBaseStore) GetByRound(round uint64) (*types.RootTrustBaseV1, error
 	return trustBase, nil
 }
 
+// LoadFirst returns trust base for the very first epoch.
 func (s *TrustBaseStore) LoadFirst() (*types.RootTrustBaseV1, error) {
 	dbIt := s.db.First()
 	defer func() {
@@ -114,7 +115,6 @@ func (s *TrustBaseStore) Store(trustBase types.RootTrustBase) error {
 	if err := s.db.Write(dbKey, trustBase); err != nil {
 		s.log.Error(fmt.Sprintf("Failed to add trust base epoch %d", trustBase.GetEpoch()), logger.Error(err))
 		return fmt.Errorf("failed to store trust base for epoch %d: %w", trustBase.GetEpoch(), err)
-
 	}
 	s.log.Info(fmt.Sprintf("Added trust base epoch %d, epoch start %d", trustBase.GetEpoch(), trustBase.GetEpochStart()))
 	return nil
@@ -153,8 +153,8 @@ func toDBKey(version, epoch uint64) []byte {
 
 func fromDBKey(dbKey []byte) (version, epoch uint64) {
 	versionStart := len(trustBasePrefix)
-	epochStart := len(trustBasePrefix)+8
-	return util.BytesToUint64(dbKey[versionStart:versionStart+8]), util.BytesToUint64(dbKey[epochStart:epochStart+8])
+	epochStart := len(trustBasePrefix) + 8
+	return util.BytesToUint64(dbKey[versionStart : versionStart+8]), util.BytesToUint64(dbKey[epochStart : epochStart+8])
 }
 
 func verifyDB(db keyvaluedb.KeyValueDB, log *slog.Logger) error {
