@@ -110,25 +110,29 @@ func (s *TrustBaseStore) LoadFirst() (*types.RootTrustBaseV1, error) {
 
 // Store saves CBOR encoded trust base to db, indexed by the version and epoch.
 func (s *TrustBaseStore) Store(trustBase types.RootTrustBase) error {
-	version := s.GetVersion(trustBase.GetEpoch())
-	dbKey := toDBKey(version, trustBase.GetEpoch())
-	if err := s.db.Write(dbKey, trustBase); err != nil {
-		s.log.Error(fmt.Sprintf("Failed to add trust base epoch %d", trustBase.GetEpoch()), logger.Error(err))
-		return fmt.Errorf("failed to store trust base for epoch %d: %w", trustBase.GetEpoch(), err)
+	epoch := trustBase.GetEpoch()
+	version := uint64(trustBase.GetVersion())
+	mappedVersion := s.GetVersion(epoch)
+	if version != mappedVersion {
+		return fmt.Errorf("trust base version mismatch: got %d expected %d", version, mappedVersion)
 	}
-	s.log.Info(fmt.Sprintf("Added trust base epoch %d, epoch start %d", trustBase.GetEpoch(), trustBase.GetEpochStart()))
+	dbKey := toDBKey(version, epoch)
+	if err := s.db.Write(dbKey, trustBase); err != nil {
+		return fmt.Errorf("failed to store trust base for epoch %d: %w", epoch, err)
+	}
+	s.log.Info(fmt.Sprintf("Added trust base epoch %d, epoch start %d", epoch, trustBase.GetEpochStart()))
 	return nil
 }
 
 // GetVersion returns trust base version based on epoch
 func (s *TrustBaseStore) GetVersion(epoch uint64) uint64 {
-	return 0
+	return 1
 }
 
 func (s *TrustBaseStore) load(epoch uint64) (*types.RootTrustBaseV1, error) {
 	version := s.GetVersion(epoch)
 	dbKey := toDBKey(version, epoch)
-	if version == 0 {
+	if version == 1 {
 		var tb *types.RootTrustBaseV1
 		ok, err := s.db.Read(dbKey, &tb)
 		if err != nil {
@@ -168,7 +172,7 @@ func verifyDB(db keyvaluedb.KeyValueDB, log *slog.Logger) error {
 	var prevTrustBase *types.RootTrustBaseV1
 	for ; dbIt.Valid(); dbIt.Next() {
 		version, epoch := fromDBKey(dbIt.Key())
-		if version == 0 {
+		if version == 1 {
 			var trustBase types.RootTrustBaseV1
 			if err := dbIt.Value(&trustBase); err != nil {
 				return fmt.Errorf("failed to read trust base for epoch %d: %w", epoch, err)

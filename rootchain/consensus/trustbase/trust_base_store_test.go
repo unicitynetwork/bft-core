@@ -34,6 +34,7 @@ func TestTrustBaseStore(t *testing.T) {
 		[]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
 	)
 	require.NoError(t, err)
+	require.Equal(t, types.Version(1), tb.GetVersion())
 
 	// store trust base
 	err = trustBaseStore.Store(tb)
@@ -43,6 +44,7 @@ func TestTrustBaseStore(t *testing.T) {
 	tbFromDB, err := trustBaseStore.GetByEpoch(0)
 	require.NoError(t, err)
 	require.Equal(t, tb, tbFromDB)
+	require.Equal(t, types.Version(1), tb.GetVersion())
 
 	// verify trust base can be loaded from constructor
 	_, err = NewTrustBaseStore(db, logger.New(t))
