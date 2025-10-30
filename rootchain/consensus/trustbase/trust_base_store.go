@@ -7,10 +7,11 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/unicitynetwork/bft-core/keyvaluedb"
-	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	"github.com/unicitynetwork/bft-core/keyvaluedb"
+	"github.com/unicitynetwork/bft-core/logger"
 )
 
 var trustBasePrefix = []byte("trust_base_") // append version and epoch number bytes
@@ -167,8 +168,7 @@ func verifyDB(db keyvaluedb.KeyValueDB, log *slog.Logger) error {
 	var prevTrustBase *types.RootTrustBaseV1
 	for ; dbIt.Valid(); dbIt.Next() {
 		version, epoch := fromDBKey(dbIt.Key())
-
-		if version == 1 {
+		if version == 0 {
 			var trustBase types.RootTrustBaseV1
 			if err := dbIt.Value(&trustBase); err != nil {
 				return fmt.Errorf("failed to read trust base for epoch %d: %w", epoch, err)
@@ -176,8 +176,9 @@ func verifyDB(db keyvaluedb.KeyValueDB, log *slog.Logger) error {
 			if prevTrustBase == nil {
 				prevTrustBase = &trustBase
 			}
-			if prevTrustBase.NetworkID == trustBase.NetworkID {
-				return fmt.Errorf("inconsistent network id in trust base for epoch %d", epoch)
+			if prevTrustBase.NetworkID != trustBase.NetworkID {
+				return fmt.Errorf("inconsistent network id in trust base for epoch %d, got %d expected %d",
+					epoch, trustBase.NetworkID, prevTrustBase.NetworkID)
 			}
 		} else {
 			return fmt.Errorf("unknown trust base version %d in db", version)

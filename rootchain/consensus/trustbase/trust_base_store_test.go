@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
 	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
-	"github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestTrustBaseStore(t *testing.T) {
@@ -42,4 +43,8 @@ func TestTrustBaseStore(t *testing.T) {
 	tbFromDB, err := trustBaseStore.GetByEpoch(0)
 	require.NoError(t, err)
 	require.Equal(t, tb, tbFromDB)
+
+	// verify trust base can be loaded from constructor
+	_, err = NewTrustBaseStore(db, logger.New(t))
+	require.NoError(t, err)
 }
