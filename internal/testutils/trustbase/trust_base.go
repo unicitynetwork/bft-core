@@ -67,6 +67,10 @@ func (a AlwaysValidTrustBase) VerifySignature(data []byte, sig []byte, nodeID st
 	return 1, nil
 }
 
+func (a AlwaysValidTrustBase) GetVersion() types.Version {
+	return 1
+}
+
 func (a AlwaysValidTrustBase) GetNetworkID() types.NetworkID {
 	return types.NetworkLocal
 }
