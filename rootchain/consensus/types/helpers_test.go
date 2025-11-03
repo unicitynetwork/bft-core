@@ -7,14 +7,15 @@ import (
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+
 	"github.com/unicitynetwork/bft-core/internal/testutils"
 	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 /*
@@ -61,7 +62,7 @@ func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 		nodes = append(nodes, &types.NodeInfo{NodeID: nodeID, SigKey: pubKey, Stake: 1})
 	}
 
-	tb, err := types.NewTrustBaseGenesis(5, nodes)
+	tb, err := types.NewTrustBase(5, nodes)
 	if err != nil {
 		require.NoError(t, err)
 	}

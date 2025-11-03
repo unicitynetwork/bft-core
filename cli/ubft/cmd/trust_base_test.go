@@ -6,9 +6,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 )
 
 func TestTrustBaseGenerateAndSign(t *testing.T) {
@@ -40,7 +41,7 @@ func TestTrustBaseGenerateAndSign(t *testing.T) {
 		"--node-info", nodeInfoFile2,
 		"--network-id", "5",
 		"--quorum-threshold", "2",
-		"--epoch", "1",
+		"--epoch", "0",
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
@@ -49,7 +50,7 @@ func TestTrustBaseGenerateAndSign(t *testing.T) {
 	trustBase, err := util.ReadJsonFile(trustBasePath, &types.RootTrustBaseV1{})
 	require.NoError(t, err)
 	require.Equal(t, types.NetworkID(5), trustBase.NetworkID)
-	require.Equal(t, uint64(1), trustBase.Epoch)
+	require.Equal(t, uint64(0), trustBase.Epoch)
 	require.Len(t, trustBase.RootNodes, 2)
 
 	// root node 1 signs the trust base in its home dir

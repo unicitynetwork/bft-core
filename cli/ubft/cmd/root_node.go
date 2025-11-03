@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
@@ -26,7 +28,6 @@ import (
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/rootchain/partitions"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const (
@@ -166,6 +167,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return err
 	}
 
+	// TODO prohibit overwriting existing trust bases?
 	for _, trustBase := range trustBases {
 		if err := trustBaseStore.Store(trustBase); err != nil {
 			return fmt.Errorf("failed to store trust base: %w", err)

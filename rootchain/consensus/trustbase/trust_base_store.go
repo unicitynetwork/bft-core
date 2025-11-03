@@ -116,6 +116,24 @@ func (s *TrustBaseStore) Store(trustBase types.RootTrustBase) error {
 	if version != mappedVersion {
 		return fmt.Errorf("trust base version mismatch: got %d expected %d", version, mappedVersion)
 	}
+
+	// verify trust base extends previous trust base
+	if epoch > 0 {
+		previousTrustBase, err := s.GetByEpoch(epoch - 1)
+		if err != nil {
+			return fmt.Errorf("previous trust base not found for epoch %d: %w", epoch-1, err)
+		}
+		trustBaseV1, ok := trustBase.(*types.RootTrustBaseV1)
+		if !ok {
+			return fmt.Errorf("failed to cast provided trust base to version 1 for epoch %d", epoch)
+		}
+		if err = trustBaseV1.Verify(previousTrustBase); err != nil {
+			return fmt.Errorf("failed to verify trust base: %w", err)
+		}
+	}
+
+	// store the trust base
+	// TODO prohibit overwriting existing trust bases?
 	dbKey := toDBKey(version, epoch)
 	if err := s.db.Write(dbKey, trustBase); err != nil {
 		return fmt.Errorf("failed to store trust base for epoch %d: %w", epoch, err)

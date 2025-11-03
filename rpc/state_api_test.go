@@ -11,6 +11,14 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+	"github.com/unicitynetwork/bft-go-base/util"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testobservability "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
@@ -20,13 +28,6 @@ import (
 	"github.com/unicitynetwork/bft-core/partition"
 	"github.com/unicitynetwork/bft-core/state"
 	"github.com/unicitynetwork/bft-core/txsystem"
-	abhash "github.com/unicitynetwork/bft-go-base/hash"
-	"github.com/unicitynetwork/bft-go-base/predicates/templates"
-	"github.com/unicitynetwork/bft-go-base/txsystem/money"
-	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
-	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 func TestGetRoundInfo(t *testing.T) {
@@ -363,7 +364,7 @@ func TestGetTrustBase(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
-		trustBase, err := types.NewTrustBaseGenesis(types.NetworkMainNet, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "1", verifier)})
+		trustBase, err := types.NewTrustBase(types.NetworkMainNet, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "1", verifier)})
 		require.NoError(t, err)
 		node.trustBase = trustBase
 

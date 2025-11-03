@@ -17,6 +17,9 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testlogger "github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
@@ -34,8 +37,6 @@ import (
 	"github.com/unicitynetwork/bft-core/rootchain/testutils"
 	"github.com/unicitynetwork/bft-core/txsystem"
 	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const networkID = 5
@@ -109,7 +110,7 @@ func NewUnicityNetwork(t *testing.T, rootNodeCount int) *UnicityNetwork {
 			homeDir:    t.TempDir(),
 		}
 	}
-	trustBase, err := types.NewTrustBaseGenesis(networkID, nodeInfos)
+	trustBase, err := types.NewTrustBase(networkID, nodeInfos)
 	require.NoError(t, err)
 
 	return &UnicityNetwork{

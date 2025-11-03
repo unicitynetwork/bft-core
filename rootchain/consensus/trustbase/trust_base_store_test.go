@@ -1,10 +1,11 @@
 package trustbase
 
 import (
+	"crypto"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/unicitynetwork/bft-go-base/crypto"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
@@ -25,11 +26,11 @@ func TestTrustBaseStore(t *testing.T) {
 	require.Nil(t, tb)
 
 	// create trust base
-	signer, err := crypto.NewInMemorySecp256K1Signer()
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	verifier, err := signer.Verifier()
 	require.NoError(t, err)
-	tb, err = types.NewTrustBaseGenesis(
+	tb, err = types.NewTrustBase(
 		5,
 		[]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
 	)
@@ -49,4 +50,35 @@ func TestTrustBaseStore(t *testing.T) {
 	// verify trust base can be loaded from constructor
 	_, err = NewTrustBaseStore(db, logger.New(t))
 	require.NoError(t, err)
+
+	// create a second trust base with a gap in epoch numbers
+	previousTrustBaseHash, err := tb.Hash(crypto.SHA256)
+	require.NoError(t, err)
+	tb2, err := types.NewTrustBase(5, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
+		types.WithEpoch(2),
+		types.WithEpochStart(10),
+		types.WithPreviousTrustBaseHash(previousTrustBaseHash),
+	)
+	require.NoError(t, err)
+
+	// attempt to store the second trust base
+	err = trustBaseStore.Store(tb2)
+	require.ErrorContains(t, err, "previous trust base not found for epoch 1")
+
+	// create a second trust base with correct epoch numbers
+	tb3, err := types.NewTrustBase(5, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
+		types.WithEpoch(1),
+		types.WithEpochStart(10),
+		types.WithPreviousTrustBaseHash(previousTrustBaseHash),
+	)
+	require.NoError(t, err)
+
+	// store the valid second trust base
+	err = trustBaseStore.Store(tb3)
+	require.NoError(t, err)
+
+	// verify the valid second trust base can be loaded
+	tb3FromDB, err := trustBaseStore.GetByEpoch(1)
+	require.NoError(t, err)
+	require.Equal(t, tb3, tb3FromDB)
 }

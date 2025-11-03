@@ -30,7 +30,7 @@ func NewTrustBase(t *testing.T, verifiers ...abcrypto.Verifier) types.RootTrustB
 			Stake:  1,
 		})
 	}
-	tb, err := types.NewTrustBaseGenesis(5, nodes)
+	tb, err := types.NewTrustBase(5, nodes)
 	require.NoError(t, err)
 	return tb
 }
@@ -40,7 +40,7 @@ func NewTrustBaseFromVerifiers(t *testing.T, verifiers map[string]abcrypto.Verif
 	for nodeID, v := range verifiers {
 		nodes = append(nodes, NewNodeInfoFromVerifier(t, nodeID, v))
 	}
-	tb, err := types.NewTrustBaseGenesis(5, nodes)
+	tb, err := types.NewTrustBase(5, nodes)
 	require.NoError(t, err)
 	return tb
 }

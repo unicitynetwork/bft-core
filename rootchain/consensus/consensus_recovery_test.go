@@ -14,6 +14,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+
 	testobservability "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/logger"
@@ -22,13 +26,10 @@ import (
 	"github.com/unicitynetwork/bft-core/observability"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/leader"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
-	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-core/rootchain/partitions"
 	"github.com/unicitynetwork/bft-core/rootchain/testutils"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
@@ -749,7 +750,7 @@ func createConsensusManagers(t *testing.T, count int, shardNodes []*types.NodeIn
 		rootSigners[rootNodes[i].PeerConf.ID.String()] = rootNodes[i].Signer
 	}
 
-	trustBase, err := types.NewTrustBaseGenesis(5, rootNodeInfos)
+	trustBase, err := types.NewTrustBase(5, rootNodeInfos)
 	require.NoError(t, err)
 
 	if shardNodes == nil {

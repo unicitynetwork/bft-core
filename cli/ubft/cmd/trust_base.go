@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"crypto"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
 	"github.com/unicitynetwork/bft-go-base/util"
 )
 
@@ -20,11 +22,13 @@ type (
 	trustBaseGenerateFlags struct {
 		*baseFlags
 
-		NetworkID       uint16
-		NodeInfoFiles   []string // paths to node info files
-		QuorumThreshold uint64   // optional custom quorum threshold (default len(nodes)*2/3 + 1)
-		Epoch           uint64
-		EpochStart      uint64
+		NetworkID         uint16
+		NodeInfoFiles     []string // paths to node info files
+		QuorumThreshold   uint64   // optional custom quorum threshold (default len(nodes)*2/3 + 1)
+		Epoch             uint64
+		EpochStart        uint64
+		PreviousTrustBase string // path to previous trust base file
+		OutputFileName    string // the generated trust base filename
 	}
 
 	trustBaseSignFlags struct {
@@ -63,6 +67,8 @@ func trustBaseGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 	cmd.Flags().Uint64Var(&flags.QuorumThreshold, "quorum-threshold", 0, "define custom quorum threshold (default: len(nodes)*2/3+1")
 	cmd.Flags().Uint64Var(&flags.Epoch, "epoch", 0, "epoch assigned to this trust base, must be one greater than the epoch of the previous trust base")
 	cmd.Flags().Uint64Var(&flags.EpochStart, "epoch-start", 0, "root round in which this trust base is activated")
+	cmd.Flags().StringVar(&flags.PreviousTrustBase, "previous-trust-base", "", "previous epoch's trust base, not required for genesis epoch")
+	cmd.Flags().StringVar(&flags.OutputFileName, "output-file-name", trustBaseFileName, "the generated trust base file name, stored to homedir")
 
 	return cmd
 }
@@ -72,20 +78,40 @@ func trustBaseGenerate(flags *trustBaseGenerateFlags) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	var previousTrustBase *types.RootTrustBaseV1
+	var previousTrustBaseHash hex.Bytes
+	if flags.PreviousTrustBase != "" {
+		previousTrustBase = &types.RootTrustBaseV1{}
+		_, err := util.ReadJsonFile(flags.PreviousTrustBase, previousTrustBase)
+		if err != nil {
+			return fmt.Errorf("failed to load previous trust base file %q: %w", flags.PreviousTrustBase, err)
+		}
+		previousTrustBaseHash, err = previousTrustBase.Hash(crypto.SHA256)
+		if err != nil {
+			return fmt.Errorf("failed to hash previous trust base file %q: %w", flags.PreviousTrustBase, err)
+		}
+	}
+
 	nodes, err := loadNodeInfoFiles(flags.NodeInfoFiles)
 	if err != nil {
 		return fmt.Errorf("failed to read node info files: %w", err)
 	}
 
-	trustBase, err := types.NewTrustBaseGenesis(types.NetworkID(flags.NetworkID), nodes,
+	trustBase, err := types.NewTrustBase(types.NetworkID(flags.NetworkID), nodes,
 		types.WithQuorumThreshold(flags.QuorumThreshold),
 		types.WithEpoch(flags.Epoch),
-		types.WithEpochStart(flags.EpochStart))
+		types.WithEpochStart(flags.EpochStart),
+		types.WithPreviousTrustBaseHash(previousTrustBaseHash),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to generate trust base: %w", err)
 	}
 
-	outputFile := filepath.Join(flags.HomeDir, trustBaseFileName)
+	if err = trustBase.Verify(previousTrustBase); err != nil {
+		return fmt.Errorf("failed to verify trust base after generation: %w", err)
+	}
+
+	outputFile := filepath.Join(flags.HomeDir, flags.OutputFileName)
 	if err = util.WriteJsonFile(outputFile, trustBase); err != nil {
 		return fmt.Errorf("failed to save '%s': %w", outputFile, err)
 	}
