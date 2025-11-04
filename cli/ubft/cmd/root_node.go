@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -167,10 +168,12 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return err
 	}
 
-	// TODO prohibit overwriting existing trust bases?
 	for _, trustBase := range trustBases {
 		if err := trustBaseStore.Store(trustBase); err != nil {
-			return fmt.Errorf("failed to store trust base: %w", err)
+			if !errors.Is(err, trustbase.ErrAlreadyExists) {
+				return fmt.Errorf("failed to store trust base: %w", err)
+			}
+			log.Warn(fmt.Sprintf("trust base already exists for epoch %d, not overwriting it", trustBase.Epoch))
 		}
 	}
 

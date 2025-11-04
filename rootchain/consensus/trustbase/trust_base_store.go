@@ -16,7 +16,10 @@ import (
 
 var trustBasePrefix = []byte("trust_base_") // append version and epoch number bytes
 
-var ErrNotFound = errors.New("trust base not found")
+var (
+	ErrNotFound      = errors.New("trust base not found")
+	ErrAlreadyExists = errors.New("trust base already exists")
+)
 
 type TrustBaseStore struct {
 	db    keyvaluedb.KeyValueDB
@@ -132,8 +135,14 @@ func (s *TrustBaseStore) Store(trustBase types.RootTrustBase) error {
 		}
 	}
 
-	// store the trust base
-	// TODO prohibit overwriting existing trust bases?
+	// store trust base if not exists
+	existingTrustBase, err := s.GetByEpoch(epoch)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return fmt.Errorf("failed to load existing trust base for epoch %d: %w", epoch, err)
+	}
+	if existingTrustBase != nil {
+		return ErrAlreadyExists
+	}
 	dbKey := toDBKey(version, epoch)
 	if err := s.db.Write(dbKey, trustBase); err != nil {
 		return fmt.Errorf("failed to store trust base for epoch %d: %w", epoch, err)

@@ -1731,8 +1731,11 @@ func (n *Node) RegisterShardConf(shardConf *types.PartitionDescriptionRecord) er
 func (n *Node) RegisterTrustBase(trustBase types.RootTrustBase) error {
 	n.log.Info(fmt.Sprintf("Registering trust base for epoch %d", trustBase.GetEpoch()))
 	if err := n.trustBaseStore.Store(trustBase); err != nil {
-		n.log.Error(fmt.Sprintf("Failed to register trust base for epoch %d", trustBase.GetEpoch()), logger.Error(err))
-		return err
+		if !errors.Is(err, trustbase.ErrAlreadyExists) {
+			n.log.Error(fmt.Sprintf("Failed to register trust base for epoch %d", trustBase.GetEpoch()), logger.Error(err))
+			return fmt.Errorf("failed to store trust base: %w", err)
+		}
+		n.log.Warn(fmt.Sprintf("trust base already exists for epoch %d, not overwriting it", trustBase.GetEpoch()))
 	}
 	return nil
 }

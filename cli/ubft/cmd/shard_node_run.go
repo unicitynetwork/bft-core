@@ -230,7 +230,10 @@ func createNode(ctx context.Context, flags *ShardNodeRunFlags) (*partition.Node,
 	}
 	for _, trustBase := range trustBases {
 		if err := trustBaseStore.Store(trustBase); err != nil {
-			return nil, nil, fmt.Errorf("failed to store trust base: %w", err)
+			if !errors.Is(err, trustbase.ErrAlreadyExists) {
+				return nil, nil, fmt.Errorf("failed to store trust base: %w", err)
+			}
+			log.Warn(fmt.Sprintf("trust base already exists for epoch %d, not overwriting it", trustBase.Epoch))
 		}
 	}
 

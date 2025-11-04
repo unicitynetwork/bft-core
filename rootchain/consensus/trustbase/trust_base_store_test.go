@@ -82,3 +82,31 @@ func TestTrustBaseStore(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, tb3, tb3FromDB)
 }
+
+func TestTrustBaseStore_AlreadyExists(t *testing.T) {
+	// create db
+	db := memorydb.New()
+	trustBaseStore, err := NewTrustBaseStore(db, logger.New(t))
+	require.NoError(t, err)
+
+	// create and store initial trust base
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+	tb1, err := types.NewTrustBase(
+		5, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "original", verifier)},
+	)
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(tb1))
+
+	// create another trust base but for same epoch
+	tb2, err := types.NewTrustBase(
+		5, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "original", verifier)},
+		types.WithEpochStart(10),
+	)
+	require.NoError(t, err)
+
+	// attempt to store the modified trust base
+	require.ErrorIs(t, trustBaseStore.Store(tb2), ErrAlreadyExists)
+}
