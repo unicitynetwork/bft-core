@@ -40,7 +40,7 @@ Theoretically it is also possible run only the user token partition on its own, 
 It's possible to define the configuration values from (in the order of precedence):
 
 * Command line flags (e.g. `--address="/ip4/127.0.0.1/tcp/26652"`)
-* Environment (Prefix 'AB' must be used. E.g. `UBFT_ADDRESS="/ip4/127.0.0.1/tcp/26652"`)
+* Environment (Prefix 'UBFT' must be used. E.g. `UBFT_ADDRESS="/ip4/127.0.0.1/tcp/26652"`)
 * Configuration file (properties file) (E.g. `address="/ip4/127.0.0.1/tcp/26652"`)
 * Default values
 
