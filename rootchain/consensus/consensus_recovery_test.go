@@ -636,7 +636,8 @@ func Test_recoverState(t *testing.T) {
 		// make sure leader will not receive it's own proposal for round 4
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			prop, isProposal := msg.(*abdrc.ProposalMsg)
-			leaderInRound := cmLeader.leaderSelector.GetLeaderForRound(5)
+			leaderInRound, err := cmLeader.leaderSelector.GetLeaderForRound(5)
+			require.NoError(t, err)
 			if to == leaderInRound && isProposal && prop.Block.Round == 4 {
 				return true
 			}
@@ -668,7 +669,8 @@ func Test_recoverState(t *testing.T) {
 		// make sure leader will not receive it's own proposal for round 4
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			prop, isProposal := msg.(*abdrc.ProposalMsg)
-			leaderInRound := cmLeader.leaderSelector.GetLeaderForRound(5)
+			leaderInRound, err := cmLeader.leaderSelector.GetLeaderForRound(5)
+			require.NoError(t, err)
 			if to == leaderInRound && isProposal && prop.Block.Round == 4 {
 				time.Sleep(1 * time.Millisecond)
 			}
@@ -832,7 +834,7 @@ type constLeader struct {
 	nodes  []peer.ID
 }
 
-func (cl constLeader) GetLeaderForRound(round uint64) peer.ID { return cl.leader }
+func (cl constLeader) GetLeaderForRound(round uint64) (peer.ID, error) { return cl.leader, nil }
 
 func (cl constLeader) Update(qc *drctypes.QuorumCert, currentRound uint64, b leader.BlockLoader) error {
 	return nil

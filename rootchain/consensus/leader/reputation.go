@@ -1,11 +1,13 @@
 package leader
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/types"
@@ -48,8 +50,8 @@ Remarks:
     the round R is not eligible to be leader for rounds [R+3 .. R+3+excludeSize-1];
 */
 type ReputationBased struct {
-	windowSize  int // number of latest commits to take into account when determining which validators are active
-	excludeSize int // number of excluded authors of last committed blocks (should be between f and 2f)
+	windowSize     int // number of latest commits to take into account when determining which validators are active
+	excludeSize    int // number of excluded authors of last committed blocks (should be between f and 2f)
 	trustBaseStore *trustbase.TrustBaseStore
 
 	// Elected leaders.
@@ -67,26 +69,26 @@ GetLeaderForRound returns either elected leader or (in case the round doesn't ha
 elected leader) falls back to round-robin of all epoch validators.
 Undefined behavior for round==0.
 */
-func (rb *ReputationBased) GetLeaderForRound(round uint64) peer.ID {
+func (rb *ReputationBased) GetLeaderForRound(round uint64) (peer.ID, error) {
 	rb.m.Lock()
 	defer rb.m.Unlock()
 
 	for _, l := range rb.leaders {
 		if l.round == round {
-			return l.leader
+			return l.leader, nil
 		}
 	}
 
 	tb, err := rb.trustBaseStore.GetByRound(round)
 	if err != nil {
-		return UnknownLeader // TODO: also log, or return err?
+		return UnknownLeader, fmt.Errorf("failed to get trust base for round %d: %w", round, err)
 	}
 	leader := pickLeader(tb.GetRootNodes(), round)
 	leaderID, err := peer.Decode(leader.NodeID)
 	if err != nil {
-		return UnknownLeader // TODO: also log
+		return UnknownLeader, fmt.Errorf("failed to decode leader ID %q: %w", leader.NodeID, err)
 	}
-	return leaderID
+	return leaderID, nil
 }
 
 func (rb *ReputationBased) UpdateWithTrustBase(trustBase types.RootTrustBase, currentRound uint64) error {
@@ -108,8 +110,8 @@ func (rb *ReputationBased) UpdateWithTrustBase(trustBase types.RootTrustBase, cu
 	if err != nil {
 		return fmt.Errorf("invalid peer id %q: %w", nextRoundLeader.NodeID, err)
 	}
-	idx = rb.slotIndex(currentRound+1)
-	rb.leaders[idx].round = currentRound+1
+	idx = rb.slotIndex(currentRound + 1)
+	rb.leaders[idx].round = currentRound + 1
 	rb.leaders[idx].leader = nextLeaderID
 
 	return nil
@@ -129,8 +131,8 @@ func (rb *ReputationBased) Update(qc *abtypes.QuorumCert, currentRound uint64, b
 		return fmt.Errorf("not updating leaders because rounds are not consecutive {parent: %d, QC: %d, current: %d}", exR, qcR, currentRound)
 	}
 
-	nextTrustBase, err := rb.trustBaseStore.GetByEpoch(qc.VoteInfo.Epoch+1)
-	if err != nil && err != trustbase.ErrNotFound {
+	nextTrustBase, err := rb.trustBaseStore.GetByEpoch(qc.VoteInfo.Epoch + 1)
+	if err != nil && !errors.Is(err, trustbase.ErrNotFound) {
 		return fmt.Errorf("failed to load trustBase for epoch %d: %w", qc.VoteInfo.Epoch+1, err)
 	}
 

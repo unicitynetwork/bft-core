@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+
 	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/types"
 )
@@ -28,9 +29,9 @@ func NewRoundRobin(validators []peer.ID, contRounds uint32) (*RoundRobin, error)
 	return &RoundRobin{validators: validators, nofRounds: contRounds}, nil
 }
 
-func (r *RoundRobin) GetLeaderForRound(round uint64) peer.ID {
+func (r *RoundRobin) GetLeaderForRound(round uint64) (peer.ID, error) {
 	index := (round / uint64(r.nofRounds)) % uint64(len(r.validators))
-	return r.validators[index]
+	return r.validators[index], nil
 }
 
 /*
