@@ -146,7 +146,7 @@ func (m *Module) verifyDustTransfer(swapTx *types.TransactionOrder, dcProof *typ
 	}
 	// transfers were in this network
 	if dcTxo.NetworkID != swapTx.NetworkID {
-		return 0, fmt.Errorf("dust transfer invalid network: expected %d vs provided %d", swapTx.NetworkID, dcTxo.PartitionID)
+		return 0, fmt.Errorf("dust transfer invalid network: expected %d vs provided %d", swapTx.NetworkID, dcTxo.NetworkID)
 	}
 	// transfers were in the money partition
 	if dcTxo.PartitionID != swapTx.PartitionID {
