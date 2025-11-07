@@ -8,6 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
+
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	test "github.com/unicitynetwork/bft-core/internal/testutils/peer"
 	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
@@ -66,7 +67,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 		tbs, err := tbstore.NewTrustBaseStore(memorydb.New(), logger.New(t))
 		require.NoError(t, err)
 		rl := &ReputationBased{
-			windowSize: 1,
+			windowSize:     1,
 			trustBaseStore: tbs,
 		}
 		slotIdx := rl.curIdx
@@ -188,7 +189,9 @@ func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 		for i := 0; i < len(ids); i++ {
 			roundLeaders := []peer.ID{}
 			for round := i + 1; len(roundLeaders) < len(ids); round++ {
-				roundLeaders = append(roundLeaders, rl.GetLeaderForRound(uint64(round)))
+				leader, err := rl.GetLeaderForRound(uint64(round))
+				require.NoError(t, err)
+				roundLeaders = append(roundLeaders, leader)
 			}
 			// elements mustn't repeat so should have the slice with the same IDs we passed to algorithm
 			require.ElementsMatch(t, roundLeaders, ids, "iteration %d", i)
@@ -207,29 +210,57 @@ func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 		idx := rl.slotIndex(23)
 		rl.leaders[idx].round = 23
 		rl.leaders[idx].leader = signerAid
-		require.Equal(t, signerAid, rl.GetLeaderForRound(23))
+
+		leader, err := rl.GetLeaderForRound(23)
+		require.NoError(t, err)
+		require.Equal(t, signerAid, leader)
 
 		idx = rl.slotIndex(24)
 		rl.leaders[idx].round = 24
 		rl.leaders[idx].leader = signerBid
-		require.Equal(t, signerBid, rl.GetLeaderForRound(24))
-		require.Equal(t, signerAid, rl.GetLeaderForRound(23))
+
+		leader, err = rl.GetLeaderForRound(24)
+		require.NoError(t, err)
+		require.Equal(t, signerBid, leader)
+
+		leader, err = rl.GetLeaderForRound(23)
+		require.NoError(t, err)
+		require.Equal(t, signerAid, leader)
 
 		idx = rl.slotIndex(26)
 		rl.leaders[idx].round = 26
 		rl.leaders[idx].leader = signerCid
-		require.Equal(t, signerCid, rl.GetLeaderForRound(26))
-		require.Equal(t, signerBid, rl.GetLeaderForRound(24))
-		require.Equal(t, signerAid, rl.GetLeaderForRound(23))
+
+		leader, err = rl.GetLeaderForRound(26)
+		require.NoError(t, err)
+		require.Equal(t, signerCid, leader)
+
+		leader, err = rl.GetLeaderForRound(24)
+		require.NoError(t, err)
+		require.Equal(t, signerBid, leader)
+
+		leader, err = rl.GetLeaderForRound(23)
+		require.NoError(t, err)
+		require.Equal(t, signerAid, leader)
 
 		// we do have 3 slots so with the next call we should have replaced the
 		// signer A and round 23
 		idx = rl.slotIndex(27)
 		rl.leaders[idx].round = 27
 		rl.leaders[idx].leader = signerDid
-		require.Equal(t, signerDid, rl.GetLeaderForRound(27))
-		require.Equal(t, signerCid, rl.GetLeaderForRound(26))
-		require.Equal(t, signerBid, rl.GetLeaderForRound(24))
+
+		leader, err = rl.GetLeaderForRound(27)
+		require.NoError(t, err)
+		require.Equal(t, signerDid, leader)
+
+		leader, err = rl.GetLeaderForRound(26)
+		require.NoError(t, err)
+		require.Equal(t, signerCid, leader)
+
+		leader, err = rl.GetLeaderForRound(24)
+		require.NoError(t, err)
+		require.Equal(t, signerBid, leader)
+
 		for i, v := range rl.leaders {
 			if v.round == 23 {
 				t.Errorf("unexpectedly round 23 is still in leaders cache: [%d]=%#v", i, v)
@@ -499,7 +530,8 @@ func Test_ReputationBased(t *testing.T) {
 			qc.Signatures[validators[v].NodeID] = []byte{byte(v & 0xFF)}
 		}
 		// leader for this round has been elected by previous round
-		leaderID := rl.GetLeaderForRound(round)
+		leaderID, err := rl.GetLeaderForRound(round)
+		require.NoError(t, err)
 		require.NoError(t, storeBlock(&storage.ExecutedBlock{BlockData: &types.BlockData{
 			Round:  round,
 			Author: leaderID.String(),
@@ -514,7 +546,7 @@ func Test_ReputationBased(t *testing.T) {
 	// create election with windowSize=len(peerIDs) - as our block store is empty
 	// loading blocks should fail and we fall back to round-robin selection for
 	// len(peerIDs) rounds
-	
+
 	rl, err := NewReputationBased(len(trustBase.GetRootNodes()), 1, tbs)
 	require.NoError(t, err)
 
