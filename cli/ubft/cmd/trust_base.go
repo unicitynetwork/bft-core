@@ -81,8 +81,7 @@ func trustBaseGenerate(flags *trustBaseGenerateFlags) error {
 	var previousTrustBase *types.RootTrustBaseV1
 	var previousTrustBaseHash hex.Bytes
 	if flags.PreviousTrustBase != "" {
-		previousTrustBase = &types.RootTrustBaseV1{}
-		_, err := util.ReadJsonFile(flags.PreviousTrustBase, previousTrustBase)
+		_, err := util.ReadJsonFile(flags.PreviousTrustBase, &previousTrustBase)
 		if err != nil {
 			return fmt.Errorf("failed to load previous trust base file %q: %w", flags.PreviousTrustBase, err)
 		}
