@@ -35,6 +35,7 @@ type (
 		*baseFlags
 		keyConfFlags
 		trustBaseFlags
+		SignPrevious bool
 	}
 )
 
@@ -106,7 +107,7 @@ func trustBaseGenerate(flags *trustBaseGenerateFlags) error {
 		return fmt.Errorf("failed to generate trust base: %w", err)
 	}
 
-	if err = trustBase.Verify(previousTrustBase); err != nil {
+	if err = trustBase.IsValid(previousTrustBase); err != nil {
 		return fmt.Errorf("failed to verify trust base after generation: %w", err)
 	}
 
@@ -128,6 +129,7 @@ func trustBaseSignCmd(baseFlags *baseFlags) *cobra.Command {
 	}
 	flags.addKeyConfFlags(cmd, false)
 	flags.addTrustBaseFlags(cmd)
+	cmd.Flags().BoolVar(&flags.SignPrevious, "sign-previous", false, "signs the trust base as previous epoch's validator")
 	return cmd
 }
 
@@ -155,8 +157,14 @@ func trustBaseSign(flags *trustBaseSignFlags) error {
 
 	for idx, trustBase := range trustBases {
 		// sign trust base
-		if err = trustBase.Sign(nodeID.String(), signer); err != nil {
-			return fmt.Errorf("failed to sign trust base: %w", err)
+		if flags.SignPrevious {
+			if err = trustBase.SignPrevious(nodeID.String(), signer); err != nil {
+				return fmt.Errorf("failed to sign trust base with previous key: %w", err)
+			}
+		} else {
+			if err = trustBase.Sign(nodeID.String(), signer); err != nil {
+				return fmt.Errorf("failed to sign trust base: %w", err)
+			}
 		}
 
 		// write trust base
