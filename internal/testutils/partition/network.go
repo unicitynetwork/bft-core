@@ -113,6 +113,10 @@ func NewUnicityNetwork(t *testing.T, rootNodeCount int) *UnicityNetwork {
 	trustBase, err := types.NewTrustBase(networkID, nodeInfos)
 	require.NoError(t, err)
 
+	for _, node := range nodes {
+		require.NoError(t, trustBase.Sign(node.PeerConf.ID.String(), node.Signer))
+	}
+
 	return &UnicityNetwork{
 		RootChain: &RootChain{
 			TrustBase: trustBase,

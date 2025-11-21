@@ -20,6 +20,10 @@ import (
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
 
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 	testnetwork "github.com/unicitynetwork/bft-core/internal/testutils/network"
@@ -35,9 +39,6 @@ import (
 	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-core/rootchain/partitions"
 	"github.com/unicitynetwork/bft-core/rootchain/testutils"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 const partitionID types.PartitionID = 0x00FF0001
@@ -59,8 +60,8 @@ func readResult(ch <-chan *certification.CertificationResponse, timeout time.Dur
 func initConsensusManager(t *testing.T, rootNet RootNet, opts ...Option) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode) {
 	rootNode := testutils.NewTestNode(t)
 	shardNodes, shardNodeInfos := testutils.CreateTestNodes(t, 3)
-	trustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]abcrypto.Verifier{
-		rootNode.PeerConf.ID.String(): rootNode.Verifier,
+	trustBase := trustbase.NewTrustBaseFromSigners(t, map[string]abcrypto.Signer{
+		rootNode.PeerConf.ID.String(): rootNode.Signer,
 	})
 	observe := testobservability.Default(t)
 
@@ -86,7 +87,6 @@ func initConsensusManager(t *testing.T, rootNet RootNet, opts ...Option) (*Conse
 	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), observe.Logger())
 	require.NoError(t, err)
 	require.NoError(t, trustBaseStore.Store(trustBase))
-
 
 	cm, err := NewConsensusManager(
 		rootNode.PeerConf.ID,
@@ -506,8 +506,8 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 func TestGetState_WithoutShards(t *testing.T) {
 	mockNet := testnetwork.NewRootMockNetwork()
 	rootNode := testutils.NewTestNode(t)
-	trustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]abcrypto.Verifier{
-		rootNode.PeerConf.ID.String(): rootNode.Verifier,
+	trustBase := trustbase.NewTrustBaseFromSigners(t, map[string]abcrypto.Signer{
+		rootNode.PeerConf.ID.String(): rootNode.Signer,
 	})
 	observe := testobservability.Default(t)
 	dir := t.TempDir()

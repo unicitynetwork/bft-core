@@ -4,60 +4,61 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
-	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
-	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
 	"github.com/unicitynetwork/bft-go-base/predicates/templates"
 	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
 	fcsdk "github.com/unicitynetwork/bft-go-base/txsystem/fc"
 	"github.com/unicitynetwork/bft-go-base/txsystem/money"
 	"github.com/unicitynetwork/bft-go-base/txsystem/nop"
 	"github.com/unicitynetwork/bft-go-base/types"
+
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
+	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
 )
 
 func TestModule_validateNopTx(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	fcrID := testutils.NewFeeCreditRecordID(t, signer)
 	counter := uint64(1)
 
 	t.Run("ok with bill unit data", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &money.BillData{Value: 10, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateNopTx(tx, attr, authProof, exeCtx))
 	})
 	t.Run("ok with fcr unit data", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateNopTx(tx, attr, authProof, exeCtx))
 	})
 	t.Run("ok with dummy unit data", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withDummyUnit(unitID))
+		module := newTestMoneyModule(t, signer, withDummyUnit(unitID))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, nil)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateNopTx(tx, attr, authProof, exeCtx))
 	})
 	t.Run("nok with invalid counter for normal unit", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, Counter: 2}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &money.BillData{Value: 10, Counter: 2}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorIs(t, module.validateNopTx(tx, attr, authProof, exeCtx), ErrInvalidCounter)
 	})
 	t.Run("nok with invalid counter for fcr unit", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: 2}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: 2}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorIs(t, module.validateNopTx(tx, attr, authProof, exeCtx), ErrInvalidCounter)
 	})
 	t.Run("nok with invalid counter for dummy unit", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withDummyUnit(unitID))
+		module := newTestMoneyModule(t, signer, withDummyUnit(unitID))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "the transaction counter must be nil for dummy unit data")
@@ -65,34 +66,34 @@ func TestModule_validateNopTx(t *testing.T) {
 	t.Run("nok with nil counter for normal unit", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, nil)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, Counter: 0}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &money.BillData{Value: 10, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorIs(t, module.validateNopTx(tx, attr, authProof, exeCtx), ErrInvalidCounter)
 	})
 	t.Run("nok with nil counter for fcr unit", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, nil)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: 0}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorIs(t, module.validateNopTx(tx, attr, authProof, exeCtx), ErrInvalidCounter)
 	})
 	t.Run("nok with invalid auth proof for normal unit", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, Counter: counter, OwnerPredicate: templates.AlwaysFalseBytes()}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &money.BillData{Value: 10, Counter: counter, OwnerPredicate: templates.AlwaysFalseBytes()}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "verify owner: evaluating owner predicate")
 	})
 	t.Run("nok with invalid auth proof for fcr unit", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: counter, OwnerPredicate: templates.AlwaysFalseBytes()}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: counter, OwnerPredicate: templates.AlwaysFalseBytes()}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "verify owner: evaluating owner predicate")
 	})
 	t.Run("nok with invalid auth proof for dummy unit", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withDummyUnit(unitID))
+		module := newTestMoneyModule(t, signer, withDummyUnit(unitID))
 		tx := createTx(unitID, fcrID, nop.TransactionTypeNOP)
 		attr := &nop.Attributes{}
 		require.NoError(t, tx.SetAttributes(attr))
@@ -105,13 +106,13 @@ func TestModule_validateNopTx(t *testing.T) {
 }
 
 func TestModule_executeNopTx(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	fcrID := testutils.NewFeeCreditRecordID(t, signer)
 
 	t.Run("normal unit ok - counter is incremented", func(t *testing.T) {
 		counter := uint64(1)
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: 10, Counter: counter}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &money.BillData{Value: 10, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext()
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 
@@ -133,7 +134,7 @@ func TestModule_executeNopTx(t *testing.T) {
 	t.Run("fcr unit ok - counter is incremented", func(t *testing.T) {
 		counter := uint64(1)
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: counter}))
+		module := newTestMoneyModule(t, signer, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: counter}))
 		exeCtx := testctx.NewMockExecutionContext()
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 
@@ -154,7 +155,7 @@ func TestModule_executeNopTx(t *testing.T) {
 	})
 	t.Run("dummy unit ok - nothing is changed", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
-		module := newTestMoneyModule(t, verifier, withDummyUnit(unitID))
+		module := newTestMoneyModule(t, signer, withDummyUnit(unitID))
 		exeCtx := testctx.NewMockExecutionContext()
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, nil)
 

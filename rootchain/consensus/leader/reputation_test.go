@@ -9,6 +9,11 @@ import (
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	testsig "github.com/unicitynetwork/bft-go-base/testutils/sig"
+	abt "github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	test "github.com/unicitynetwork/bft-core/internal/testutils/peer"
 	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
@@ -16,10 +21,6 @@ import (
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
 	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-go-base/crypto"
-	testsig "github.com/unicitynetwork/bft-go-base/testutils/sig"
-	abt "github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 func Test_ReputationBased_Update(t *testing.T) {
@@ -85,14 +86,14 @@ func Test_ReputationBased_Update(t *testing.T) {
 	peerIDs := test.GeneratePeerIDs(t, 2)
 	_, signerAkey := peerIDs[0], peerIDs[0].String()
 	signerBid, signerBkey := peerIDs[1], peerIDs[1].String()
-	_, verifierA := testsig.CreateSignerAndVerifier(t)
-	_, verifierB := testsig.CreateSignerAndVerifier(t)
+	signerA, _ := testsig.CreateSignerAndVerifier(t)
+	signerB, _ := testsig.CreateSignerAndVerifier(t)
 
 	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)
-	trustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{
-		signerAkey: verifierA,
-		signerBkey: verifierB,
+	trustBase := trustbase.NewTrustBaseFromSigners(t, map[string]crypto.Signer{
+		signerAkey: signerA,
+		signerBkey: signerB,
 	})
 	require.NoError(t, trustBaseStore.Store(trustBase))
 
@@ -167,12 +168,21 @@ func generateVerifiers(t *testing.T, count int) []crypto.Verifier {
 	return result
 }
 
+func generateSigners(t *testing.T, count int) []crypto.Signer {
+	result := make([]crypto.Signer, count)
+	for i := range count {
+		signer, _ := testsig.CreateSignerAndVerifier(t)
+		result[i] = signer
+	}
+	return result
+}
+
 func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 	t.Parallel()
 
 	t.Run("no elected leaders, fallback to round-robin", func(t *testing.T) {
-		verifiers := generateVerifiers(t, 10)
-		trustBase := trustbase.NewTrustBase(t, verifiers...)
+		signers := generateSigners(t, 10)
+		trustBase := trustbase.NewTrustBase(t, signers...)
 		tbs, err := tbstore.NewTrustBaseStore(memorydb.New(), logger.New(t))
 		require.NoError(t, err)
 		require.NoError(t, tbs.Store(trustBase))
@@ -473,8 +483,8 @@ func Test_NewReputationBased(t *testing.T) {
 func Test_ReputationBased(t *testing.T) {
 	t.Parallel()
 
-	verifiers := generateVerifiers(t, 10)
-	trustBase := trustbase.NewTrustBase(t, verifiers...)
+	signers := generateSigners(t, 10)
+	trustBase := trustbase.NewTrustBase(t, signers...)
 	tbs, err := tbstore.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)
 	require.NoError(t, tbs.Store(trustBase))
@@ -551,7 +561,7 @@ func Test_ReputationBased(t *testing.T) {
 	require.NoError(t, err)
 
 	var currentRound uint64 = 1 // genesis round is 1
-	for i := 0; i < len(verifiers); i++ {
+	for i := 0; i < len(signers); i++ {
 		currentRound++
 		err := processRound(rl, currentRound)
 		require.Error(t, err)

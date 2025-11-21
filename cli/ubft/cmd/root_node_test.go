@@ -16,12 +16,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/internal/testutils/net"
 	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testtime "github.com/unicitynetwork/bft-core/internal/testutils/time"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestRootValidator_OK(t *testing.T) {
@@ -60,6 +61,24 @@ func TestRootValidator_OK(t *testing.T) {
 		"--home", rootHome1,
 		"--node-info", filepath.Join(rootHome1, nodeInfoFileName),
 		"--node-info", filepath.Join(rootHome2, nodeInfoFileName),
+	})
+	require.NoError(t, cmd.Execute(context.Background()))
+
+	// sign trust base
+	cmd = New(obsF)
+	trustBaseFile := filepath.Join(rootHome1, "trust-base.json")
+	cmd.baseCmd.SetArgs([]string{
+		"trust-base", "sign",
+		"--key-conf", filepath.Join(rootHome1, keyConfFileName),
+		"--trust-base", trustBaseFile,
+	})
+	require.NoError(t, cmd.Execute(context.Background()))
+
+	cmd = New(obsF)
+	cmd.baseCmd.SetArgs([]string{
+		"trust-base", "sign",
+		"--key-conf", filepath.Join(rootHome2, keyConfFileName),
+		"--trust-base", trustBaseFile,
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 

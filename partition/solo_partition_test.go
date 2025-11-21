@@ -14,6 +14,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testlogger "github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	testnetwork "github.com/unicitynetwork/bft-core/internal/testutils/network"
@@ -30,9 +34,6 @@ import (
 	"github.com/unicitynetwork/bft-core/partition/event"
 	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/txsystem"
-	"github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/hash"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -97,8 +98,8 @@ func newSingleNodeShard(t *testing.T, txSystem txsystem.TransactionSystem, valid
 	}
 
 	// trust base
-	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := trustbase.NewTrustBase(t, rootVerifier)
+	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, rootSigner)
 	net := testnetwork.NewMockNetwork(t)
 	log := testlogger.New(t).With(logger.NodeID(nodeID))
 	obs := observability.WithLogger(testobserve.Default(t), log)

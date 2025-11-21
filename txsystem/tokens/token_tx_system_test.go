@@ -1604,7 +1604,7 @@ func signTx(t *testing.T, tx *types.TransactionOrder, signer abcrypto.Signer, pu
 }
 
 func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, *state.State, types.PartitionDescriptionRecord) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(state.AddUnit(feeCreditID, &fc.FeeCreditRecord{
 		Balance:        100,
@@ -1630,10 +1630,9 @@ func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, 
 		T2Timeout:       2000 * time.Millisecond,
 	}
 
-	
 	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)
-	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, verifier)))
+	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, signer)))
 
 	opts = append(opts, WithTrustBaseStore(trustBaseStore), WithState(s))
 	txs, err := NewTxSystem(

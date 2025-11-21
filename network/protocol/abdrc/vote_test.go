@@ -5,6 +5,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
@@ -14,9 +18,6 @@ import (
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/testutils"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 func TestVoteMsg_AddSignature(t *testing.T) {
@@ -91,10 +92,10 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 
 func Test_VoteMsg_Verify(t *testing.T) {
 	const votedRound = 10
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
+	s1, _ := testsig.CreateSignerAndVerifier(t)
+	s2, _ := testsig.CreateSignerAndVerifier(t)
+	s3, _ := testsig.CreateSignerAndVerifier(t)
+	rootTrust := testtb.NewTrustBaseFromSigners(t, map[string]crypto.Signer{"1": s1, "2": s2, "3": s3})
 
 	tbs, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)

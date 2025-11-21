@@ -4,17 +4,18 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/libp2p/go-libp2p/core/peer"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testcerts "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
-	"github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 const partitionID types.PartitionID = 1
@@ -43,7 +44,7 @@ func newNodeInfo(t *testing.T) (*types.NodeInfo, crypto.Signer) {
 
 func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	shardNode, _ := newNodeInfo(t)
-	rootNode, rootNodeSigner := newNodeInfo(t)
+	_, rootNodeSigner := newNodeInfo(t)
 
 	type fields struct {
 		PartitionID        types.PartitionID
@@ -58,13 +59,11 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		algorithm gocrypto.Hash
 	}
 
-	rootNodeVerifier, err := rootNode.SigVerifier()
-	require.NoError(t, err)
-	trustBase := trustbase.NewTrustBase(t, rootNodeVerifier)
+	trustBase := trustbase.NewTrustBase(t, rootNodeSigner)
 
 	shardConf := &types.PartitionDescriptionRecord{
 		PartitionID: partitionID,
-		Validators: []*types.NodeInfo{shardNode},
+		Validators:  []*types.NodeInfo{shardNode},
 	}
 	tr := certification.TechnicalRecord{
 		Round:    1,
@@ -156,8 +155,8 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "tr hash mismatch",
 			fields: fields{
-				PartitionID:        partitionID,
-				NodeID:             proposerID,
+				PartitionID: partitionID,
+				NodeID:      proposerID,
 				UnicityCertificate: testcerts.CreateUnicityCertificate(
 					t, rootNodeSigner, &types.InputRecord{
 						Version:      1,
@@ -195,12 +194,12 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 
 func TestBlockProposal_IsValid_BlockProposalIsNil(t *testing.T) {
 	var bp *BlockProposal
-	_, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	shardConf := &types.PartitionDescriptionRecord{
 		PartitionID: partitionID,
 	}
 
-	trustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": verifier})
+	trustBase := trustbase.NewTrustBaseFromSigners(t, map[string]crypto.Signer{"1": signer})
 	err := bp.IsValid(trustBase, shardConf, gocrypto.SHA256)
 	require.ErrorIs(t, err, ErrBlockProposalIsNil)
 }

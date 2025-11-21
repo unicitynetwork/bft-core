@@ -66,6 +66,9 @@ func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 	if err != nil {
 		require.NoError(t, err)
 	}
+	for _, node := range nodes {
+		require.NoError(t, tb.Sign(node.NodeID, sb.signers[node.NodeID]))
+	}
 	sb.trustBaseStore.Store(tb)
 
 	return sb

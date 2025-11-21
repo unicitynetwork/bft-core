@@ -5,11 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	testblock "github.com/unicitynetwork/bft-core/internal/testutils/block"
-	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
-	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
-	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
-	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/predicates/templates"
 	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
@@ -17,6 +12,12 @@ import (
 	"github.com/unicitynetwork/bft-go-base/txsystem/money"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	testblock "github.com/unicitynetwork/bft-core/internal/testutils/block"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
+	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 )
 
 func TestModule_validateReclaimFCTx(t *testing.T) {
@@ -24,7 +25,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		amount  = uint64(100)
 		counter = uint64(4)
 	)
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	authProof := &fcsdk.ReclaimFeeCreditAuthProof{OwnerProof: nil}
 	pdr := moneyid.PDR()
 
@@ -32,7 +33,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, &pdr, signer, nil, testtransaction.WithPartition(&pdr))
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx))
@@ -41,7 +42,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, &pdr, signer, nil)
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier)
+		module := newTestMoneyModule(t, signer)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx),
 			"get unit error: item 000000000000000000000000000000000000000000000000000000000000000001 does not exist: not found")
@@ -51,7 +52,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		exeCtx := testctx.NewMockExecutionContext()
-		module := newTestMoneyModule(t, verifier, withStateUnit(tx.UnitID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}))
+		module := newTestMoneyModule(t, signer, withStateUnit(tx.UnitID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid unit type")
 	})
 	t.Run("Fee credit record exists in transaction", func(t *testing.T) {
@@ -59,7 +60,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{0}}))
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "fee transaction cannot contain fee credit reference")
@@ -69,7 +70,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 			testtransaction.WithFeeProof([]byte{0, 0, 0, 0}))
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "fee transaction cannot contain fee authorization proof")
@@ -79,7 +80,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 			testtransaction.WithUnitID(moneyid.NewFeeCreditRecordID(t)))
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid target unit")
@@ -103,7 +104,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		)
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "the transaction fees cannot exceed the transferred value")
@@ -112,7 +113,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, &pdr, signer, nil)
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter + 1, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid target unit counter")
@@ -121,7 +122,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		tx := testutils.NewReclaimFC(t, &pdr, signer, nil)
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysFalseBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), `predicate evaluated to "false"`)
@@ -131,7 +132,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 			testutils.WithReclaimFCClosureProof(newInvalidProof(t, &pdr, signer))))
 		attr := &fcsdk.ReclaimFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		tx.NetworkID = types.NetworkLocal
@@ -145,11 +146,11 @@ func TestModule_executeReclaimFCTx(t *testing.T) {
 		counter = uint64(4)
 	)
 	pdr := moneyid.PDR()
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	tx := testutils.NewReclaimFC(t, &pdr, signer, nil)
 	attr := &fcsdk.ReclaimFeeCreditAttributes{}
 	require.NoError(t, tx.UnmarshalAttributes(attr))
-	module := newTestMoneyModule(t, verifier,
+	module := newTestMoneyModule(t, signer,
 		withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 	reclaimAmount := uint64(40)
 	exeCtx := testctx.NewMockExecutionContext(testctx.WithData(util.Uint64ToBytes(reclaimAmount)))

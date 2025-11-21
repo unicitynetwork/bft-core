@@ -6,6 +6,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
@@ -15,14 +19,11 @@ import (
 	"github.com/unicitynetwork/bft-core/state"
 	"github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
 	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
-	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
-	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestCheckFeeCreditBalance(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := testtb.NewTrustBase(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := testtb.NewTrustBase(t, signer)
 	ownerPredicate := []byte{2}
 
 	pdr := moneyid.PDR()

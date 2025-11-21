@@ -755,6 +755,10 @@ func createConsensusManagers(t *testing.T, count int, shardNodes []*types.NodeIn
 	trustBase, err := types.NewTrustBase(5, rootNodeInfos)
 	require.NoError(t, err)
 
+	for nodeID, signer := range rootSigners {
+		require.NoError(t, trustBase.Sign(nodeID, signer))
+	}
+
 	if shardNodes == nil {
 		_, shardNodes = testutils.CreateTestNodes(t, 1)
 	}

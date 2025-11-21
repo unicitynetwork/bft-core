@@ -4,6 +4,13 @@ import (
 	"crypto"
 	"testing"
 
+	bftcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
@@ -14,18 +21,12 @@ import (
 	testfc "github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
 	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
 	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
-	bftcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/predicates/templates"
-	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
-	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
-	"github.com/unicitynetwork/bft-go-base/txsystem/money"
-	"github.com/unicitynetwork/bft-go-base/types"
 
 	"github.com/stretchr/testify/require"
 )
 
-func newTrustBaseStore(t *testing.T, verifier bftcrypto.Verifier) *trustbase.TrustBaseStore {
-	trustBase := testtb.NewTrustBase(t, verifier)
+func newTrustBaseStore(t *testing.T, signer bftcrypto.Signer) *trustbase.TrustBaseStore {
+	trustBase := testtb.NewTrustBase(t, signer)
 	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)
 	require.NoError(t, trustBaseStore.Store(trustBase))
@@ -34,8 +35,8 @@ func newTrustBaseStore(t *testing.T, verifier bftcrypto.Verifier) *trustbase.Tru
 
 func TestCloseFC_ValidateAndExecute(t *testing.T) {
 	targetPDR := moneyid.PDR()
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBaseStore := newTrustBaseStore(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBaseStore := newTrustBaseStore(t, signer)
 	// create existing fee credit record for closeFC
 	attr := testfc.NewCloseFCAttr()
 	authProof := &fc.CloseFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
@@ -55,8 +56,8 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 }
 
 func TestFeeCredit_validateCloseFC(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := testtb.NewTrustBase(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := testtb.NewTrustBase(t, signer)
 	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)
 	require.NoError(t, trustBaseStore.Store(trustBase))

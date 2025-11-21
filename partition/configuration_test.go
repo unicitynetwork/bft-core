@@ -6,12 +6,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
-	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
-	"github.com/unicitynetwork/bft-go-base/types"
+	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 )
 
 func TestNewNodeConf(t *testing.T) {
@@ -33,8 +34,8 @@ func TestNewNodeConf(t *testing.T) {
 		EpochStart:      1,
 		Validators:      []*types.NodeInfo{nodeInfo},
 	}
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := trustbase.NewTrustBase(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, signer)
 	obs := testobserve.Default(t)
 
 	shardConfStore, err := NewShardConfStore(shardDB, obs.Logger())
@@ -85,8 +86,8 @@ func TestNewNodeConf_WithDefaults(t *testing.T) {
 		Validators:      []*types.NodeInfo{nodeInfo},
 	}
 
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := trustbase.NewTrustBase(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, signer)
 
 	obs := testobserve.Default(t)
 

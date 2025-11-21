@@ -327,8 +327,8 @@ func TestShardNodeRun_Ok(t *testing.T) {
 		})
 		require.NoError(t, cmd.Execute(context.Background()))
 
-		_, verifier := testsig.CreateSignerAndVerifier(t)
-		trustBase := trustbase.NewTrustBase(t, verifier)
+		signer, _ := testsig.CreateSignerAndVerifier(t)
+		trustBase := trustbase.NewTrustBase(t, signer)
 		require.NoError(t, util.WriteJsonFile(trustBaseFile, trustBase))
 
 		rpcServerAddress := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))

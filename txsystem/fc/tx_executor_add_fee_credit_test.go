@@ -5,22 +5,23 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	testblock "github.com/unicitynetwork/bft-core/internal/testutils/block"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	"github.com/unicitynetwork/bft-core/predicates"
 	testfc "github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
 	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
 	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/predicates/templates"
-	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
-	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestAddFC_ValidateAddFC(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBaseStore := newTrustBaseStore(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBaseStore := newTrustBaseStore(t, signer)
 	targetPDR := moneyid.PDR()
 	targetPDR.NetworkID = 5
 
@@ -442,8 +443,8 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 func TestAddFC_ExecuteAddFC_CreateNewFCR(t *testing.T) {
 	targetPDR := moneyid.PDR()
 	targetPDR.NetworkID = 5
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBaseStore := newTrustBaseStore(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBaseStore := newTrustBaseStore(t, signer)
 	feeCreditModule := newTestFeeModule(t, &targetPDR, trustBaseStore)
 	attr := testfc.NewAddFCAttr(t, signer)
 	authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
@@ -468,8 +469,8 @@ func TestAddFC_ExecuteAddFC_CreateNewFCR(t *testing.T) {
 func TestAddFC_ExecuteAddFC_UpdateExistingFCR(t *testing.T) {
 	targetPDR := moneyid.PDR()
 	targetPDR.NetworkID = 5
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBaseStore := newTrustBaseStore(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBaseStore := newTrustBaseStore(t, signer)
 	transTxRecord := &types.TransactionRecord{
 		Version: 1,
 		TransactionOrder: testtransaction.TxoToBytes(t, testfc.NewTransferFC(t, signer, testfc.NewTransferFCAttr(t, signer,

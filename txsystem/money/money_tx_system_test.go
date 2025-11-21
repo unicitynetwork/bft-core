@@ -53,9 +53,9 @@ var (
 
 func TestNewTxSystem(t *testing.T) {
 	var (
-		sdrs        = createPDRs(t)
-		txsState    = genesisStateWithUC(t, initialBill, sdrs)
-		_, verifier = testsig.CreateSignerAndVerifier(t)
+		sdrs      = createPDRs(t)
+		txsState  = genesisStateWithUC(t, initialBill, sdrs)
+		signer, _ = testsig.CreateSignerAndVerifier(t)
 	)
 
 	txSystem, err := NewTxSystem(
@@ -63,7 +63,7 @@ func TestNewTxSystem(t *testing.T) {
 		observability.Default(t),
 		WithHashAlgorithm(crypto.SHA256),
 		WithState(txsState),
-		WithTrustBaseStore(newTrustBaseStore(t, verifier)),
+		WithTrustBaseStore(newTrustBaseStore(t, signer)),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, txSystem)
@@ -84,9 +84,9 @@ func TestNewTxSystem(t *testing.T) {
 func TestNewTxSystem_RecoveredState(t *testing.T) {
 	sdrs := createPDRs(t)
 	s := genesisStateWithUC(t, initialBill, sdrs)
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	observe := observability.Default(t)
-	tbs := newTrustBaseStore(t, verifier)
+	tbs := newTrustBaseStore(t, signer)
 	originalTxs, err := NewTxSystem(
 		sdrs[0],
 		observe,
@@ -921,14 +921,14 @@ func createStateAndTxSystem(t *testing.T, pdrs []*types.PartitionDescriptionReco
 	require.Greater(t, len(pdrs), 0, "at least one PDR must be provided")
 	require.Equal(t, money.PartitionTypeID, pdrs[0].PartitionTypeID, "first PDR must be for the money partition")
 	s := genesisStateWithUC(t, initialBill, pdrs)
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	mss, err := NewTxSystem(
 		pdrs[0],
 		observability.Default(t),
 		WithState(s),
-		WithTrustBaseStore(newTrustBaseStore(t, verifier)),
+		WithTrustBaseStore(newTrustBaseStore(t, signer)),
 	)
 	require.NoError(t, err)
 	summary, err := mss.StateSummary()
@@ -1033,28 +1033,28 @@ func withDummyUnit(unitID []byte) moneyModuleOption {
 	}
 }
 
-func newTestMoneyModule(t *testing.T, verifier abcrypto.Verifier, opts ...moneyModuleOption) *Module {
-	module := defaultMoneyModule(t, moneyid.PDR(), verifier)
+func newTestMoneyModule(t *testing.T, signer abcrypto.Signer, opts ...moneyModuleOption) *Module {
+	module := defaultMoneyModule(t, moneyid.PDR(), signer)
 	for _, opt := range opts {
 		require.NoError(t, opt(module))
 	}
 	return module
 }
 
-func defaultMoneyModule(t *testing.T, pdr types.PartitionDescriptionRecord, verifier abcrypto.Verifier) *Module {
+func defaultMoneyModule(t *testing.T, pdr types.PartitionDescriptionRecord, signer abcrypto.Signer) *Module {
 	// NB! using the same pubkey for trust base and unit bearer! TODO: use different keys...
 	options, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
-	options.trustBaseStore = newTrustBaseStore(t, verifier)
+	options.trustBaseStore = newTrustBaseStore(t, signer)
 	options.state = state.NewEmptyState()
 	module, err := NewMoneyModule(&pdr, options)
 	require.NoError(t, err)
 	return module
 }
 
-func newTrustBaseStore(t *testing.T, verifier abcrypto.Verifier) *trustbase.TrustBaseStore{
+func newTrustBaseStore(t *testing.T, signer abcrypto.Signer) *trustbase.TrustBaseStore {
 	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)
-	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, verifier)))
+	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, signer)))
 	return trustBaseStore
 }

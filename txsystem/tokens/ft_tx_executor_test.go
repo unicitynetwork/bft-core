@@ -944,11 +944,11 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 }
 
 func TestJoinFungibleToken_Ok(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
 	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)
-	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, verifier)))
+	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, signer)))
 	opts.trustBaseStore = trustBaseStore
 	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
@@ -983,10 +983,10 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)
-	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, verifier)))
+	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, signer)))
 	opts := defaultOpts(t)
 	opts.trustBaseStore = trustBaseStore
 

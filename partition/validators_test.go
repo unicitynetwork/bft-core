@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
 	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var shardConf = &types.PartitionDescriptionRecord{
@@ -31,8 +32,8 @@ func TestDefaultUnicityCertificateValidator_ValidateNotOk(t *testing.T) {
 }
 
 func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := trustbase.NewTrustBase(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, signer)
 	v := NewDefaultUnicityCertificateValidator(gocrypto.SHA256)
 	ir := &types.InputRecord{
 		Version:      1,
@@ -67,8 +68,8 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	signer, err := keyConf.Signer()
 	require.NoError(t, err)
 
-	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := trustbase.NewTrustBase(t, rootVerifier)
+	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, rootSigner)
 	v := NewDefaultBlockProposalValidator(gocrypto.SHA256)
 	ir := &types.InputRecord{
 		Version:      1,
@@ -156,7 +157,7 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dtv := &DefaultTransactionOrderValidator{}
-			
+
 			shardConf := &types.PartitionDescriptionRecord{
 				PartitionID: tt.expectedPartitionID,
 			}

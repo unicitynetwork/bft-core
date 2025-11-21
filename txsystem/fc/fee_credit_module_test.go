@@ -20,8 +20,8 @@ import (
 func TestFC_Validation(t *testing.T) {
 	t.Parallel()
 
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := testtb.NewTrustBase(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := testtb.NewTrustBase(t, signer)
 	s := state.NewEmptyState()
 	const partitionID = 10
 	targetPDR := moneyid.PDR()
@@ -60,8 +60,8 @@ func TestFC_Validation(t *testing.T) {
 }
 
 func TestFC_CalculateCost(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := testtb.NewTrustBase(t, verifier)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := testtb.NewTrustBase(t, signer)
 	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
 	require.NoError(t, err)
 	require.NoError(t, trustBaseStore.Store(trustBase))
