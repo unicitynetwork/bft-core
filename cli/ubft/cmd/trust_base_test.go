@@ -139,33 +139,18 @@ func TestTrustBaseSignPrevious(t *testing.T) {
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
-	// sign epoch 1 trust base (nodes 3 and 4)
+	// sign epoch 1 trust base with PREVIOUS epoch validators (node 1, 2)
 	cmd = New(logF)
-	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir3, "--trust-base", trustBase1Path})
+	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir1, "--trust-base", trustBase1Path})
 	require.NoError(t, cmd.Execute(context.Background()))
 	cmd = New(logF)
-	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir4, "--trust-base", trustBase1Path})
+	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir2, "--trust-base", trustBase1Path})
 	require.NoError(t, cmd.Execute(context.Background()))
 
 	// verify signatures were added to the file
 	trustBase1, err := util.ReadJsonFile(trustBase1Path, &types.RootTrustBaseV1{})
 	require.NoError(t, err)
 	require.Len(t, trustBase1.Signatures, 2)
-	require.Empty(t, trustBase1.PreviousEpochSignatures)
-
-	// sign epoch 1 trust base with PREVIOUS epoch validators (node 1, 2)
-	cmd = New(logF)
-	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir1, "--trust-base", trustBase1Path, "--sign-previous"})
-	require.NoError(t, cmd.Execute(context.Background()))
-
-	cmd = New(logF)
-	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir2, "--trust-base", trustBase1Path, "--sign-previous"})
-	require.NoError(t, cmd.Execute(context.Background()))
-
-	// verify signatures were added to the file
-	trustBase1, err = util.ReadJsonFile(trustBase1Path, &types.RootTrustBaseV1{})
-	require.NoError(t, err)
-	require.Len(t, trustBase1.PreviousEpochSignatures, 2)
 
 	// verify the epoch 1 trust base passes entire verification
 	trustBase0, err := util.ReadJsonFile(trustBase0Path, &types.RootTrustBaseV1{})
