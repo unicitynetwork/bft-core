@@ -21,25 +21,25 @@ func TestTrustBaseStore(t *testing.T) {
 	require.Equal(t, db, trustBaseStore.db)
 
 	// load trust base from empty store
-	tb, err := trustBaseStore.GetByEpoch(0)
+	tb0, err := trustBaseStore.GetByEpoch(0)
 	require.Error(t, err, "trust base not found")
-	require.Nil(t, tb)
+	require.Nil(t, tb0)
 
 	// create trust base
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	verifier, err := signer.Verifier()
 	require.NoError(t, err)
-	tb, err = types.NewTrustBase(
+	tb0, err = types.NewTrustBase(
 		5,
 		[]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
 	)
 	require.NoError(t, err)
-	require.Equal(t, types.Version(1), tb.GetVersion())
-	require.NoError(t, tb.Sign("test", signer))
+	require.Equal(t, types.Version(1), tb0.GetVersion())
+	require.NoError(t, tb0.Sign("test", signer))
 
 	// store trust base
-	err = trustBaseStore.Store(tb)
+	err = trustBaseStore.Store(tb0)
 	require.NoError(t, err)
 
 	// verify trust base can be loaded
@@ -47,17 +47,13 @@ func TestTrustBaseStore(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tbFromDB.VerifySignatures(nil)) // loads sigVerifier private field
 
-	require.Equal(t, tb, tbFromDB)
-	require.Equal(t, types.Version(1), tb.GetVersion())
-
-	// verify trust base can be loaded from constructor
-	_, err = NewTrustBaseStore(db, logger.New(t))
-	require.NoError(t, err)
+	require.Equal(t, tb0, tbFromDB)
+	require.Equal(t, types.Version(1), tb0.GetVersion())
 
 	// create a second trust base with a gap in epoch numbers
-	previousTrustBaseHash, err := tb.Hash(crypto.SHA256)
+	previousTrustBaseHash, err := tb0.Hash(crypto.SHA256)
 	require.NoError(t, err)
-	tb2, err := types.NewTrustBase(5, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
+	invalidTrustBase, err := types.NewTrustBase(5, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
 		types.WithEpoch(2),
 		types.WithEpochStart(10),
 		types.WithPreviousTrustBaseHash(previousTrustBaseHash),
@@ -65,28 +61,27 @@ func TestTrustBaseStore(t *testing.T) {
 	require.NoError(t, err)
 
 	// attempt to store the second trust base
-	err = trustBaseStore.Store(tb2)
+	err = trustBaseStore.Store(invalidTrustBase)
 	require.ErrorContains(t, err, "previous trust base not found for epoch 1")
 
 	// create a second trust base with correct epoch numbers
-	tb3, err := types.NewTrustBase(5, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
+	tb1, err := types.NewTrustBase(5, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
 		types.WithEpoch(1),
 		types.WithEpochStart(10),
 		types.WithPreviousTrustBaseHash(previousTrustBaseHash),
 	)
 	require.NoError(t, err)
-	require.NoError(t, tb3.Sign("test", signer))
-	require.NoError(t, tb3.SignPrevious("test", signer))
+	require.NoError(t, tb1.Sign("test", signer))
 
 	// store the valid second trust base
-	err = trustBaseStore.Store(tb3)
+	err = trustBaseStore.Store(tb1)
 	require.NoError(t, err)
 
 	// verify the valid second trust base can be loaded
-	tb3FromDB, err := trustBaseStore.GetByEpoch(1)
+	tb1FromDB, err := trustBaseStore.GetByEpoch(1)
 	require.NoError(t, err)
-	require.NoError(t, tb3FromDB.VerifySignatures(nil)) // loads sigVerifier private field
-	require.Equal(t, tb3, tb3FromDB)
+	require.NoError(t, tb1FromDB.VerifySignatures(tb0)) // loads sigVerifier private field
+	require.Equal(t, tb1, tb1FromDB)
 }
 
 func TestTrustBaseStore_AlreadyExists(t *testing.T) {

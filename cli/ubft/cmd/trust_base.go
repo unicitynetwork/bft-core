@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"cmp"
 	"crypto"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 	"github.com/unicitynetwork/bft-go-base/types"
@@ -36,6 +38,11 @@ type (
 		keyConfFlags
 		trustBaseFlags
 	}
+
+	trustBaseVerifyFlags struct {
+		*baseFlags
+		trustBaseFlags
+	}
 )
 
 func newTrustBaseCmd(baseConfig *baseFlags) *cobra.Command {
@@ -45,6 +52,7 @@ func newTrustBaseCmd(baseConfig *baseFlags) *cobra.Command {
 	}
 	cmd.AddCommand(trustBaseGenerateCmd(baseConfig))
 	cmd.AddCommand(trustBaseSignCmd(baseConfig))
+	cmd.AddCommand(trustBaseVerifyCmd(baseConfig))
 	return cmd
 }
 
@@ -163,6 +171,44 @@ func trustBaseSign(flags *trustBaseSignFlags) error {
 		if err = util.WriteJsonFile(flags.trustBasePath(flags.baseFlags, idx), trustBase); err != nil {
 			return fmt.Errorf("failed to save trust base: %w", err)
 		}
+	}
+	return nil
+}
+
+func trustBaseVerifyCmd(baseFlags *baseFlags) *cobra.Command {
+	flags := &trustBaseVerifyFlags{baseFlags: baseFlags}
+
+	var cmd = &cobra.Command{
+		Use:   "verify",
+		Short: "Verifies the trust base file is valid and correctly signed",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return trustBaseVerify(flags)
+		},
+	}
+	flags.addTrustBaseFlags(cmd)
+	return cmd
+}
+
+func trustBaseVerify(flags *trustBaseVerifyFlags) error {
+	trustBases, err := flags.loadTrustBases(flags.baseFlags)
+	if err != nil {
+		return err
+	}
+
+	if len(trustBases) == 0 {
+		return fmt.Errorf("at least one trust base parameter expected")
+	}
+
+	slices.SortFunc(trustBases, func(a, b *types.RootTrustBaseV1) int {
+		return cmp.Compare(a.Epoch, b.Epoch)
+	})
+
+	var prev *types.RootTrustBaseV1
+	for _, trustBase := range trustBases {
+		if err := trustBase.Verify(prev); err != nil {
+			return fmt.Errorf("failed to verify trust base: %w", err)
+		}
+		prev = trustBase
 	}
 	return nil
 }

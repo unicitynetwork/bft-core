@@ -152,8 +152,8 @@ func TestTrustBaseSignPrevious(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, trustBase1.Signatures, 2)
 
-	// verify the epoch 1 trust base passes entire verification
-	trustBase0, err := util.ReadJsonFile(trustBase0Path, &types.RootTrustBaseV1{})
-	require.NoError(t, err)
-	require.NoError(t, trustBase1.Verify(trustBase0))
+	// verify the generated trust base files
+	cmd = New(logF)
+	cmd.baseCmd.SetArgs([]string{"trust-base", "verify", "--trust-base", trustBase0Path, "--trust-base", trustBase1Path})
+	require.NoError(t, cmd.Execute(context.Background()))
 }
