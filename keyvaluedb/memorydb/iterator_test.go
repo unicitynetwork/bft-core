@@ -14,8 +14,7 @@ var defaultsDBKeys = []string{"1", "2", "3", "4"}
 
 func initDB(t *testing.T, defaults []string) *MemoryDB {
 	t.Helper()
-	memDB, err := New()
-	require.NoError(t, err)
+	memDB := New()
 	require.NotNil(t, memDB)
 	// init with default values
 	for idx, key := range defaults {

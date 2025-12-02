@@ -5,17 +5,18 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	test "github.com/unicitynetwork/bft-core/internal/testutils"
-	testblock "github.com/unicitynetwork/bft-core/internal/testutils/block"
-	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
-	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
-	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/predicates/templates"
 	moneyid "github.com/unicitynetwork/bft-go-base/testutils/money"
 	"github.com/unicitynetwork/bft-go-base/txsystem/money"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testblock "github.com/unicitynetwork/bft-core/internal/testutils/block"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
+	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 )
 
 const dustTransferValue = 100
@@ -28,7 +29,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 
 	t.Run("Ok", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -36,7 +37,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 	})
 	t.Run("DC money supply < transaction target value", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 99, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -44,14 +45,14 @@ func TestModule_validateSwapTx(t *testing.T) {
 	})
 	t.Run("target unit does not exist", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "target unit error: item 00000000000000000000000000000000000000000000000000000000000000FF01 does not exist: not found")
 	})
 	t.Run("DustTransfersInDescBillIdOrder", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newDescBillOrderSwap(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -59,7 +60,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 	})
 	t.Run("DustTransfersInEqualBillIdOrder", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newEqualBillIdsSwap(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -67,7 +68,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 	})
 	t.Run("DustTransfersInvalidTargetPartitionID", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapOrderWithInvalidTargetPartitionID(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -75,7 +76,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 	})
 	t.Run("invalid target unit id", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidTargetUnitIDSwap(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -83,7 +84,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 	})
 	t.Run("invalid target counter", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidTargetCounterSwap(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -91,7 +92,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 	})
 	t.Run("InvalidProofsNil", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newDcProofsNilSwap(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -99,15 +100,15 @@ func TestModule_validateSwapTx(t *testing.T) {
 	})
 	t.Run("InvalidEmptyDcProof", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newEmptyDcProofsSwap(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: verify tx inclusion: failed to get unicity certificate: unicity certificate is nil")
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: unicity certificate is nil")
 	})
 	t.Run("InvalidDcProofInvalid", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidDcProofsSwap(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -115,7 +116,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 	})
 	t.Run("owner proof error", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newSwapDC(t, &pdr, signer)
-		module := newTestMoneyModule(t, verifier,
+		module := newTestMoneyModule(t, signer,
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(test.RandomBytes(10))}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
@@ -131,7 +132,7 @@ func TestModule_executeSwapTx(t *testing.T) {
 	require.NoError(t, err)
 	pdr := moneyid.PDR()
 	swapTx, swapAttr, authProof := newSwapDC(t, &pdr, signer)
-	module := newTestMoneyModule(t, verifier,
+	module := newTestMoneyModule(t, signer,
 		withStateUnit(swapTx.UnitID, &money.BillData{Value: targetBillValue, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 		withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: dustAmount, Counter: 0, OwnerPredicate: DustCollectorPredicate}))
 	exeCtx := testctx.NewMockExecutionContext(
@@ -191,7 +192,7 @@ func newInvalidTargetUnitIDSwap(t *testing.T, pdr *types.PartitionDescriptionRec
 	}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPartitionID(partitionID),
+		testtransaction.WithPartition(pdr),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -234,7 +235,7 @@ func newDescBillOrderSwap(t *testing.T, pdr *types.PartitionDescriptionRecord, s
 	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPartitionID(partitionID),
+		testtransaction.WithPartition(pdr),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -267,7 +268,7 @@ func newEqualBillIdsSwap(t *testing.T, pdr *types.PartitionDescriptionRecord, si
 	attr := &money.SwapDCAttributes{DustTransferProofs: txrProofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPartitionID(partitionID),
+		testtransaction.WithPartition(pdr),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),
@@ -354,7 +355,7 @@ func newEmptyDcProofsSwap(t *testing.T, pdr *types.PartitionDescriptionRecord, s
 	attr := &money.SwapDCAttributes{DustTransferProofs: proofs}
 	txo := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPartitionID(partitionID),
+		testtransaction.WithPartition(pdr),
 		testtransaction.WithTransactionType(money.TransactionTypeSwapDC),
 		testtransaction.WithUnitID(swapId),
 		testtransaction.WithAttributes(attr),

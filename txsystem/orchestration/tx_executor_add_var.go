@@ -43,7 +43,7 @@ func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration
 }
 
 func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, authProof *orchestration.AddVarAuthProof, exeCtx txtypes.ExecutionContext) error {
-	if err := tx.UnitID.TypeMustBe(orchestration.VarUnitType, &m.pdr); err != nil {
+	if err := tx.UnitID.TypeMustBe(orchestration.VarUnitType, m.shardConf.ExtractUnitType); err != nil {
 		return fmt.Errorf("invalid unit identifier: %w", err)
 	}
 	unit, err := m.state.GetUnit(tx.UnitID, false)

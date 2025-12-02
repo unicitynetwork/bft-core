@@ -252,8 +252,10 @@ func defaultFlags() *ShardNodeRunFlags {
 		},
 	}
 	flags.KeyConfFile = ""
-	flags.ShardConfFile = ""
-	flags.TrustBaseFile = ""
+	flags.ShardConfDBFile = ""
+	flags.TrustBaseDBFile = ""
+	flags.ShardConfFiles = []string{}
+	flags.TrustBaseFiles = []string{}
 	flags.Address = "/ip4/127.0.0.1/tcp/26652"
 	flags.LedgerReplicationMaxBlocksFetch = 1000
 	flags.LedgerReplicationMaxBlocks = 1000
@@ -306,8 +308,11 @@ func TestShardNodeRun_Ok(t *testing.T) {
 
 		cmd = New(logF)
 		cmd.baseCmd.SetArgs([]string{
-			"shard-conf", "genesis", "--home", homeDir,
+			"shard-conf", "genesis",
+			"--home", homeDir,
+			"--shard-conf", filepath.Join(homeDir, shardConfFileName),
 		})
+
 		require.NoError(t, cmd.Execute(context.Background()))
 
 		cmd = New(logF)
@@ -322,8 +327,8 @@ func TestShardNodeRun_Ok(t *testing.T) {
 		})
 		require.NoError(t, cmd.Execute(context.Background()))
 
-		_, verifier := testsig.CreateSignerAndVerifier(t)
-		trustBase := trustbase.NewTrustBase(t, verifier)
+		signer, _ := testsig.CreateSignerAndVerifier(t)
+		trustBase := trustbase.NewTrustBase(t, signer)
 		require.NoError(t, util.WriteJsonFile(trustBaseFile, trustBase))
 
 		rpcServerAddress := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
@@ -338,6 +343,7 @@ func TestShardNodeRun_Ok(t *testing.T) {
 				"shard-node", "run",
 				"--home", homeDir,
 				"--rpc-server-address", rpcServerAddress,
+				"--shard-conf", filepath.Join(homeDir, shardConfFileName),
 			})
 			require.ErrorIs(t, cmd.Execute(ctx), context.Canceled)
 		}()
@@ -420,7 +426,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 
 	var res hex.Bytes
 	err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
-	require.ErrorContains(t, err, "failed to submit transaction to the network: expected 00000001, got 00000000: invalid transaction partition identifier")
+	require.ErrorContains(t, err, "failed to submit transaction to the network: expected partitionID 00000001, got 00000000: invalid partition identifier")
 	require.Nil(t, res, "Failing payment should not return response")
 }
 

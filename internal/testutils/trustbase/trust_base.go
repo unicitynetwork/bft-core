@@ -14,9 +14,12 @@ import (
 
 type AlwaysValidTrustBase struct{}
 
-func NewTrustBase(t *testing.T, verifiers ...abcrypto.Verifier) types.RootTrustBase {
+func NewTrustBase(t *testing.T, signers ...abcrypto.Signer) types.RootTrustBase {
 	var nodes []*types.NodeInfo
-	for _, v := range verifiers {
+	signerMap := make(map[string]abcrypto.Signer)
+	for _, s := range signers {
+		v, err := s.Verifier()
+		require.NoError(t, err)
 		pubKeyBytes, err := v.MarshalPublicKey()
 		require.NoError(t, err)
 		pubKey, err := crypto.UnmarshalSecp256k1PublicKey(pubKeyBytes)
@@ -29,19 +32,29 @@ func NewTrustBase(t *testing.T, verifiers ...abcrypto.Verifier) types.RootTrustB
 			SigKey: pubKeyBytes,
 			Stake:  1,
 		})
+		signerMap[peerID.String()] = s
 	}
-	tb, err := types.NewTrustBaseGenesis(5, nodes)
+	tb, err := types.NewTrustBase(5, nodes)
 	require.NoError(t, err)
+
+	for nodeID, signer := range signerMap {
+		require.NoError(t, tb.Sign(nodeID, signer))
+	}
 	return tb
 }
 
-func NewTrustBaseFromVerifiers(t *testing.T, verifiers map[string]abcrypto.Verifier) types.RootTrustBase {
+func NewTrustBaseFromSigners(t *testing.T, signers map[string]abcrypto.Signer) types.RootTrustBase {
 	var nodes []*types.NodeInfo
-	for nodeID, v := range verifiers {
-		nodes = append(nodes, NewNodeInfoFromVerifier(t, nodeID, v))
+	for nodeID, v := range signers {
+		verifier, err := v.Verifier()
+		require.NoError(t, err)
+		nodes = append(nodes, NewNodeInfoFromVerifier(t, nodeID, verifier))
 	}
-	tb, err := types.NewTrustBaseGenesis(5, nodes)
+	tb, err := types.NewTrustBase(5, nodes)
 	require.NoError(t, err)
+	for nodeID, signer := range signers {
+		require.NoError(t, tb.Sign(nodeID, signer))
+	}
 	return tb
 }
 
@@ -67,8 +80,20 @@ func (a AlwaysValidTrustBase) VerifySignature(data []byte, sig []byte, nodeID st
 	return 1, nil
 }
 
+func (a AlwaysValidTrustBase) GetVersion() types.Version {
+	return 1
+}
+
 func (a AlwaysValidTrustBase) GetNetworkID() types.NetworkID {
 	return types.NetworkLocal
+}
+
+func (a AlwaysValidTrustBase) GetEpoch() uint64 {
+	return 0
+}
+
+func (a AlwaysValidTrustBase) GetEpochStart() uint64 {
+	return 1
 }
 
 func (a AlwaysValidTrustBase) GetQuorumThreshold() uint64 {

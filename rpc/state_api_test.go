@@ -11,6 +11,14 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	abhash "github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/predicates/templates"
+	"github.com/unicitynetwork/bft-go-base/txsystem/money"
+	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+	"github.com/unicitynetwork/bft-go-base/util"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testobservability "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
@@ -20,13 +28,6 @@ import (
 	"github.com/unicitynetwork/bft-core/partition"
 	"github.com/unicitynetwork/bft-core/state"
 	"github.com/unicitynetwork/bft-core/txsystem"
-	abhash "github.com/unicitynetwork/bft-go-base/hash"
-	"github.com/unicitynetwork/bft-go-base/predicates/templates"
-	"github.com/unicitynetwork/bft-go-base/txsystem/money"
-	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
-	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 func TestGetRoundInfo(t *testing.T) {
@@ -216,7 +217,7 @@ func TestGetUnits(t *testing.T) {
 		UnitIDLen:   8 * 32,
 		T2Timeout:   2500 * time.Millisecond,
 	}
-	api := NewStateAPI(node, observe, WithGetUnits(true), WithShardConf(pdr))
+	api := NewStateAPI(node, observe, WithGetUnits(true), WithUnitTypeExtractor(pdr.ExtractUnitType))
 
 	t.Run("ok", func(t *testing.T) {
 		unitIDs, err := api.GetUnits(nil, nil, nil)
@@ -224,7 +225,7 @@ func TestGetUnits(t *testing.T) {
 		require.Len(t, unitIDs, 5)
 	})
 	t.Run("api disabled", func(t *testing.T) {
-		api := NewStateAPI(node, observe, WithGetUnits(false), WithShardConf(pdr))
+		api := NewStateAPI(node, observe, WithGetUnits(false), WithUnitTypeExtractor(pdr.ExtractUnitType))
 		typeID := uint32(3)
 		unitIDs, err := api.GetUnits(&typeID, nil, nil)
 		require.ErrorContains(t, err, "state_getUnits is disabled")
@@ -254,7 +255,7 @@ func TestGetUnits(t *testing.T) {
 		require.Len(t, unitIDs, 0)
 	})
 	t.Run("limit", func(t *testing.T) {
-		api := NewStateAPI(node, observe, WithGetUnits(true), WithShardConf(pdr), WithResponseItemLimit(1))
+		api := NewStateAPI(node, observe, WithGetUnits(true), WithUnitTypeExtractor(pdr.ExtractUnitType), WithResponseItemLimit(1))
 
 		unitIDs, err := api.GetUnits(nil, nil, nil)
 		require.NoError(t, err)
@@ -363,7 +364,7 @@ func TestGetTrustBase(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
-		trustBase, err := types.NewTrustBaseGenesis(types.NetworkMainNet, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "1", verifier)})
+		trustBase, err := types.NewTrustBase(types.NetworkMainNet, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "1", verifier)})
 		require.NoError(t, err)
 		node.trustBase = trustBase
 
@@ -546,6 +547,10 @@ func (mn *MockNode) IsFeelessMode() bool {
 }
 
 func (mn *MockNode) RegisterShardConf(shardConf *types.PartitionDescriptionRecord) error {
+	return nil
+}
+
+func (mn *MockNode) RegisterTrustBase(types.RootTrustBase) error {
 	return nil
 }
 

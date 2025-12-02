@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 	"github.com/unicitynetwork/bft-go-base/util"
 )
@@ -49,12 +49,15 @@ func (x *Timeout) IsValid() error {
 }
 
 // Verify verifies timeout vote received.
-func (x *Timeout) Verify(tb types.RootTrustBase) error {
+func (x *Timeout) Verify(tbs *trustbase.TrustBaseStore) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("invalid timeout data: %w", err)
 	}
-
-	if err := x.HighQc.Verify(tb); err != nil {
+	highQcTrustBase, err := tbs.GetByEpoch(x.HighQc.VoteInfo.Epoch)
+	if err != nil {
+		return fmt.Errorf("failed to get trust base for high QC verification: %w", err)
+	}
+	if err := x.HighQc.Verify(highQcTrustBase); err != nil {
 		return fmt.Errorf("invalid high QC: %w", err)
 	}
 
@@ -132,15 +135,19 @@ func (x *TimeoutCert) IsValid() error {
 	return nil
 }
 
-func (x *TimeoutCert) Verify(tb types.RootTrustBase) error {
+func (x *TimeoutCert) Verify(tbs *trustbase.TrustBaseStore) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("invalid certificate: %w", err)
 	}
 
-	if err := x.Timeout.Verify(tb); err != nil {
+	if err := x.Timeout.Verify(tbs); err != nil {
 		return fmt.Errorf("invalid timeout data: %w", err)
 	}
 
+	tb, err := tbs.GetByEpoch(x.Timeout.Epoch)
+	if err != nil {
+		return fmt.Errorf("failed to get trust base for vote verification: %w", err)
+	}
 	var signedVotes uint64
 	var maxSignedRound uint64
 	highQcRound := x.Timeout.HighQc.VoteInfo.RoundNumber

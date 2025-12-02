@@ -17,10 +17,14 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testlogger "github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testevent "github.com/unicitynetwork/bft-core/internal/testutils/partition/event"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/observability"
@@ -28,12 +32,11 @@ import (
 	"github.com/unicitynetwork/bft-core/rootchain"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/rootchain/partitions"
 	"github.com/unicitynetwork/bft-core/rootchain/testutils"
 	"github.com/unicitynetwork/bft-core/txsystem"
 	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 const networkID = 5
@@ -82,7 +85,7 @@ type rootNode struct {
 	done      chan error
 }
 
-type txSystemProvider func(trustBase types.RootTrustBase) txsystem.TransactionSystem
+type txSystemProvider func(trustBaseStore *trustbase.TrustBaseStore) txsystem.TransactionSystem
 
 func (n *shardNode) Stop() error {
 	n.ctxCancel()
@@ -107,8 +110,12 @@ func NewUnicityNetwork(t *testing.T, rootNodeCount int) *UnicityNetwork {
 			homeDir:    t.TempDir(),
 		}
 	}
-	trustBase, err := types.NewTrustBaseGenesis(networkID, nodeInfos)
+	trustBase, err := types.NewTrustBase(networkID, nodeInfos)
 	require.NoError(t, err)
+
+	for _, node := range nodes {
+		require.NoError(t, trustBase.Sign(node.PeerConf.ID.String(), node.Signer))
+	}
 
 	return &UnicityNetwork{
 		RootChain: &RootChain{
@@ -162,10 +169,18 @@ func (a *UnicityNetwork) AddShard(t *testing.T, shardConf *types.PartitionDescri
 		bootNode := a.RootChain.nodes[0]
 		bootstrapAddress := fmt.Sprintf("%s/p2p/%s", bootNode.addr[0], bootNode.peerConf.ID)
 
+		shardConfStore, err := partition.NewShardConfStore(memorydb.New(), log)
+		require.NoError(t, err)
+		require.NoError(t, shardConfStore.Store(shardConf))
+
+		trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), log)
+		require.NoError(t, err)
+		require.NoError(t, trustBaseStore.Store(a.RootChain.TrustBase))
+
 		nodeConf, err := partition.NewNodeConf(
 			node.KeyConf(t),
-			shardConf,
-			a.RootChain.TrustBase,
+			shardConfStore,
+			trustBaseStore,
 			obs,
 			partition.WithAddress("/ip4/127.0.0.1/tcp/0"),
 			partition.WithBootstrapAddresses([]string{bootstrapAddress}),
@@ -174,7 +189,7 @@ func (a *UnicityNetwork) AddShard(t *testing.T, shardConf *types.PartitionDescri
 		)
 		require.NoError(t, err)
 
-		txSystem := txSystemProvider(a.RootChain.TrustBase)
+		txSystem := txSystemProvider(trustBaseStore)
 		node, err := partition.NewNode(
 			ctx,
 			txSystem,
@@ -271,12 +286,7 @@ func (a *UnicityNetwork) GetShard(psID types.PartitionShardID) (*Shard, error) {
 }
 
 func (a *UnicityNetwork) GetValidator(psID types.PartitionShardID) (partition.UnicityCertificateValidator, error) {
-	shard, f := a.Shards[psID]
-	if !f {
-		return nil, fmt.Errorf("unknown shard %s", psID)
-	}
-	sc := shard.shardConf
-	return partition.NewDefaultUnicityCertificateValidator(sc.PartitionID, sc.ShardID, a.RootChain.TrustBase, crypto.SHA256)
+	return partition.NewDefaultUnicityCertificateValidator(crypto.SHA256), nil
 }
 
 func (r *RootChain) start(t *testing.T, ctx context.Context) error {
@@ -330,9 +340,13 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 		consensusParams := consensus.NewConsensusParams()
 		consensusParams.BlockRate /= speedFactor
 
+		trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), log)
+		require.NoError(t, err)
+		require.NoError(t, trustBaseStore.Store(r.TrustBase))
+
 		cm, err := consensus.NewConsensusManager(
 			rootPeer.ID(),
-			r.TrustBase,
+			trustBaseStore,
 			orchestration,
 			rootConsensusNet,
 			rn.RootSigner,
@@ -455,7 +469,7 @@ func WaitUnitProof(t *testing.T, shard *Shard, ID types.UnitID, txOrder *types.T
 
 	require.Eventually(t, func() bool {
 		for _, n := range shard.Nodes {
-			unitDataAndProof, err := partition.ReadUnitProofIndex(n.nodeConf.ProofStore(), ID, txHash)
+			unitDataAndProof, err := partition.ReadUnitProofIndex(n.nodeConf.ProofDB(), ID, txHash)
 			if err != nil {
 				continue
 			}

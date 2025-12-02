@@ -13,8 +13,9 @@ import (
 	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/partition/event"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	"github.com/unicitynetwork/bft-core/txsystem"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
@@ -29,17 +30,17 @@ const (
 )
 
 var (
-	ErrShardConfIsNil = errors.New("shard configuration is nil")
-	ErrKeyConfIsNil   = errors.New("key configuration is nil")
-	ErrTrustBaseIsNil = errors.New("trust base is nil")
+	ErrKeyConfIsNil        = errors.New("key configuration is nil")
+	ErrShardConfStoreIsNil = errors.New("shard conf store is nil")
+	ErrTrustBaseStoreIsNil = errors.New("trust base store is nil")
 )
 
 type (
 	NodeConf struct {
-		keyConf       *KeyConf
-		shardConf     *types.PartitionDescriptionRecord
-		trustBase     types.RootTrustBase
-		observability Observability
+		keyConf        *KeyConf
+		shardConfStore *ShardConfStore
+		trustBaseStore *trustbase.TrustBaseStore
+		observability  Observability
 
 		address               string
 		announceAddresses     []string
@@ -49,11 +50,10 @@ type (
 
 		signer           abcrypto.Signer
 		hashAlgorithm    crypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
-		txValidator      TxValidator
+		txValidator      TransactionOrderValidator
 		ucValidator      UnicityCertificateValidator
 		bpValidator      BlockProposalValidator
-		blockStore       keyvaluedb.KeyValueDB
-		shardStore       keyvaluedb.KeyValueDB
+		blockDB          keyvaluedb.KeyValueDB
 		proofIndexConfig proofIndexConfig
 		ownerIndexer     *OwnerIndexer
 		t1Timeout        time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
@@ -62,6 +62,9 @@ type (
 		eventChCapacity          int
 		replicationConfig        ledgerReplicationConfig
 		blockSubscriptionTimeout time.Duration // time since last block when to start recovery on non-validating node
+
+		// first shardConf from shardConfStore
+		shardConf txsystem.ShardConf
 	}
 
 	NodeOption func(c *NodeConf)
@@ -82,7 +85,7 @@ type (
 	// - if 0, there is no clean-up and all blocks are kept in the index;
 	// - otherwise, the latest historyLen is kept and older will be removed from the DB (sliding window).
 	proofIndexConfig struct {
-		store      keyvaluedb.KeyValueDB
+		db         keyvaluedb.KeyValueDB
 		historyLen uint64
 	}
 
@@ -96,45 +99,61 @@ type (
 
 func NewNodeConf(
 	keyConf *KeyConf,
-	shardConf *types.PartitionDescriptionRecord,
-	trustBase types.RootTrustBase,
+	shardConfStore *ShardConfStore,
+	trustBaseStore *trustbase.TrustBaseStore,
 	observability Observability,
 	nodeOptions ...NodeOption,
 ) (*NodeConf, error) {
 	if keyConf == nil {
 		return nil, ErrKeyConfIsNil
 	}
-	if shardConf == nil {
-		return nil, ErrShardConfIsNil
+	if shardConfStore == nil {
+		return nil, ErrShardConfStoreIsNil
 	}
-	if trustBase == nil {
-		return nil, ErrTrustBaseIsNil
+	if trustBaseStore == nil {
+		return nil, ErrTrustBaseStoreIsNil
 	}
+
+	shardConf, err := shardConfStore.GetFirst()
+	if err != nil {
+		return nil, err
+	}
+
 	signer, err := keyConf.Signer()
 	if err != nil {
 		return nil, err
 	}
 
+	hashAlg := crypto.SHA256
+
 	c := &NodeConf{
-		keyConf:       keyConf,
-		shardConf:     shardConf,
-		trustBase:     trustBase,
-		signer:        signer,
-		hashAlgorithm: crypto.SHA256,
+		keyConf:        keyConf,
+		shardConfStore: shardConfStore,
+		trustBaseStore: trustBaseStore,
+		blockDB:        memorydb.New(),
+		signer:         signer,
+		hashAlgorithm:  hashAlg,
+		bpValidator:    NewDefaultBlockProposalValidator(hashAlg),
+		ucValidator:    NewDefaultUnicityCertificateValidator(hashAlg),
+		txValidator:    NewDefaultTransactionOrderValidator(),
 		proofIndexConfig: proofIndexConfig{
+			db:      memorydb.New(),
 			historyLen: 20,
 		},
+		replicationConfig: ledgerReplicationConfig{
+			maxFetchBlocks:  DefaultReplicationMaxBlocks,
+			maxReturnBlocks: DefaultReplicationMaxBlocks,
+			maxTx:           DefaultReplicationMaxTx,
+			timeout:         DefaultLedgerReplicationTimeout,
+		},
+		t1Timeout:                DefaultT1Timeout * time.Millisecond,
+		blockSubscriptionTimeout: DefaultBlockSubscriptionTimeout,
 		observability: observability,
+		shardConf: shardConf,
 	}
+
 	for _, option := range nodeOptions {
 		option(c)
-	}
-	// init default for those not specified by the user
-	if err := c.initMissingDefaults(); err != nil {
-		return nil, fmt.Errorf("initializing missing configuration to default values: %w", err)
-	}
-	if err := c.shardConf.IsValid(); err != nil {
-		return nil, fmt.Errorf("invalid shard configuration: %w", err)
 	}
 
 	return c, nil
@@ -191,21 +210,15 @@ func WithBlockProposalValidator(blockProposalValidator BlockProposalValidator) N
 	}
 }
 
-func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
+func WithBlockDB(blockDB keyvaluedb.KeyValueDB) NodeOption {
 	return func(c *NodeConf) {
-		c.blockStore = blockStore
-	}
-}
-
-func WithShardStore(shardStore keyvaluedb.KeyValueDB) NodeOption {
-	return func(c *NodeConf) {
-		c.shardStore = shardStore
+		c.blockDB = blockDB
 	}
 }
 
 func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
 	return func(c *NodeConf) {
-		c.proofIndexConfig.store = db
+		c.proofIndexConfig.db = db
 		c.proofIndexConfig.historyLen = history
 	}
 }
@@ -229,7 +242,7 @@ func WithEventHandler(eh event.Handler, eventChCapacity int) NodeOption {
 	}
 }
 
-func WithTxValidator(txValidator TxValidator) NodeOption {
+func WithTxValidator(txValidator TransactionOrderValidator) NodeOption {
 	return func(c *NodeConf) {
 		c.txValidator = txValidator
 	}
@@ -241,96 +254,16 @@ func WithBlockSubscriptionTimeout(t time.Duration) NodeOption {
 	}
 }
 
-// initMissingDefaults loads missing default configuration.
-func (c *NodeConf) initMissingDefaults() error {
-	if c.t1Timeout == 0 {
-		c.t1Timeout = DefaultT1Timeout * time.Millisecond
-	}
-
-	var err error
-	if c.proofIndexConfig.store == nil {
-		if c.proofIndexConfig.store, err = memorydb.New(); err != nil {
-			return fmt.Errorf("creating proof index DB: %w", err)
-		}
-	}
-
-	if c.blockStore == nil {
-		if c.blockStore, err = memorydb.New(); err != nil {
-			return fmt.Errorf("creating block store DB: %w", err)
-		}
-	}
-
-	if c.shardStore == nil {
-		if c.shardStore, err = memorydb.New(); err != nil {
-			return fmt.Errorf("creating shard store DB: %w", err)
-		}
-	}
-
-	if c.bpValidator == nil {
-		c.bpValidator, err = NewDefaultBlockProposalValidator(
-			c.shardConf.PartitionID, c.shardConf.ShardID, c.trustBase, c.hashAlgorithm)
-		if err != nil {
-			return fmt.Errorf("initializing block proposal validator: %w", err)
-		}
-	}
-	if c.ucValidator == nil {
-		c.ucValidator, err = NewDefaultUnicityCertificateValidator(
-			c.shardConf.PartitionID, c.shardConf.ShardID, c.trustBase, c.hashAlgorithm)
-		if err != nil {
-			return fmt.Errorf("initializing unicity certificate validator: %w", err)
-		}
-	}
-	if c.txValidator == nil {
-		c.txValidator, err = NewDefaultTxValidator(c.PartitionID())
-		if err != nil {
-			return err
-		}
-	}
-	if c.replicationConfig.maxFetchBlocks == 0 {
-		c.replicationConfig.maxFetchBlocks = DefaultReplicationMaxBlocks
-	}
-	if c.replicationConfig.maxReturnBlocks == 0 {
-		c.replicationConfig.maxReturnBlocks = DefaultReplicationMaxBlocks
-	}
-	if c.replicationConfig.maxTx == 0 {
-		c.replicationConfig.maxTx = DefaultReplicationMaxTx
-	}
-	if c.replicationConfig.timeout == 0 {
-		c.replicationConfig.timeout = DefaultLedgerReplicationTimeout
-	}
-	if c.blockSubscriptionTimeout == 0 {
-		c.blockSubscriptionTimeout = DefaultBlockSubscriptionTimeout
-	}
-	return nil
-}
-
-func (c *NodeConf) NetworkID() types.NetworkID {
-	return c.shardConf.NetworkID
-}
-
-func (c *NodeConf) PartitionID() types.PartitionID {
-	return c.shardConf.PartitionID
-}
-
-func (c *NodeConf) ShardID() types.ShardID {
-	return c.shardConf.ShardID
-}
-
-func (c *NodeConf) GetT2Timeout() time.Duration {
-	return c.shardConf.T2Timeout
-}
-
-func (c *NodeConf) ShardConf() *types.PartitionDescriptionRecord {
+func (c *NodeConf) ShardConf() txsystem.ShardConf {
 	return c.shardConf
 }
 
-// Deprecated: use orchestration instead to prepare for dynamic RootChain
-func (c *NodeConf) TrustBase() types.RootTrustBase {
-	return c.trustBase
+func (c *NodeConf) TrustBaseStore() *trustbase.TrustBaseStore {
+	return c.trustBaseStore
 }
 
 func (c *NodeConf) Orchestration() Orchestration {
-	return Orchestration{c.trustBase}
+	return Orchestration{c.trustBaseStore}
 }
 
 func (c *NodeConf) Observability() Observability {
@@ -341,12 +274,12 @@ func (c *NodeConf) HashAlgorithm() crypto.Hash {
 	return c.hashAlgorithm
 }
 
-func (c *NodeConf) BlockStore() keyvaluedb.KeyValueDB {
-	return c.blockStore
+func (c *NodeConf) BlockDB() keyvaluedb.KeyValueDB {
+	return c.blockDB
 }
 
-func (c *NodeConf) ProofStore() keyvaluedb.KeyValueDB {
-	return c.proofIndexConfig.store
+func (c *NodeConf) ProofDB() keyvaluedb.KeyValueDB {
+	return c.proofIndexConfig.db
 }
 
 func (c *NodeConf) PeerConf() (*network.PeerConfiguration, error) {
@@ -369,19 +302,6 @@ func (c *NodeConf) PeerConf() (*network.PeerConfiguration, error) {
 
 func (c *NodeConf) OwnerIndexer() *OwnerIndexer {
 	return c.ownerIndexer
-}
-
-func (c *NodeConf) getRootNodes() (peer.IDSlice, error) {
-	nodes := c.trustBase.GetRootNodes()
-	idSlice := make(peer.IDSlice, len(nodes))
-	for i, node := range nodes {
-		id, err := peer.Decode(node.NodeID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid root node id in trust base: %w", err)
-		}
-		idSlice[i] = id
-	}
-	return idSlice, nil
 }
 
 func (c *KeyConf) NodeID() (peer.ID, error) {

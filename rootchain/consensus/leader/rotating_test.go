@@ -5,10 +5,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	test "github.com/unicitynetwork/bft-core/internal/testutils/peer"
-
 	p2ppeer "github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+
+	test "github.com/unicitynetwork/bft-core/internal/testutils/peer"
 )
 
 func TestNewRoundRobin_RootNodesNil(t *testing.T) {
@@ -44,7 +44,9 @@ func TestRoundRobin_Normal(t *testing.T) {
 
 	round := 0
 	for round < 14 {
-		require.EqualValues(t, ls.GetLeaderForRound(uint64(round)), persistentPeers[round%nofPeers])
+		leader, err := ls.GetLeaderForRound(uint64(round))
+		require.NoError(t, err)
+		require.EqualValues(t, leader, persistentPeers[round%nofPeers])
 		round++
 	}
 }
@@ -63,9 +65,13 @@ func TestRoundRobin_NormalTwoRounds(t *testing.T) {
 	leaderIndex := 0
 	for round < 14 {
 		id := persistentPeers[leaderIndex%nofPeers]
+		leader1, err := ls.GetLeaderForRound(uint64(round))
 		require.NoError(t, err)
-		require.EqualValues(t, ls.GetLeaderForRound(uint64(round)), id)
-		require.EqualValues(t, ls.GetLeaderForRound(uint64(round+1)), id)
+		require.EqualValues(t, leader1, id)
+
+		leader2, err := ls.GetLeaderForRound(uint64(round + 1))
+		require.NoError(t, err)
+		require.EqualValues(t, leader2, id)
 		round += 2
 		leaderIndex++
 	}
@@ -83,8 +89,9 @@ func TestRoundRobin_IsValidLeader(t *testing.T) {
 	for test < 10 {
 		randomRound := rand.Intn(1000)
 		id := persistentPeers[randomRound%nofPeers]
+		leader, err := ls.GetLeaderForRound(uint64(randomRound))
 		require.NoError(t, err)
-		require.Equal(t, ls.GetLeaderForRound(uint64(randomRound)), id)
+		require.Equal(t, leader, id)
 		test++
 	}
 }

@@ -20,6 +20,7 @@ func NewReclaimFC(t *testing.T, pdr *types.PartitionDescriptionRecord, signer ab
 		testtransaction.WithAttributes(reclaimFCAttr),
 		testtransaction.WithTransactionType(fc.TransactionTypeReclaimFeeCredit),
 		testtransaction.WithAuthProof(fc.ReclaimFeeCreditAuthProof{}),
+		testtransaction.WithPartition(pdr),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))

@@ -5,9 +5,9 @@ import (
 
 	"github.com/unicitynetwork/bft-core/predicates"
 	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
 	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var _ txtypes.Module = (*NonFungibleTokensModule)(nil)
@@ -16,15 +16,15 @@ type NonFungibleTokensModule struct {
 	state         *state.State
 	hashAlgorithm crypto.Hash
 	execPredicate predicates.PredicateRunner
-	pdr           types.PartitionDescriptionRecord
+	shardConf     txsystem.ShardConf
 }
 
-func NewNonFungibleTokensModule(pdr types.PartitionDescriptionRecord, options *Options) (*NonFungibleTokensModule, error) {
+func NewNonFungibleTokensModule(shardConf txsystem.ShardConf, options *Options) (*NonFungibleTokensModule, error) {
 	return &NonFungibleTokensModule{
 		state:         options.state,
 		hashAlgorithm: options.hashAlgorithm,
 		execPredicate: predicates.NewPredicateRunner(options.exec),
-		pdr:           pdr,
+		shardConf:     shardConf,
 	}, nil
 }
 

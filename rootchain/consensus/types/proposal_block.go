@@ -20,7 +20,7 @@ type BlockData struct {
 	Version   types.Version
 	Author    string   `json:"author"` // NodeID of the proposer
 	Round     uint64   `json:"round"`  // Root round number
-	Epoch     uint64   `json:"epoch"`  // Epoch to establish valid configuration
+	Epoch     uint64   `json:"epoch"`  // Root epoch to establish valid configuration
 	Timestamp uint64   `json:"timestamp"`
 	Payload   *Payload `json:"payload"` // Payload that will trigger changes to the state
 	// quorum certificate for ancestor

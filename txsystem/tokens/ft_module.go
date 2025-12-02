@@ -4,29 +4,30 @@ import (
 	"crypto"
 
 	"github.com/unicitynetwork/bft-core/predicates"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
 	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var _ txtypes.Module = &FungibleTokensModule{}
 
 type FungibleTokensModule struct {
-	state         *state.State
-	hashAlgorithm crypto.Hash
-	trustBase     types.RootTrustBase
-	execPredicate predicates.PredicateRunner
-	pdr           types.PartitionDescriptionRecord
+	state          *state.State
+	hashAlgorithm  crypto.Hash
+	trustBaseStore *trustbase.TrustBaseStore
+	execPredicate  predicates.PredicateRunner
+	shardConf      txsystem.ShardConf
 }
 
-func NewFungibleTokensModule(pdr types.PartitionDescriptionRecord, options *Options) (*FungibleTokensModule, error) {
+func NewFungibleTokensModule(shardConf txsystem.ShardConf, options *Options) (*FungibleTokensModule, error) {
 	return &FungibleTokensModule{
-		state:         options.state,
-		hashAlgorithm: options.hashAlgorithm,
-		trustBase:     options.trustBase,
-		execPredicate: predicates.NewPredicateRunner(options.exec),
-		pdr:           pdr,
+		state:          options.state,
+		hashAlgorithm:  options.hashAlgorithm,
+		trustBaseStore: options.trustBaseStore,
+		execPredicate:  predicates.NewPredicateRunner(options.exec),
+		shardConf:      shardConf,
 	}, nil
 }
 

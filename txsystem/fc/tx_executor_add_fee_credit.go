@@ -40,7 +40,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	}
 
 	// target unit is a fee credit record (either new or pre-existing)
-	fcr, err := parseFeeCreditRecord(&f.pdr, tx.UnitID, f.feeCreditRecordUnitType, f.state)
+	fcr, err := parseFeeCreditRecord(f.shardConf.ExtractUnitType, tx.UnitID, f.feeCreditRecordUnitType, f.state)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return fmt.Errorf("get fcr error: %w", err)
 	}
@@ -79,8 +79,19 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 			return fmt.Errorf("invalid owner predicate: expected=%X actual=%X", fcr.OwnerPredicate, attr.FeeCreditOwnerPredicate)
 		}
 	}
+
+	// get trust base to verify bill transfer
+	proofUC, err := attr.FeeCreditTransferProof.TxProof.GetUC()
+	if err != nil {
+		return fmt.Errorf("invalid transFC proof: %w", err)
+	}
+	trustBase, err := f.trustBaseStore.GetByEpoch(proofUC.InputRecord.Epoch)
+	if err != nil {
+		return fmt.Errorf("failed to get trust base for transFC proof: %w", err)
+	}
+
 	// proof of the bill transfer order verifies
-	if err = types.VerifyTxProof(attr.FeeCreditTransferProof, f.trustBase, f.hashAlgorithm); err != nil {
+	if err = types.VerifyTxProof(attr.FeeCreditTransferProof, trustBase, f.hashAlgorithm); err != nil {
 		return fmt.Errorf("transFC proof is not valid: %w", err)
 	}
 	// the owner proof satisfies the bill's owner predicate
@@ -105,15 +116,15 @@ func (f *FeeCreditModule) checkTransferFC(tx *types.TransactionOrder, attr *fc.A
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction order: %w", err)
 	}
-	if txo.NetworkID != f.pdr.NetworkID {
-		return nil, fmt.Errorf("invalid transferFC network identifier %d (expected %d)", txo.NetworkID, f.pdr.NetworkID)
+	if txo.NetworkID != tx.NetworkID {
+		return nil, fmt.Errorf("invalid transferFC network identifier %d (expected %d)", txo.NetworkID, tx.NetworkID)
 	}
 	// bill was transferred in correct partition
 	if txo.PartitionID != f.moneyPartitionID {
 		return nil, fmt.Errorf("invalid transferFC money partition identifier %d (expected %d)", txo.PartitionID, f.moneyPartitionID)
 	}
-	if transAttr.TargetPartitionID != f.pdr.PartitionID {
-		return nil, fmt.Errorf("invalid transferFC target partition identifier %d (expected %d)", transAttr.TargetPartitionID, f.pdr.PartitionID)
+	if transAttr.TargetPartitionID != tx.PartitionID {
+		return nil, fmt.Errorf("invalid transferFC target partition identifier %d (expected %d)", transAttr.TargetPartitionID, tx.PartitionID)
 	}
 	// bill was transferred to correct target record
 	if !bytes.Equal(transAttr.TargetRecordID, tx.UnitID) {
@@ -159,5 +170,5 @@ func getTransferFC(addFeeCreditProof *types.TxRecordProof) (*fc.TransferFeeCredi
 }
 
 func (f *FeeCreditModule) NewFeeCreditRecordID(ownerPredicate []byte, timeout uint64) (types.UnitID, error) {
-	return f.pdr.ComposeUnitID(types.ShardID{}, f.feeCreditRecordUnitType, fc.PrndSh(ownerPredicate, timeout))
+	return f.shardConf.ComposeUnitID(types.ShardID{}, f.feeCreditRecordUnitType, fc.PrndSh(ownerPredicate, timeout))
 }

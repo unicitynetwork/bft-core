@@ -6,6 +6,7 @@ import (
 
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testtxsystem "github.com/unicitynetwork/bft-core/internal/testutils/txsystem"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/txsystem"
 	"github.com/unicitynetwork/bft-go-base/types"
 
@@ -31,7 +32,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.NoError(t, abNetwork.Start(t))
 	t.Cleanup(func() { abNetwork.WaitClose(t) })
 
-	abNetwork.AddShard(t, shardConf, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNetwork.AddShard(t, shardConf, 3, func(tbs *trustbase.TrustBaseStore) txsystem.TransactionSystem {
 		return &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	})
 

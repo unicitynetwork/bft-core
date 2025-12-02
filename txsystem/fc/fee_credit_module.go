@@ -10,6 +10,7 @@ import (
 
 	"github.com/unicitynetwork/bft-core/predicates"
 	"github.com/unicitynetwork/bft-core/predicates/templates"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/state"
 	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
@@ -26,7 +27,7 @@ var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 var (
 	ErrMoneyPartitionIDMissing = errors.New("money transaction partition identifier is missing")
 	ErrStateIsNil              = errors.New("state is nil")
-	ErrTrustBaseIsNil          = errors.New("trust base is nil")
+	ErrTrustBaseStoreIsNil     = errors.New("trust base store is nil")
 )
 
 type (
@@ -35,25 +36,30 @@ type (
 		moneyPartitionID        types.PartitionID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
-		trustBase               types.RootTrustBase
+		trustBaseStore          *trustbase.TrustBaseStore
 		execPredicate           predicates.PredicateRunner
 		feeBalanceValidator     *FeeBalanceValidator
 		feeCreditRecordUnitType uint32
-		pdr                     types.PartitionDescriptionRecord
+		shardConf               ShardConf
 	}
 
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
 		Logger() *slog.Logger
 	}
+
+	ShardConf interface {
+		ExtractUnitType(unitID types.UnitID) (uint32, error)
+		ComposeUnitID(shardID types.ShardID, unitType uint32, prndSh func([]byte) error) (types.UnitID, error)
+	}
 )
 
-func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID types.PartitionID, state *state.State, trustBase types.RootTrustBase, obs Observability, opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(shardConf ShardConf, moneyPartitionID types.PartitionID, state *state.State, trustBaseStore *trustbase.TrustBaseStore, obs Observability, opts ...Option) (*FeeCreditModule, error) {
 	m := &FeeCreditModule{
-		pdr:              pdr,
+		shardConf:        shardConf,
 		moneyPartitionID: moneyPartitionID,
 		state:            state,
-		trustBase:        trustBase,
+		trustBaseStore:   trustBaseStore,
 		hashAlgorithm:    crypto.SHA256,
 	}
 	for _, o := range opts {
@@ -71,7 +77,7 @@ func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID t
 		m.execPredicate = predicates.NewPredicateRunner(predEng.Execute)
 	}
 	if m.feeBalanceValidator == nil {
-		m.feeBalanceValidator = NewFeeBalanceValidator(m.pdr, m.state, m.execPredicate, m.feeCreditRecordUnitType)
+		m.feeBalanceValidator = NewFeeBalanceValidator(m.shardConf.ExtractUnitType, m.state, m.execPredicate, m.feeCreditRecordUnitType)
 	}
 	if err := m.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)
@@ -104,17 +110,14 @@ func (f *FeeCreditModule) IsFeeCreditTx(tx *types.TransactionOrder) bool {
 }
 
 func (f *FeeCreditModule) IsValid() error {
-	if err := f.pdr.IsValid(); err != nil {
-		return fmt.Errorf("invalid PDR: %w", err)
-	}
 	if f.moneyPartitionID == 0 {
 		return ErrMoneyPartitionIDMissing
 	}
 	if f.state == nil {
 		return ErrStateIsNil
 	}
-	if f.trustBase == nil {
-		return ErrTrustBaseIsNil
+	if f.trustBaseStore == nil {
+		return ErrTrustBaseStoreIsNil
 	}
 	return nil
 }

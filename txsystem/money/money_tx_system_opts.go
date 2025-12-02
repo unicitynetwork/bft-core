@@ -4,21 +4,20 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/unicitynetwork/bft-go-base/types"
-
 	"github.com/unicitynetwork/bft-core/predicates"
 	"github.com/unicitynetwork/bft-core/predicates/templates"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/state"
 	"github.com/unicitynetwork/bft-core/txsystem"
 )
 
 type (
 	Options struct {
-		state                *state.State
-		executedTransactions map[string]uint64
-		hashAlgorithm        crypto.Hash
-		trustBase            types.RootTrustBase
-		exec                 predicates.PredicateExecutor
+		state                       *state.State
+		executedTransactions        map[string]uint64
+		hashAlgorithm               crypto.Hash
+		trustBaseStore              *trustbase.TrustBaseStore
+		exec                        predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
@@ -52,9 +51,9 @@ func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
 	}
 }
 
-func WithTrustBase(trust types.RootTrustBase) Option {
+func WithTrustBaseStore(trustBaseStore *trustbase.TrustBaseStore) Option {
 	return func(options *Options) {
-		options.trustBase = trust
+		options.trustBaseStore = trustBaseStore
 	}
 }
 

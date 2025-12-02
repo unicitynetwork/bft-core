@@ -32,7 +32,7 @@ func (n *NonFungibleTokensModule) validateUpdateNFT(tx *types.TransactionOrder, 
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
 	unitID := tx.GetUnitID()
-	if err := unitID.TypeMustBe(tokens.NonFungibleTokenUnitType, &n.pdr); err != nil {
+	if err := unitID.TypeMustBe(tokens.NonFungibleTokenUnitType, n.shardConf.ExtractUnitType); err != nil {
 		return fmt.Errorf("invalid unit ID: %w", err)
 	}
 	u, err := n.state.GetUnit(unitID, false)

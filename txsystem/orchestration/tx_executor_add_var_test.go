@@ -44,7 +44,7 @@ func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	opts.ownerPredicate = templates.NewP2pkh256BytesFromKey(pubKey)
 
 	pdr := orchid.PDR()
-	module, err := NewModule(pdr, opts)
+	module, err := NewModule(&pdr, opts)
 	require.NoError(t, err)
 
 	// execute addVar tx
@@ -89,7 +89,7 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 	opts.ownerPredicate = templates.NewP2pkh256BytesFromKey(pubKey)
 
 	pdr := orchid.PDR()
-	module, err := NewModule(pdr, opts)
+	module, err := NewModule(&pdr, opts)
 	require.NoError(t, err)
 
 	// add existing unit
@@ -129,7 +129,7 @@ func TestAddVar_NOK(t *testing.T) {
 	opts.ownerPredicate = templates.NewP2pkh256BytesFromKey(test.RandomBytes(32))
 
 	pdr := orchid.PDR()
-	module, err := NewModule(pdr, opts)
+	module, err := NewModule(&pdr, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(module.TxHandlers()))
@@ -247,7 +247,7 @@ func newTestVarModule(t *testing.T, pdr types.PartitionDescriptionRecord, ownerP
 	require.NoError(t, err)
 	options.ownerPredicate = ownerPredicate
 	options.state = state.NewEmptyState()
-	module, err := NewModule(pdr, options)
+	module, err := NewModule(&pdr, options)
 	require.NoError(t, err)
 	for _, opt := range opts {
 		require.NoError(t, opt(module))

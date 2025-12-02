@@ -56,7 +56,7 @@ func (p *OrchestrationPartition) NewGenesisState(pdr *types.PartitionDescription
 func (p *OrchestrationPartition) CreateTxSystem(flags *ShardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error) {
 	stateFilePath := flags.PathWithDefault(flags.StateFile, StateFileName)
 	state, header, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
-		return moneysdk.NewUnitData(ui, nodeConf.ShardConf())
+		return moneysdk.NewUnitData(ui, nodeConf.ShardConf().ExtractUnitType)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to load state file: %w", err)
@@ -68,7 +68,7 @@ func (p *OrchestrationPartition) CreateTxSystem(flags *ShardNodeRunFlags, nodeCo
 	}
 
 	txs, err := orchestration.NewTxSystem(
-		*nodeConf.ShardConf(),
+		nodeConf.ShardConf(),
 		nodeConf.Observability(),
 		orchestration.WithHashAlgorithm(nodeConf.HashAlgorithm()),
 		orchestration.WithState(state),

@@ -16,12 +16,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/internal/testutils/net"
 	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testtime "github.com/unicitynetwork/bft-core/internal/testutils/time"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestRootValidator_OK(t *testing.T) {
@@ -63,6 +64,24 @@ func TestRootValidator_OK(t *testing.T) {
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
+	// sign trust base
+	cmd = New(obsF)
+	trustBaseFile := filepath.Join(rootHome1, "trust-base.json")
+	cmd.baseCmd.SetArgs([]string{
+		"trust-base", "sign",
+		"--key-conf", filepath.Join(rootHome1, keyConfFileName),
+		"--trust-base", trustBaseFile,
+	})
+	require.NoError(t, cmd.Execute(context.Background()))
+
+	cmd = New(obsF)
+	cmd.baseCmd.SetArgs([]string{
+		"trust-base", "sign",
+		"--key-conf", filepath.Join(rootHome2, keyConfFileName),
+		"--trust-base", trustBaseFile,
+	})
+	require.NoError(t, cmd.Execute(context.Background()))
+
 	// start the root node and expect no errors
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		appStoppedWg := sync.WaitGroup{}
@@ -77,6 +96,7 @@ func TestRootValidator_OK(t *testing.T) {
 				"root-node", "run",
 				"--home", rootHome1,
 				"--address", address,
+				"--trust-base", filepath.Join(rootHome1, trustBaseFileName),
 			})
 			require.ErrorIs(t, cmd.Execute(ctx), context.Canceled)
 		}()
@@ -146,21 +166,6 @@ func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
 		require.Len(t, bootNodes[1].Addrs, 1)
 		require.Equal(t, bootNodes[1].Addrs[0].String(), "/ip4/127.0.0.1/tcp/1367")
 	})
-}
-
-func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
-	rootHome, moneyHome := generateSingleNodeSetup(t)
-	wrongKeyConfFile := filepath.Join(moneyHome, keyConfFileName)
-
-	cmd := New(observability.NewFactory(t))
-	cmd.baseCmd.SetArgs([]string{
-		"root-node", "run",
-		"--home", rootHome,
-		"--key-conf", wrongKeyConfFile,
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
-	defer cancel()
-	require.ErrorContains(t, cmd.Execute(ctx), "root node key not found in trust base: node not part of trust base")
 }
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 type (
 	StateAPIOptions struct {
 		withGetUnits      bool
-		shardConf         *types.PartitionDescriptionRecord
+		unitTypeExtractor types.UnitTypeExtractor
 		ownerIndex        partition.IndexReader
 		rateLimit         int
 		responseItemLimit int
@@ -23,9 +23,9 @@ func WithGetUnits(withGetUnits bool) StateAPIOption {
 	}
 }
 
-func WithShardConf(shardConf *types.PartitionDescriptionRecord) StateAPIOption {
+func WithUnitTypeExtractor(ute types.UnitTypeExtractor) StateAPIOption {
 	return func(c *StateAPIOptions) {
-		c.shardConf = shardConf
+		c.unitTypeExtractor = ute
 	}
 }
 
@@ -50,7 +50,7 @@ func WithResponseItemLimit(limit int) StateAPIOption {
 func defaultStateAPIOptions() *StateAPIOptions {
 	return &StateAPIOptions{
 		withGetUnits:      false,
-		shardConf:         nil,
+		unitTypeExtractor: nil,
 		ownerIndex:        nil,
 		rateLimit:         0,
 		responseItemLimit: 0,

@@ -20,22 +20,25 @@ import (
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
 
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 	testnetwork "github.com/unicitynetwork/bft-core/internal/testutils/network"
 	testobservability "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
 	abdrctu "github.com/unicitynetwork/bft-core/rootchain/consensus/testutils"
+	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-core/rootchain/partitions"
 	"github.com/unicitynetwork/bft-core/rootchain/testutils"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 const partitionID types.PartitionID = 0x00FF0001
@@ -57,8 +60,8 @@ func readResult(ch <-chan *certification.CertificationResponse, timeout time.Dur
 func initConsensusManager(t *testing.T, rootNet RootNet, opts ...Option) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode) {
 	rootNode := testutils.NewTestNode(t)
 	shardNodes, shardNodeInfos := testutils.CreateTestNodes(t, 3)
-	trustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]abcrypto.Verifier{
-		rootNode.PeerConf.ID.String(): rootNode.Verifier,
+	trustBase := trustbase.NewTrustBaseFromSigners(t, map[string]abcrypto.Signer{
+		rootNode.PeerConf.ID.String(): rootNode.Signer,
 	})
 	observe := testobservability.Default(t)
 
@@ -81,9 +84,13 @@ func initConsensusManager(t *testing.T, rootNet RootNet, opts ...Option) (*Conse
 	}
 	rootDB, orchestration := createStorage(t, shardConf, rootSigners, observe)
 
+	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), observe.Logger())
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(trustBase))
+
 	cm, err := NewConsensusManager(
 		rootNode.PeerConf.ID,
-		trustBase,
+		trustBaseStore,
 		orchestration,
 		rootNet,
 		rootNode.Signer,
@@ -418,7 +425,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	require.NoError(t, err)
 	shardConfHash, err := shardConf.Hash(crypto.SHA256)
 	require.NoError(t, err)
-	require.NoError(t, result.Verify(cm.trustBase, crypto.SHA256, partitionID, shardConfHash))
+	require.NoError(t, result.Verify(cm.trustBase.Load(), crypto.SHA256, partitionID, shardID, shardConfHash))
 
 	// root will continue and next proposal is also triggered by the same QC
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
@@ -499,8 +506,8 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 func TestGetState_WithoutShards(t *testing.T) {
 	mockNet := testnetwork.NewRootMockNetwork()
 	rootNode := testutils.NewTestNode(t)
-	trustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]abcrypto.Verifier{
-		rootNode.PeerConf.ID.String(): rootNode.Verifier,
+	trustBase := trustbase.NewTrustBaseFromSigners(t, map[string]abcrypto.Signer{
+		rootNode.PeerConf.ID.String(): rootNode.Signer,
 	})
 	observe := testobservability.Default(t)
 	dir := t.TempDir()
@@ -511,9 +518,13 @@ func TestGetState_WithoutShards(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = rootDB.Close() })
 
+	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), observe.Logger())
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(trustBase))
+
 	cm, err := NewConsensusManager(
 		rootNode.PeerConf.ID,
-		trustBase,
+		trustBaseStore,
 		orchestration,
 		mockNet,
 		rootNode.Signer,
@@ -802,7 +813,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		cms, rootNet := createConsensusManagers(t, 2, shardNodeInfos)
 		cmLeader := cms[0]
 		nonLeaderNode := cms[1]
-		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
+		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.Validators()} // use "const leader" to take leader selection out of test
 		// eavesdrop the network and copy IR change message sent by non-leader to leader
 		irCh := make(chan *abdrc.IrChangeReqMsg, 1)
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
@@ -845,7 +856,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 
 		cmOther := cms[1]
 		cmLeader := cms[0]
-		cmLeader.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
+		cmLeader.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.Validators()} // use "const leader" to take leader selection out of test
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -897,7 +908,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		cms, rootNet := createConsensusManagers(t, 2, shardNodeInfos)
 		cmLeader := cms[0]
 		nonLeaderNode := cms[1]
-		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()}
+		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.Validators()}
 
 		irCh := make(chan *abdrc.IrChangeReqMsg, 1)
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
@@ -1312,7 +1323,7 @@ func Test_ConsensusManager_RestoreVote(t *testing.T) {
 	require.NoError(t, cm.blockStore.GetDB().WriteVote(timeoutVote))
 
 	// replace leader selector
-	allNodes := cm.leaderSelector.GetNodes()
+	allNodes := cm.Validators()
 	leaderId, err := p2ptest.RandPeerID()
 	require.NoError(t, err)
 	allNodes = append(allNodes, leaderId)

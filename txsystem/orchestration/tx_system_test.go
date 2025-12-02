@@ -34,7 +34,7 @@ func TestNewTxSystem_OK(t *testing.T) {
 		T2Timeout:       2000 * time.Millisecond,
 	}
 	txSystem, err := NewTxSystem(
-		pdr,
+		&pdr,
 		observability.Default(t),
 		WithHashAlgorithm(crypto.SHA256),
 		WithState(s),

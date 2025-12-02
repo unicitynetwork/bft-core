@@ -6,6 +6,7 @@ import (
 
 	"github.com/unicitynetwork/bft-core/predicates"
 	"github.com/unicitynetwork/bft-core/state"
+	"github.com/unicitynetwork/bft-core/txsystem"
 	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 	"github.com/unicitynetwork/bft-go-base/txsystem/orchestration"
 	"github.com/unicitynetwork/bft-go-base/types"
@@ -15,15 +16,15 @@ var _ txtypes.Module = (*Module)(nil)
 
 type (
 	Module struct {
-		state          *state.State
-		ownerPredicate types.PredicateBytes
-		hashAlgorithm  crypto.Hash
-		execPredicate  predicates.PredicateRunner
-		pdr            types.PartitionDescriptionRecord
+		state             *state.State
+		ownerPredicate    types.PredicateBytes
+		hashAlgorithm     crypto.Hash
+		execPredicate     predicates.PredicateRunner
+		shardConf         txsystem.ShardConf
 	}
 )
 
-func NewModule(pdr types.PartitionDescriptionRecord, options *Options) (*Module, error) {
+func NewModule(shardConf txsystem.ShardConf, options *Options) (*Module, error) {
 	if options == nil {
 		return nil, errors.New("money module options are missing")
 	}
@@ -34,7 +35,7 @@ func NewModule(pdr types.PartitionDescriptionRecord, options *Options) (*Module,
 		return nil, errors.New("owner predicate is nil")
 	}
 	m := &Module{
-		pdr:            pdr,
+		shardConf:      shardConf,
 		state:          options.state,
 		ownerPredicate: options.ownerPredicate,
 		hashAlgorithm:  options.hashAlgorithm,

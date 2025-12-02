@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
-	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
 	"github.com/unicitynetwork/bft-core/state"
 	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
 	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
@@ -329,9 +328,9 @@ type nopModuleOptions func(m *NopModule) error
 func newNopModule(t *testing.T, verifier abcrypto.Verifier, opts ...nopModuleOptions) *NopModule {
 	options, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
-	options.trustBase = testtb.NewTrustBase(t, verifier)
+
 	options.state = state.NewEmptyState()
-	module := NewNopModule(tokensid.PDR(), options)
+	module := NewNopModule(options)
 	for _, opt := range opts {
 		require.NoError(t, opt(module))
 	}

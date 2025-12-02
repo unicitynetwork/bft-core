@@ -12,7 +12,7 @@ const shardConfFileName = "shard-conf.json"
 
 type (
 	shardConfFlags struct {
-		ShardConfFile string
+		ShardConfFiles []string
 	}
 )
 
@@ -26,15 +26,17 @@ func newShardConfCmd(baseConfig *baseFlags) *cobra.Command {
 	return cmd
 }
 
-func (f *shardConfFlags) addShardConfFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&f.ShardConfFile, "shard-conf", "s", "",
+func (f *shardConfFlags) addShardConfFlags(cmd *cobra.Command, acceptMany bool) {
+	cmd.Flags().StringSliceVarP(&f.ShardConfFiles, "shard-conf", "s", []string{},
 		fmt.Sprintf("path to shard conf (default: %s)", filepath.Join("$UBFT_HOME", shardConfFileName)))
 }
 
-func (f *shardConfFlags) shardConfPath(baseFlags *baseFlags) string {
-	return baseFlags.PathWithDefault(f.ShardConfFile, shardConfFileName)
-}
-
-func (f *shardConfFlags) loadShardConf(baseFlags *baseFlags) (ret *types.PartitionDescriptionRecord, err error) {
-	return ret, baseFlags.loadConf(f.ShardConfFile, shardConfFileName, &ret)
+func (f *shardConfFlags) loadShardConfs(baseFlags *baseFlags) ([]*types.PartitionDescriptionRecord, error) {
+	shardConfs := make([]*types.PartitionDescriptionRecord, len(f.ShardConfFiles))
+	for i, shardConfFile := range f.ShardConfFiles {
+		if err := baseFlags.loadConf(shardConfFile, shardConfFileName, &shardConfs[i]); err != nil {
+			return nil, err
+		}
+	}
+	return shardConfs, nil
 }

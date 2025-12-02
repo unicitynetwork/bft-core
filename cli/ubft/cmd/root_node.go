@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +17,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/unicitynetwork/bft-core/keyvaluedb"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
@@ -28,16 +29,13 @@ import (
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/rootchain/partitions"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 const (
-	rootStoreFileName          = "rootchain.db"
-	trustBaseStoreFileName     = "trustbase.db"
-	orchestrationStoreFileName = "orchestration.db"
-	defaultNetworkTimeout      = 300 * time.Millisecond
+	rootDBFileName          = "rootchain.db"
+	trustBaseDBFileName     = "trustbase.db"
+	orchestrationDBFileName = "orchestration.db"
+	defaultNetworkTimeout   = 300 * time.Millisecond
 )
 
 type (
@@ -45,12 +43,12 @@ type (
 		*baseFlags
 		keyConfFlags
 		trustBaseFlags
+		shardConfFlags
 		p2pFlags
 
-		RootStoreFile          string // path to Bolt storage file
-		TrustBaseStoreFile     string
-		OrchestrationStoreFile string
-		ShardConfFiles         []string // paths to shard conf files
+		RootDBFile          string // path to Bolt storage file
+		TrustBaseDBFile     string
+		OrchestrationDBFile string
 
 		BlockRate        uint32
 		MaxRequests      uint   // validator partition certification request channel capacity
@@ -97,20 +95,20 @@ func rootNodeRunCmd(baseFlags *baseFlags) *cobra.Command {
 
 	flags.addKeyConfFlags(cmd, false)
 	flags.addTrustBaseFlags(cmd)
+	flags.addShardConfFlags(cmd, true)
 	flags.addP2PFlags(cmd)
 
 	cmd.Flags().UintVar(&flags.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	cmd.Flags().StringVar(&flags.RPCServerAddress, "rpc-server-address", "",
 		`Specifies the TCP address for the RPC server to listen on, in the form "host:port". RPC server isn't initialised if address is empty.`)
 
-	cmd.Flags().StringVar(&flags.RootStoreFile, "root-db", "",
-		fmt.Sprintf("path to the root database (default: %s)", filepath.Join("$UBFT_HOME", rootStoreFileName)))
-	cmd.Flags().StringVar(&flags.TrustBaseStoreFile, "trust-base-db", "",
-		fmt.Sprintf("path to the trust base database (default: %s)", filepath.Join("$UBFT_HOME", trustBaseStoreFileName)))
-	cmd.Flags().StringVar(&flags.OrchestrationStoreFile, "orchestration-db", "",
-		fmt.Sprintf("path to the orchestration database (default: %s)", filepath.Join("$UBFT_HOME", orchestrationStoreFileName)))
+	cmd.Flags().StringVar(&flags.RootDBFile, "root-db", "",
+		fmt.Sprintf("path to the root database (default: %s)", filepath.Join("$UBFT_HOME", rootDBFileName)))
+	cmd.Flags().StringVar(&flags.TrustBaseDBFile, "trust-base-db", "",
+		fmt.Sprintf("path to the trust base database (default: %s)", filepath.Join("$UBFT_HOME", trustBaseDBFileName)))
+	cmd.Flags().StringVar(&flags.OrchestrationDBFile, "orchestration-db", "",
+		fmt.Sprintf("path to the orchestration database (default: %s)", filepath.Join("$UBFT_HOME", orchestrationDBFileName)))
 
-	cmd.Flags().StringSliceVarP(&flags.ShardConfFiles, "shard-conf", "", []string{}, "path to shard conf files")
 	cmd.Flags().Uint32Var(&flags.BlockRate, "block-rate", consensus.BlockRate, "block rate (consensus parameter)")
 
 	hideFlags(cmd, "block-rate")
@@ -151,31 +149,58 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return fmt.Errorf("partition network initialization failed: %w", err)
 	}
 
-	rootStore, err := storage.NewBoltStorage(flags.PathWithDefault(flags.RootStoreFile, rootStoreFileName))
-	if err != nil {
-		return err
-	}
-	trustBaseStore, err := flags.initStore(flags.TrustBaseStoreFile, trustBaseStoreFileName)
+	rootStore, err := storage.NewBoltStorage(flags.PathWithDefault(flags.RootDBFile, rootDBFileName))
 	if err != nil {
 		return err
 	}
 
-	// load trust base
-	trustBase, err := loadTrustBase(trustBaseStore, flags)
+	trustBases, err := flags.loadTrustBases(flags.baseFlags)
 	if err != nil {
-		return fmt.Errorf("root trust base init failed: %w", err)
+		return err
+	}
+
+	trustBaseDB, err := flags.initDB(flags.TrustBaseDBFile, trustBaseDBFileName)
+	if err != nil {
+		return err
+	}
+	trustBaseStore, err := trustbase.NewTrustBaseStore(trustBaseDB, log)
+	if err != nil {
+		return err
+	}
+
+	for _, trustBase := range trustBases {
+		if err := trustBaseStore.Store(trustBase); err != nil {
+			if !errors.Is(err, trustbase.ErrAlreadyExists) {
+				return fmt.Errorf("failed to store trust base: %w", err)
+			}
+			log.Warn(fmt.Sprintf("trust base already exists for epoch %d, not overwriting it", trustBase.Epoch))
+		}
+	}
+
+	trustBase, err := trustBaseStore.LoadFirst()
+	if err != nil {
+		return err
+	}
+
+	orchestrationStorePath := flags.PathWithDefault(flags.OrchestrationDBFile, orchestrationDBFileName)
+	orchestration, err := partitions.NewOrchestration(trustBase.GetNetworkID(), orchestrationStorePath, log)
+	if err != nil {
+		return fmt.Errorf("creating orchestration: %w", err)
+	}
+
+	shardConfs, err := flags.loadShardConfs(flags.baseFlags)
+	if err != nil {
+		return fmt.Errorf("failed to load shard confs: %w", err)
+	}
+	for _, shardConf := range shardConfs {
+		if err := orchestration.AddShardConfig(shardConf); err != nil {
+			return fmt.Errorf("failed to add shard conf for partition: %d, %w", shardConf.PartitionID, err)
+		}
 	}
 
 	signer, err := keyConf.Signer()
 	if err != nil {
 		return err
-	}
-	ver, err := signer.Verifier()
-	if err != nil {
-		return fmt.Errorf("invalid root node signing key: %w", err)
-	}
-	if err = verifyKeyPresentInTrustBase(host.ID(), trustBase, ver); err != nil {
-		return fmt.Errorf("root node key not found in trust base: %w", err)
 	}
 
 	rootNet, err := network.NewLibP2RootConsensusNetwork(host, flags.MaxRequests, defaultNetworkTimeout, obs)
@@ -183,22 +208,12 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return fmt.Errorf("failed initiate root network, %w", err)
 	}
 
-	orchestrationStorePath := flags.PathWithDefault(flags.OrchestrationStoreFile, orchestrationStoreFileName)
-	orchestration, err := partitions.NewOrchestration(trustBase.GetNetworkID(), orchestrationStorePath, log)
-	if err != nil {
-		return fmt.Errorf("creating orchestration: %w", err)
-	}
-
-	if err := loadShardConfFiles(flags.ShardConfFiles, orchestration); err != nil {
-		return fmt.Errorf("failed to load shard conf files: %w", err)
-	}
-
 	consensusParams := consensus.NewConsensusParams()
 	consensusParams.BlockRate = time.Duration(flags.BlockRate) * time.Millisecond
 
 	cm, err := consensus.NewConsensusManager(
 		host.ID(),
-		trustBase,
+		trustBaseStore,
 		orchestration,
 		rootNet,
 		signer,
@@ -236,6 +251,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 			mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
 		}
 		mux.HandleFunc("PUT /api/v1/configurations", putShardConfigHandler(orchestration.AddShardConfig))
+		mux.HandleFunc("PUT /api/v1/trustbases", putTrustBaseHandler(trustBaseStore.Store))
 		mux.HandleFunc("GET /api/v1/roundInfo", getRoundInfoHandler(cm.GetState, obs))
 		return httpsrv.Run(ctx,
 			&http.Server{
@@ -271,51 +287,23 @@ func createHost(ctx context.Context, keyConf *partition.KeyConf, flags *rootNode
 	return network.NewPeer(ctx, peerConf, obs.Logger(), obs.PrometheusRegisterer())
 }
 
-func verifyKeyPresentInTrustBase(nodeID peer.ID, trustBase types.RootTrustBase, ver abcrypto.Verifier) error {
-	nodeIDStr := nodeID.String()
-	for _, node := range trustBase.GetRootNodes() {
-		if nodeIDStr != node.NodeID {
-			continue
-		}
-
-		sigKey, err := ver.MarshalPublicKey()
+func putTrustBaseHandler(addTrustBaseFn func(trustBase types.RootTrustBase) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		trustBase, err := parseTrustBase(r.Body)
 		if err != nil {
-			return fmt.Errorf("invalid root node signing key: %w", err)
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "parsing request body: %v", err)
+			return
 		}
-		// verify that the same public key is present in the genesis file
-		if !bytes.Equal(sigKey, node.SigKey) {
-			return fmt.Errorf("different signing key in trust base")
+
+		if err := addTrustBaseFn(trustBase); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "registering trust base: %v", err)
+			return
 		}
-		return nil
-	}
 
-	return fmt.Errorf("node not part of trust base")
-}
-
-// loadTrustBase returns the stored trust base if it exists, otherwise
-// loads and the stores the trust base from given file.
-func loadTrustBase(store keyvaluedb.KeyValueDB, flags *rootNodeRunFlags) (types.RootTrustBase, error) {
-	trustBaseStore, err := trustbase.NewStore(store)
-	if err != nil {
-		return nil, fmt.Errorf("consensus trust base storage init failed: %w", err)
+		w.WriteHeader(http.StatusOK)
 	}
-	trustBase, err := trustBaseStore.LoadTrustBase(0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load trust base: %w", err)
-	}
-	if trustBase != nil {
-		return trustBase, nil
-	}
-
-	trustBase, err = flags.loadTrustBase(flags.baseFlags)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create trust base: %w", err)
-	}
-
-	if err := trustBaseStore.StoreTrustBase(0, trustBase); err != nil {
-		return nil, fmt.Errorf("failed to store trust base: %w", err)
-	}
-	return trustBase, nil
 }
 
 func putShardConfigHandler(addShardConfFn func(shardConf *types.PartitionDescriptionRecord) error) http.HandlerFunc {
@@ -335,6 +323,15 @@ func putShardConfigHandler(addShardConfFn func(shardConf *types.PartitionDescrip
 
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+func parseTrustBase(r io.ReadCloser) (types.RootTrustBase, error) {
+	defer r.Close()
+	var trustBase *types.RootTrustBaseV1
+	if err := json.NewDecoder(r).Decode(&trustBase); err != nil {
+		return nil, fmt.Errorf("decoding trust base json: %w", err)
+	}
+	return trustBase, nil
 }
 
 func parseShardConf(r io.ReadCloser) (*types.PartitionDescriptionRecord, error) {
@@ -359,19 +356,6 @@ type (
 		PartitionShards []shardInfo `json:"partitionShards"`
 	}
 )
-
-func loadShardConfFiles(paths []string, orchestration *partitions.Orchestration) error {
-	for _, p := range paths {
-		shardConf, err := util.ReadJsonFile(p, &types.PartitionDescriptionRecord{})
-		if err != nil {
-			return fmt.Errorf("failed to read shard conf from %q: %w", p, err)
-		}
-		if err := orchestration.AddShardConfig(shardConf); err != nil {
-			return fmt.Errorf("failed to add shard conf from %q: %w", p, err)
-		}
-	}
-	return nil
-}
 
 func getRoundInfoHandler(getState func() (*abdrc.StateMsg, error), obs Observability) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

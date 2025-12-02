@@ -35,7 +35,7 @@ func shardConfGenesisCmd(baseFlags *baseFlags) *cobra.Command {
 			return shardConfGenesis(flags)
 		},
 	}
-	flags.addShardConfFlags(cmd)
+	flags.addShardConfFlags(cmd, false)
 	return cmd
 }
 
@@ -43,16 +43,20 @@ func shardConfGenesis(flags *shardConfGenesisFlags) error {
 	if err := os.MkdirAll(flags.HomeDir, 0700); err != nil { // -rwx------
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	shardConf, err := flags.loadShardConf(flags.baseFlags)
+	shardConfs, err := flags.loadShardConfs(flags.baseFlags)
 	if err != nil {
 		return err
 	}
+	if len(shardConfs) != 1 {
+		return fmt.Errorf("exactly one shard conf parameter expected")
+	}
+
 	statePath := flags.PathWithDefault("", StateFileName)
 	if util.FileExists(statePath) {
 		return fmt.Errorf("state file %q already exists", statePath)
 	}
 
-	state, err := newGenesisState(shardConf, flags)
+	state, err := newGenesisState(shardConfs[0], flags)
 	if err != nil {
 		return err
 	}

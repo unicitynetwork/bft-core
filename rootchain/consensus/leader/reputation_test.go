@@ -6,12 +6,21 @@ import (
 	"testing"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
-	test "github.com/unicitynetwork/bft-core/internal/testutils/peer"
-	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
-	"github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	testsig "github.com/unicitynetwork/bft-go-base/testutils/sig"
 	abt "github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
+
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	test "github.com/unicitynetwork/bft-core/internal/testutils/peer"
+	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
+	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
 func Test_ReputationBased_Update(t *testing.T) {
@@ -56,8 +65,11 @@ func Test_ReputationBased_Update(t *testing.T) {
 	t.Run("failing to elect leader because block loader fails", func(t *testing.T) {
 		expErr := fmt.Errorf("no blocks for you")
 		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) { return nil, expErr }
+		tbs, err := tbstore.NewTrustBaseStore(memorydb.New(), logger.New(t))
+		require.NoError(t, err)
 		rl := &ReputationBased{
-			windowSize: 1,
+			windowSize:     1,
+			trustBaseStore: tbs,
 		}
 		slotIdx := rl.curIdx
 
@@ -65,15 +77,25 @@ func Test_ReputationBased_Update(t *testing.T) {
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
 		}
-		err := rl.Update(qc, 3, loadBlock)
+		err = rl.Update(qc, 3, loadBlock)
 		require.ErrorIs(t, err, expErr)
 		require.Equal(t, slotIdx, rl.curIdx, "expected that round leader buffer index is not changed")
 	})
 
 	// valid signer id-s to use in following tests
 	peerIDs := test.GeneratePeerIDs(t, 2)
-	signerAid, signerAkey := peerIDs[0], peerIDs[0].String()
+	_, signerAkey := peerIDs[0], peerIDs[0].String()
 	signerBid, signerBkey := peerIDs[1], peerIDs[1].String()
+	signerA, _ := testsig.CreateSignerAndVerifier(t)
+	signerB, _ := testsig.CreateSignerAndVerifier(t)
+
+	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	trustBase := trustbase.NewTrustBaseFromSigners(t, map[string]crypto.Signer{
+		signerAkey: signerA,
+		signerBkey: signerB,
+	})
+	require.NoError(t, trustBaseStore.Store(trustBase))
 
 	t.Run("successfully electing leader", func(t *testing.T) {
 		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) {
@@ -82,7 +104,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 			}
 			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		}
-		rl, err := NewReputationBased([]peer.ID{signerAid, signerBid}, 1, 1)
+		rl, err := NewReputationBased(1, 1, trustBaseStore)
 		require.NoError(t, err)
 		require.NotNil(t, rl)
 
@@ -106,7 +128,7 @@ func Test_ReputationBased_Update(t *testing.T) {
 			}
 			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: signerAkey}}, nil
 		}
-		rl, err := NewReputationBased([]peer.ID{signerAid, signerBid}, 1, 1)
+		rl, err := NewReputationBased(1, 1, trustBaseStore)
 		require.NoError(t, err)
 		require.NotNil(t, rl)
 
@@ -137,13 +159,37 @@ func Test_ReputationBased_Update(t *testing.T) {
 	})
 }
 
+func generateVerifiers(t *testing.T, count int) []crypto.Verifier {
+	result := make([]crypto.Verifier, count)
+	for i := range count {
+		_, verifier := testsig.CreateSignerAndVerifier(t)
+		result[i] = verifier
+	}
+	return result
+}
+
+func generateSigners(t *testing.T, count int) []crypto.Signer {
+	result := make([]crypto.Signer, count)
+	for i := range count {
+		signer, _ := testsig.CreateSignerAndVerifier(t)
+		result[i] = signer
+	}
+	return result
+}
+
 func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 	t.Parallel()
 
 	t.Run("no elected leaders, fallback to round-robin", func(t *testing.T) {
-		ids := test.GeneratePeerIDs(t, 10)
+		signers := generateSigners(t, 10)
+		trustBase := trustbase.NewTrustBase(t, signers...)
+		tbs, err := tbstore.NewTrustBaseStore(memorydb.New(), logger.New(t))
+		require.NoError(t, err)
+		require.NoError(t, tbs.Store(trustBase))
+		ids, err := toPeerIDs(trustBase.GetRootNodes())
+		require.NoError(t, err)
 
-		rl, err := NewReputationBased(ids, 1, 1)
+		rl, err := NewReputationBased(1, 1, tbs)
 		require.NoError(t, err)
 		require.NotNil(t, rl)
 
@@ -153,7 +199,9 @@ func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 		for i := 0; i < len(ids); i++ {
 			roundLeaders := []peer.ID{}
 			for round := i + 1; len(roundLeaders) < len(ids); round++ {
-				roundLeaders = append(roundLeaders, rl.GetLeaderForRound(uint64(round)))
+				leader, err := rl.GetLeaderForRound(uint64(round))
+				require.NoError(t, err)
+				roundLeaders = append(roundLeaders, leader)
 			}
 			// elements mustn't repeat so should have the slice with the same IDs we passed to algorithm
 			require.ElementsMatch(t, roundLeaders, ids, "iteration %d", i)
@@ -164,7 +212,7 @@ func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 		ids := test.GeneratePeerIDs(t, 4)
 		signerAid, signerBid, signerCid, signerDid := ids[0], ids[1], ids[2], ids[3]
 
-		rl, err := NewReputationBased(ids, 1, 1)
+		rl, err := NewReputationBased(1, 1, nil)
 		require.NoError(t, err)
 		require.NotNil(t, rl)
 		require.Len(t, rl.leaders, 3, "leaders buffer len has changed, this test needs to be updated accordingly")
@@ -172,29 +220,57 @@ func Test_ReputationBased_GetLeaderForRound(t *testing.T) {
 		idx := rl.slotIndex(23)
 		rl.leaders[idx].round = 23
 		rl.leaders[idx].leader = signerAid
-		require.Equal(t, signerAid, rl.GetLeaderForRound(23))
+
+		leader, err := rl.GetLeaderForRound(23)
+		require.NoError(t, err)
+		require.Equal(t, signerAid, leader)
 
 		idx = rl.slotIndex(24)
 		rl.leaders[idx].round = 24
 		rl.leaders[idx].leader = signerBid
-		require.Equal(t, signerBid, rl.GetLeaderForRound(24))
-		require.Equal(t, signerAid, rl.GetLeaderForRound(23))
+
+		leader, err = rl.GetLeaderForRound(24)
+		require.NoError(t, err)
+		require.Equal(t, signerBid, leader)
+
+		leader, err = rl.GetLeaderForRound(23)
+		require.NoError(t, err)
+		require.Equal(t, signerAid, leader)
 
 		idx = rl.slotIndex(26)
 		rl.leaders[idx].round = 26
 		rl.leaders[idx].leader = signerCid
-		require.Equal(t, signerCid, rl.GetLeaderForRound(26))
-		require.Equal(t, signerBid, rl.GetLeaderForRound(24))
-		require.Equal(t, signerAid, rl.GetLeaderForRound(23))
+
+		leader, err = rl.GetLeaderForRound(26)
+		require.NoError(t, err)
+		require.Equal(t, signerCid, leader)
+
+		leader, err = rl.GetLeaderForRound(24)
+		require.NoError(t, err)
+		require.Equal(t, signerBid, leader)
+
+		leader, err = rl.GetLeaderForRound(23)
+		require.NoError(t, err)
+		require.Equal(t, signerAid, leader)
 
 		// we do have 3 slots so with the next call we should have replaced the
 		// signer A and round 23
 		idx = rl.slotIndex(27)
 		rl.leaders[idx].round = 27
 		rl.leaders[idx].leader = signerDid
-		require.Equal(t, signerDid, rl.GetLeaderForRound(27))
-		require.Equal(t, signerCid, rl.GetLeaderForRound(26))
-		require.Equal(t, signerBid, rl.GetLeaderForRound(24))
+
+		leader, err = rl.GetLeaderForRound(27)
+		require.NoError(t, err)
+		require.Equal(t, signerDid, leader)
+
+		leader, err = rl.GetLeaderForRound(26)
+		require.NoError(t, err)
+		require.Equal(t, signerCid, leader)
+
+		leader, err = rl.GetLeaderForRound(24)
+		require.NoError(t, err)
+		require.Equal(t, signerBid, leader)
+
 		for i, v := range rl.leaders {
 			if v.round == 23 {
 				t.Errorf("unexpectedly round 23 is still in leaders cache: [%d]=%#v", i, v)
@@ -234,9 +310,12 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		require.EqualValues(t, UnknownLeader, id)
 	})
 
-	t.Run("single signer will be excluded and thus empty set to select from", func(t *testing.T) {
+	t.Run("single signer is not excluded and is elected again", func(t *testing.T) {
+		peerID, err := p2ptest.RandPeerID()
+		require.NoError(t, err)
+
 		loadBlock := func(round uint64) (*storage.ExecutedBlock, error) {
-			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: "signer"}}, nil
+			return &storage.ExecutedBlock{BlockData: &types.BlockData{Author: peerID.String()}}, nil
 		}
 		rl := &ReputationBased{
 			windowSize:  1,
@@ -245,10 +324,10 @@ func Test_ReputationBased_electLeader(t *testing.T) {
 		id, err := rl.electLeader(&types.QuorumCert{
 			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
 			VoteInfo:         &types.RoundInfo{ParentRoundNumber: 3},
-			Signatures:       map[string]hex.Bytes{"signer": {1, 2, 3}},
+			Signatures:       map[string]hex.Bytes{peerID.String(): {1, 2, 3}},
 		}, loadBlock)
-		require.EqualError(t, err, `no active validators left after eliminating 1 recent authors`)
-		require.EqualValues(t, UnknownLeader, id)
+		require.NoError(t, err)
+		require.EqualValues(t, peerID, id)
 	})
 
 	// valid signer id-s to use in the following unit tests
@@ -386,40 +465,16 @@ func Test_ReputationBased_roundIndex(t *testing.T) {
 func Test_NewReputationBased(t *testing.T) {
 	t.Parallel()
 
-	t.Run("must provide validators", func(t *testing.T) {
-		ls, err := NewReputationBased(nil, 1, 1)
-		require.EqualError(t, err, `peer list (validators) must not be empty`)
-		require.Nil(t, ls)
-
-		ls, err = NewReputationBased([]peer.ID{}, 1, 1)
-		require.EqualError(t, err, `peer list (validators) must not be empty`)
-		require.Nil(t, ls)
-	})
-
-	t.Run("len(validators) == excludeSize", func(t *testing.T) {
-		ls, err := NewReputationBased([]peer.ID{"A"}, 1, 1)
-		require.EqualError(t, err, `excludeSize value must be smaller than the number of validators in the system (1 validators, exclude 1)`)
-		require.Nil(t, ls)
-	})
-
-	t.Run("len(validators) < excludeSize", func(t *testing.T) {
-		ls, err := NewReputationBased([]peer.ID{"A"}, 1, 2)
-		require.EqualError(t, err, `excludeSize value must be smaller than the number of validators in the system (1 validators, exclude 2)`)
-		require.Nil(t, ls)
-	})
-
 	t.Run("invalid windowSize: 0", func(t *testing.T) {
-		lr, err := NewReputationBased([]peer.ID{"A", "B"}, 0, 1)
+		lr, err := NewReputationBased(0, 1, nil)
 		require.EqualError(t, err, `window size must be greater than zero`)
 		require.Nil(t, lr)
 	})
 
 	t.Run("success", func(t *testing.T) {
-		peerIDs := []peer.ID{"A", "B", "C"}
-		ls, err := NewReputationBased(peerIDs, 1, 2)
+		ls, err := NewReputationBased(1, 2, nil)
 		require.NoError(t, err)
 		require.NotNil(t, ls)
-		require.ElementsMatch(t, ls.validators, peerIDs)
 		require.Equal(t, 1, ls.windowSize)
 		require.Equal(t, 2, ls.excludeSize)
 	})
@@ -428,13 +483,12 @@ func Test_NewReputationBased(t *testing.T) {
 func Test_ReputationBased(t *testing.T) {
 	t.Parallel()
 
-	// generate some peer IDs
-	peerIDs := test.GeneratePeerIDs(t, 10)
-	// we mostly need ID's string representation so as a optimization convert once here
-	peerIDstr := make([]string, len(peerIDs))
-	for k, v := range peerIDs {
-		peerIDstr[k] = v.String()
-	}
+	signers := generateSigners(t, 10)
+	trustBase := trustbase.NewTrustBase(t, signers...)
+	tbs, err := tbstore.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, tbs.Store(trustBase))
+	validators := trustBase.GetRootNodes()
 
 	// mock block store, maps roundNumber to block of the round
 	blockStore := map[uint64]*storage.ExecutedBlock{}
@@ -481,12 +535,13 @@ func Test_ReputationBased(t *testing.T) {
 			Signatures:       make(map[string]hex.Bytes),
 		}
 		// add n-f random signers, select f randomly in range [0..4)
-		cnt := len(peerIDs) - mrand.Intn(4)
-		for _, v := range mrand.Perm(len(peerIDs))[:cnt] {
-			qc.Signatures[peerIDstr[v]] = []byte{byte(v & 0xFF)}
+		cnt := len(validators) - mrand.Intn(4)
+		for _, v := range mrand.Perm(len(validators))[:cnt] {
+			qc.Signatures[validators[v].NodeID] = []byte{byte(v & 0xFF)}
 		}
 		// leader for this round has been elected by previous round
-		leaderID := rl.GetLeaderForRound(round)
+		leaderID, err := rl.GetLeaderForRound(round)
+		require.NoError(t, err)
 		require.NoError(t, storeBlock(&storage.ExecutedBlock{BlockData: &types.BlockData{
 			Round:  round,
 			Author: leaderID.String(),
@@ -501,11 +556,12 @@ func Test_ReputationBased(t *testing.T) {
 	// create election with windowSize=len(peerIDs) - as our block store is empty
 	// loading blocks should fail and we fall back to round-robin selection for
 	// len(peerIDs) rounds
-	rl, err := NewReputationBased(peerIDs, len(peerIDs), 1)
+
+	rl, err := NewReputationBased(len(trustBase.GetRootNodes()), 1, tbs)
 	require.NoError(t, err)
 
 	var currentRound uint64 = 1 // genesis round is 1
-	for i := 0; i < len(peerIDs); i++ {
+	for i := 0; i < len(signers); i++ {
 		currentRound++
 		err := processRound(rl, currentRound)
 		require.Error(t, err)
@@ -513,10 +569,10 @@ func Test_ReputationBased(t *testing.T) {
 	}
 	// validate: blockStore must now contain len(peerIDs) blocks (IOW block per author)
 	// starting with round 2, authors in round-robin order
-	for k := range peerIDstr {
+	for k := range validators {
 		round := uint64(k + 2)
-		idx := round % uint64(len(peerIDstr)) // round-robin index
-		require.Equal(t, peerIDstr[idx], blockStore[round].BlockData.Author, "unexpected author for round %d, index %d", round, idx)
+		idx := round % uint64(len(validators)) // round-robin index
+		require.Equal(t, validators[idx].NodeID, blockStore[round].BlockData.Author, "unexpected author for round %d, index %d", round, idx)
 	}
 
 	// when processing round R (ie we create block for that round) we will
@@ -540,7 +596,7 @@ func Test_ReputationBased(t *testing.T) {
 	// change election parameters and generate some blocks
 	rl.windowSize = 3
 	rl.excludeSize = 3
-	for i := 0; i < 2*len(peerIDs); i++ {
+	for i := 0; i < 2*len(validators); i++ {
 		currentRound++
 		require.NoError(t, processRound(rl, currentRound))
 	}
@@ -556,7 +612,7 @@ func Test_ReputationBased(t *testing.T) {
 	rl.windowSize = 1
 	rl.excludeSize = 3
 	startIndex := currentRound
-	for i := 0; i < 2*len(peerIDs); i++ {
+	for i := 0; i < 2*len(validators); i++ {
 		currentRound++
 		require.NoError(t, processRound(rl, currentRound))
 	}
@@ -568,7 +624,7 @@ func Test_ReputationBased(t *testing.T) {
 	rl.windowSize = 4
 	rl.excludeSize = 2
 	startIndex = currentRound
-	for i := 0; i < 2*len(peerIDs); i++ {
+	for i := 0; i < 2*len(validators); i++ {
 		currentRound++
 		require.NoError(t, processRound(rl, currentRound))
 	}
@@ -580,7 +636,7 @@ func Test_ReputationBased(t *testing.T) {
 	rl.windowSize = 1
 	rl.excludeSize = 1
 	startIndex = currentRound
-	for i := 0; i < 2*len(peerIDs); i++ {
+	for i := 0; i < 2*len(validators); i++ {
 		currentRound++
 		require.NoError(t, processRound(rl, currentRound))
 	}

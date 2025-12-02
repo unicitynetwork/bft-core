@@ -203,7 +203,7 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 		return fmt.Errorf("node ID is not in active validator set %s - %s - %s", req.PartitionID, req.ShardID, req.NodeID)
 	}
 
-	if si.LastCR.UC.GetRoundNumber() == 0 {
+	if si.LastCR == nil || si.LastCR.UC.GetRoundNumber() == 0 {
 		// Make sure shard nodes get CertificationResponses even
 		// before they send the first BlockCertificationRequests
 		if err := v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID); err != nil {

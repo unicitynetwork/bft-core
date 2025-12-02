@@ -223,18 +223,19 @@ func (x *Pacemaker) AdvanceRoundQC(ctx context.Context, qc *types.QuorumCert) bo
 }
 
 // AdvanceRoundTC - trigger next round/view on timeout certificate
-func (x *Pacemaker) AdvanceRoundTC(ctx context.Context, tc *types.TimeoutCert) {
+func (x *Pacemaker) AdvanceRoundTC(ctx context.Context, tc *types.TimeoutCert) bool {
 	ctx, span := x.tracer.Start(ctx, "Pacemaker.AdvanceRoundTC")
 	defer span.End()
 
 	// no timeout cert or is from old view/round - ignore
 	if tc == nil || tc.Timeout.Round < x.currentRound.Load() {
-		return
+		return false
 	}
 
 	x.lastRoundTC = tc
 	x.startNewRound(ctx, tc.Timeout.Round+1)
 	x.roundCnt.Add(ctx, 1, attrSetNextRoundTC)
+	return true
 }
 
 /*

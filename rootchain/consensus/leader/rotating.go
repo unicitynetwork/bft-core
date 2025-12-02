@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-)
 
-const UnknownLeader = ""
+	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
+	"github.com/unicitynetwork/bft-go-base/types"
+)
 
 type RoundRobin struct {
 	validators []peer.ID
@@ -29,9 +29,9 @@ func NewRoundRobin(validators []peer.ID, contRounds uint32) (*RoundRobin, error)
 	return &RoundRobin{validators: validators, nofRounds: contRounds}, nil
 }
 
-func (r *RoundRobin) GetLeaderForRound(round uint64) peer.ID {
+func (r *RoundRobin) GetLeaderForRound(round uint64) (peer.ID, error) {
 	index := (round / uint64(r.nofRounds)) % uint64(len(r.validators))
-	return r.validators[index]
+	return r.validators[index], nil
 }
 
 /*
@@ -42,5 +42,9 @@ func (r *RoundRobin) GetNodes() []peer.ID {
 }
 
 func (r *RoundRobin) Update(qc *abtypes.QuorumCert, currentRound uint64, b BlockLoader) error {
+	return nil
+}
+
+func (r *RoundRobin) UpdateWithTrustBase(trustBase types.RootTrustBase, currentRound uint64) error {
 	return nil
 }

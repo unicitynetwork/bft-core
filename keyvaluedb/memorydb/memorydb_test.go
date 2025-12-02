@@ -33,8 +33,7 @@ func isEmpty(t *testing.T, db *MemoryDB) bool {
 }
 
 func TestMemDB_TestIsEmpty(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.NotNil(t, db)
 	empty, err := keyvaluedb.IsEmpty(db)
 	require.NoError(t, err)
@@ -49,8 +48,7 @@ func TestMemDB_TestIsEmpty(t *testing.T) {
 }
 
 func TestMemDB_TestEmptyValue(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.NotNil(t, db)
 	var data testStruct
 	found, err := db.Read([]byte("data"), &data)
@@ -65,8 +63,7 @@ func TestMemDB_TestEmptyValue(t *testing.T) {
 }
 
 func TestMemDB_TestInvalidWriteAndRead(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.NotNil(t, db)
 	var data *testStruct = nil
 	require.Error(t, db.Write([]byte("data"), data))
@@ -90,8 +87,7 @@ func TestMemDB_TestInvalidWriteAndRead(t *testing.T) {
 }
 
 func TestMemDB_WriteAndRead(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.NotNil(t, db)
 	require.True(t, isEmpty(t, db))
 	var value uint64 = 1
@@ -116,8 +112,7 @@ func TestMemDB_WriteAndRead(t *testing.T) {
 }
 
 func TestMemDB_TestSerializeError(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.NotNil(t, db)
 	// use custom type that has got marshal implementation
 	c := make(chan int)
@@ -125,8 +120,7 @@ func TestMemDB_TestSerializeError(t *testing.T) {
 }
 
 func TestMemDB_Delete(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.NotNil(t, db)
 	require.True(t, isEmpty(t, db))
 	var value uint64 = 1
@@ -141,8 +135,7 @@ func TestMemDB_Delete(t *testing.T) {
 }
 
 func TestMemDB_WriteReadComplexStruct(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.NotNil(t, db)
 	require.True(t, isEmpty(t, db))
 	// write a complex struct
@@ -183,8 +176,7 @@ func TestMemDB_StartTxNil(t *testing.T) {
 }
 
 func TestBoltDB_TestReadAndWriteIterate(t *testing.T) {
-	db, err := New()
-	require.NoError(t, err)
+	db := New()
 	require.NotNil(t, db)
 	require.True(t, isEmpty(t, db))
 	var value uint64 = 1

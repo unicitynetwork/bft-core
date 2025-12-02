@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
 	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 var shardConf = &types.PartitionDescriptionRecord{
@@ -25,50 +26,15 @@ var shardConf = &types.PartitionDescriptionRecord{
 	T2Timeout:       2500 * time.Millisecond,
 }
 
-func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
-	type args struct {
-		shardConf     *types.PartitionDescriptionRecord
-		rootTrustBase types.RootTrustBase
-		algorithm     gocrypto.Hash
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr error
-	}{
-		{
-			name: "trust base is nil",
-			args: args{
-				shardConf:     shardConf,
-				rootTrustBase: nil,
-				algorithm:     gocrypto.SHA256,
-			},
-			wantErr: types.ErrRootValidatorInfoMissing,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewDefaultUnicityCertificateValidator(
-				tt.args.shardConf.PartitionID, tt.args.shardConf.ShardID, tt.args.rootTrustBase, tt.args.algorithm)
-			require.ErrorIs(t, err, tt.wantErr)
-			require.Nil(t, got)
-		})
-	}
-}
-
 func TestDefaultUnicityCertificateValidator_ValidateNotOk(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := trustbase.NewTrustBase(t, verifier)
-	v, err := NewDefaultUnicityCertificateValidator(shardConf.PartitionID, shardConf.ShardID, rootTrust, gocrypto.SHA256)
-	require.NoError(t, err)
-	require.ErrorIs(t, v.Validate(nil, nil), types.ErrUnicityCertificateIsNil)
+	v := NewDefaultUnicityCertificateValidator(gocrypto.SHA256)
+	require.ErrorIs(t, v.Validate(nil, shardConf, nil), types.ErrUnicityCertificateIsNil)
 }
 
 func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := trustbase.NewTrustBase(t, verifier)
-	v, err := NewDefaultUnicityCertificateValidator(shardConf.PartitionID, shardConf.ShardID, rootTrust, gocrypto.SHA256)
-	require.NoError(t, err)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, signer)
+	v := NewDefaultUnicityCertificateValidator(gocrypto.SHA256)
 	ir := &types.InputRecord{
 		Version:      1,
 		PreviousHash: make([]byte, 32),
@@ -87,56 +53,24 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 		make([]byte, 32),
 		make([]byte, 32),
 	)
-	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
-	require.NoError(t, err)
-	require.NoError(t, v.Validate(uc, shardConfHash))
-}
-
-func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
-	type args struct {
-		shardConf *types.PartitionDescriptionRecord
-		trustBase types.RootTrustBase
-		algorithm gocrypto.Hash
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr error
-	}{
-		{
-			name: "trust base is nil",
-			args: args{
-				shardConf: shardConf,
-				trustBase: nil,
-				algorithm: gocrypto.SHA256,
-			},
-			wantErr: types.ErrRootValidatorInfoMissing,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewDefaultBlockProposalValidator(
-				tt.args.shardConf.PartitionID, tt.args.shardConf.ShardID, tt.args.trustBase, tt.args.algorithm)
-			require.ErrorIs(t, err, tt.wantErr)
-			require.Nil(t, got)
-		})
-	}
+	require.NoError(t, v.Validate(uc, shardConf, trustBase))
 }
 
 func TestDefaultNewDefaultBlockProposalValidator_ValidateNotOk(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := trustbase.NewTrustBase(t, verifier)
-	v, err := NewDefaultBlockProposalValidator(shardConf.PartitionID, shardConf.ShardID, rootTrust, gocrypto.SHA256)
-	require.NoError(t, err)
+	v := NewDefaultBlockProposalValidator(gocrypto.SHA256)
 	require.ErrorIs(t, v.Validate(nil, nil, nil), blockproposal.ErrBlockProposalIsNil)
 }
 
 func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	nodeSigner, nodeVerifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := trustbase.NewTrustBase(t, verifier)
-	v, err := NewDefaultBlockProposalValidator(shardConf.PartitionID, shardConf.ShardID, rootTrust, gocrypto.SHA256)
+	shardConf := *shardConf
+	keyConf, nodeInfo := createKeyConf(t)
+	shardConf.Validators = []*types.NodeInfo{nodeInfo}
+	signer, err := keyConf.Signer()
 	require.NoError(t, err)
+
+	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, rootSigner)
+	v := NewDefaultBlockProposalValidator(gocrypto.SHA256)
 	ir := &types.InputRecord{
 		Version:      1,
 		PreviousHash: make([]byte, 32),
@@ -157,17 +91,20 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	require.NoError(t, err)
 	uc := testcertificates.CreateUnicityCertificate(
 		t,
-		signer,
+		rootSigner,
 		ir,
-		shardConf,
+		&shardConf,
 		1,
 		make([]byte, 32),
 		trHash,
 	)
 
+	peerID, err := keyConf.NodeID()
+	require.NoError(t, err)
+
 	bp := &blockproposal.BlockProposal{
 		PartitionID:        uc.UnicityTreeCertificate.Partition,
-		NodeID:             "1",
+		NodeID:             peerID,
 		UnicityCertificate: uc,
 		Technical:          tr,
 		Transactions: []*types.TransactionRecord{
@@ -179,11 +116,12 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 			},
 		},
 	}
-	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
+	err = bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)
-	err = bp.Sign(gocrypto.SHA256, nodeSigner)
-	require.NoError(t, err)
-	require.NoError(t, v.Validate(bp, nodeVerifier, shardConfHash))
+	require.NoError(t, v.Validate(bp, &shardConf, trustBase))
+
+	bp.NodeID = "1"
+	require.ErrorContains(t, v.Validate(bp, &shardConf, trustBase), "block proposal from unknown validator")
 }
 
 func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
@@ -206,7 +144,7 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 			tx:                  testtransaction.NewTransactionOrder(t), // default partitionID is 0x00000001
 			latestBlockNumber:   10,
 			expectedPartitionID: 0x01020304,
-			errStr:              "expected 01020304, got 00000001: invalid transaction partition identifier",
+			errStr:              "expected partitionID 01020304, got 00000001: invalid partition identifier",
 		},
 		{
 			name:                "expired transaction",
@@ -218,10 +156,12 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dtv := &DefaultTxValidator{
-				partitionID: tt.expectedPartitionID,
+			dtv := &DefaultTransactionOrderValidator{}
+
+			shardConf := &types.PartitionDescriptionRecord{
+				PartitionID: tt.expectedPartitionID,
 			}
-			err := dtv.Validate(tt.tx, tt.latestBlockNumber)
+			err := dtv.Validate(tt.tx, shardConf, tt.latestBlockNumber)
 			require.ErrorContains(t, err, tt.errStr)
 		})
 	}

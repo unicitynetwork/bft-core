@@ -917,11 +917,10 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 
 func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	// simulate storage error on two items stored in DB
-	db, err := memorydb.New()
-	require.NoError(t, err)
+	db := memorydb.New()
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
-	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}, WithBlockStore(db))
+	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}, WithBlockDB(db))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := tp.start(ctx, t)
 	t.Cleanup(func() {
@@ -1000,9 +999,8 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	tp := newSingleValidatorNodePartition(t, txs)
 
 	// Replace blockStore before node is run
-	db, err := memorydb.New()
-	require.NoError(t, err)
-	tp.nodeConf.blockStore = db
+	db := memorydb.New()
+	tp.nodeConf.blockDB = db
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := tp.start(ctx, t)
@@ -1087,9 +1085,8 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	tp := newSingleValidatorNodePartition(t, txs)
 
 	// Replace blockStore before node is run
-	db, err := memorydb.New()
-	require.NoError(t, err)
-	tp.nodeConf.blockStore = db
+	db := memorydb.New()
+	tp.nodeConf.blockDB = db
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := tp.start(ctx, t)
@@ -1275,7 +1272,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeID:           tp.nodeID(t).String(),
 		BeginBlockNumber: genesisBlockNumber + 1,
-		PartitionID:      tp.nodeConf.PartitionID(),
+		PartitionID:      tp.nodeConf.ShardConf().GetPartitionID(),
 	})
 
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
@@ -1294,7 +1291,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeID:           tp.nodeID(t).String(),
 		BeginBlockNumber: genesisBlockNumber + 1,
-		PartitionID:      tp.nodeConf.PartitionID(),
+		PartitionID:      tp.nodeConf.ShardConf().GetPartitionID(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
@@ -1339,7 +1336,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeID:           tp.nodeID(t).String(),
 		BeginBlockNumber: 11,
-		PartitionID:      tp.nodeConf.PartitionID(),
+		PartitionID:      tp.nodeConf.ShardConf().GetPartitionID(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	//make sure response is sent
@@ -1376,14 +1373,14 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 		NodeID:           tp.nodeID(t).String(),
 		BeginBlockNumber: 5,
 		EndBlockNumber:   3,
-		PartitionID:      tp.nodeConf.PartitionID(),
+		PartitionID:      tp.nodeConf.ShardConf().GetPartitionID(),
 	}
 	require.ErrorContains(t, tp.node.handleLedgerReplicationRequest(context.Background(), req), "invalid request, invalid block request range from 5 to 3")
 	// unknown node identifier
 	req = &replication.LedgerReplicationRequest{
 		NodeID:           "",
 		BeginBlockNumber: 2,
-		PartitionID:      tp.nodeConf.PartitionID(),
+		PartitionID:      tp.nodeConf.ShardConf().GetPartitionID(),
 	}
 	require.ErrorContains(t, tp.node.handleLedgerReplicationRequest(context.Background(), req), "invalid request, node identifier is missing")
 }
@@ -1433,8 +1430,8 @@ func createBlock(t *testing.T, tp *SingleNodePartition, txs txsystem.Transaction
 	newBlock := &types.Block{
 		Header: &types.Header{
 			Version:           1,
-			PartitionID:       tp.nodeConf.shardConf.PartitionID,
-			ShardID:           tp.nodeConf.shardConf.ShardID,
+			PartitionID:       tp.nodeConf.ShardConf().GetPartitionID(),
+			ShardID:           tp.nodeConf.ShardConf().GetShardID(),
 			ProposerID:        tp.nodeID(t).String(),
 			PreviousBlockHash: uc.InputRecord.BlockHash,
 		},

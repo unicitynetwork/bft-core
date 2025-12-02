@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
 	abdrc "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func TestIrChangeReqMsg_SignAndVerifyOK(t *testing.T) {
@@ -19,10 +20,10 @@ func TestIrChangeReqMsg_SignAndVerifyOK(t *testing.T) {
 			CertReason: abdrc.Quorum,
 		},
 	}
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	require.NoError(t, msg.Sign(signer))
 	require.NotEmpty(t, msg.Signature)
-	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"test": verifier})
+	rootTrust := testtb.NewTrustBaseFromSigners(t, map[string]crypto.Signer{"test": signer})
 	require.NoError(t, msg.Verify(rootTrust))
 }
 
@@ -148,8 +149,8 @@ func TestIrChangeReqMsg_Sign_Errors(t *testing.T) {
 }
 
 func TestIrChangeReqMsg_Verify(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	tb := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"test": verifier})
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	tb := testtb.NewTrustBaseFromSigners(t, map[string]crypto.Signer{"test": signer})
 
 	type fields struct {
 		Author      string

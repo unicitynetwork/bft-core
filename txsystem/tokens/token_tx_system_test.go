@@ -17,9 +17,12 @@ import (
 	"github.com/unicitynetwork/bft-go-base/util"
 
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/state"
 	"github.com/unicitynetwork/bft-core/txsystem"
 	"github.com/unicitynetwork/bft-core/txsystem/fc/testutils"
@@ -56,16 +59,16 @@ func TestNewTokenTxSystem(t *testing.T) {
 	}
 	observe := observability.Default(t)
 
-	t.Run("invalid PartitionID", func(t *testing.T) {
-		invalidPDR := pdr
-		invalidPDR.PartitionID = 0
-		txs, err := NewTxSystem(invalidPDR, observe, WithState(state.NewEmptyState()))
-		require.ErrorContains(t, err, `failed to load permissionless fee credit module: invalid fee credit module configuration: invalid PDR: invalid partition identifier: 00000000`)
+	t.Run("trust base store is nil", func(t *testing.T) {
+		txs, err := NewTxSystem(&pdr, observe,
+			WithState(state.NewEmptyState()),
+			WithTrustBaseStore(nil))
+		require.ErrorContains(t, err, `failed to load permissionless fee credit module: invalid fee credit module configuration: trust base store is nil`)
 		require.Nil(t, txs)
 	})
 
 	t.Run("state is nil", func(t *testing.T) {
-		txs, err := NewTxSystem(pdr, observe, WithState(nil))
+		txs, err := NewTxSystem(&pdr, observe, WithState(nil))
 		require.EqualError(t, err, "state is nil")
 		require.Nil(t, txs)
 	})
@@ -1601,7 +1604,7 @@ func signTx(t *testing.T, tx *types.TransactionOrder, signer abcrypto.Signer, pu
 }
 
 func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, *state.State, types.PartitionDescriptionRecord) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(state.AddUnit(feeCreditID, &fc.FeeCreditRecord{
 		Balance:        100,
@@ -1627,9 +1630,13 @@ func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, 
 		T2Timeout:       2000 * time.Millisecond,
 	}
 
-	opts = append(opts, WithTrustBase(testtb.NewTrustBase(t, verifier)), WithState(s))
+	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, signer)))
+
+	opts = append(opts, WithTrustBaseStore(trustBaseStore), WithState(s))
 	txs, err := NewTxSystem(
-		pdr,
+		&pdr,
 		observability.Default(t),
 		opts...,
 	)

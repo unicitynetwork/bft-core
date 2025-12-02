@@ -71,7 +71,7 @@ func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, at
 }
 
 func (m *FungibleTokensModule) getFungibleTokenData(unitID types.UnitID) (*tokens.FungibleTokenData, error) {
-	if err := unitID.TypeMustBe(tokens.FungibleTokenUnitType, &m.pdr); err != nil {
+	if err := unitID.TypeMustBe(tokens.FungibleTokenUnitType, m.shardConf.ExtractUnitType); err != nil {
 		return nil, fmt.Errorf("invalid unit ID: %w", err)
 	}
 

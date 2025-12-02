@@ -7,10 +7,9 @@ import (
 	"github.com/unicitynetwork/bft-core/txsystem/fc"
 	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 	"github.com/unicitynetwork/bft-go-base/txsystem/money"
-	basetypes "github.com/unicitynetwork/bft-go-base/types"
 )
 
-func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(shardConf txsystem.ShardConf, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("money transaction system default configuration: %w", err)
@@ -19,11 +18,11 @@ func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, observe txsyst
 		option(options)
 	}
 
-	moneyModule, err := NewMoneyModule(*shardConf, options)
+	moneyModule, err := NewMoneyModule(shardConf, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load money module: %w", err)
 	}
-	feeCreditModule, err := fc.NewFeeCreditModule(*shardConf, shardConf.PartitionID, options.state, options.trustBase, observe,
+	feeCreditModule, err := fc.NewFeeCreditModule(shardConf, shardConf.GetPartitionID(), options.state, options.trustBaseStore, observe,
 		fc.WithHashAlgorithm(options.hashAlgorithm),
 		fc.WithFeeCreditRecordUnitType(money.FeeCreditRecordUnitType),
 	)
@@ -31,7 +30,7 @@ func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, observe txsyst
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
 	return txsystem.NewGenericTxSystem(
-		*shardConf,
+		shardConf,
 		[]txtypes.Module{moneyModule},
 		observe,
 		txsystem.WithFeeCredits(feeCreditModule),

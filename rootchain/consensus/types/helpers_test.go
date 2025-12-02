@@ -7,11 +7,15 @@ import (
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"github.com/unicitynetwork/bft-core/internal/testutils"
-	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
+
+	"github.com/unicitynetwork/bft-core/internal/testutils"
+	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 )
 
 /*
@@ -20,18 +24,21 @@ Generally fields are filled with random data but the data struct should
 succeed IsValid and Verify checks.
 */
 type structBuilder struct {
-	verifiers map[string]abcrypto.Verifier
-	signers   map[string]abcrypto.Signer
-	trustBase *types.RootTrustBaseV1
+	verifiers      map[string]abcrypto.Verifier
+	signers        map[string]abcrypto.Signer
+	trustBaseStore *trustbase.TrustBaseStore
 }
 
 func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 	t.Helper()
 
+	tbs, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+
 	sb := &structBuilder{
-		verifiers: map[string]abcrypto.Verifier{},
-		signers:   map[string]abcrypto.Signer{},
-		trustBase: &types.RootTrustBaseV1{Version: 1},
+		verifiers:      map[string]abcrypto.Verifier{},
+		signers:        map[string]abcrypto.Signer{},
+		trustBaseStore: tbs,
 	}
 
 	var nodes []*types.NodeInfo
@@ -55,11 +62,14 @@ func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 		nodes = append(nodes, &types.NodeInfo{NodeID: nodeID, SigKey: pubKey, Stake: 1})
 	}
 
-	tb, err := types.NewTrustBaseGenesis(5, nodes)
+	tb, err := types.NewTrustBase(5, nodes)
 	if err != nil {
 		require.NoError(t, err)
 	}
-	sb.trustBase = tb
+	for _, node := range nodes {
+		require.NoError(t, tb.Sign(node.NodeID, sb.signers[node.NodeID]))
+	}
+	sb.trustBaseStore.Store(tb)
 
 	return sb
 }
@@ -146,7 +156,8 @@ func (sb structBuilder) BlockData(t *testing.T) *BlockData {
 
 func Test_structBuilder(t *testing.T) {
 	sb := newStructBuilder(t, 3)
-	tb := sb.trustBase
+	tb, err := sb.trustBaseStore.LoadFirst()
+	require.NoError(t, err)
 	require.NotNil(t, tb)
 	require.Equal(t, len(sb.signers), len(sb.verifiers))
 	for k := range sb.verifiers {
@@ -159,11 +170,11 @@ func Test_structBuilder(t *testing.T) {
 	require.NoError(t, qc.Verify(tb))
 
 	tc := sb.TimeoutCert(t)
-	require.NoError(t, tc.Verify(tb))
+	require.NoError(t, tc.Verify(sb.trustBaseStore))
 
 	to := sb.Timeout(t)
 	require.NoError(t, to.IsValid())
-	require.NoError(t, to.Verify(tb))
+	require.NoError(t, to.Verify(sb.trustBaseStore))
 
 	bd := sb.BlockData(t)
 	require.NoError(t, bd.IsValid())

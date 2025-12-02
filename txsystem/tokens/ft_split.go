@@ -12,7 +12,7 @@ import (
 )
 
 func (m *FungibleTokensModule) splitFTTargetUnits(tx *types.TransactionOrder, _ *tokens.SplitFungibleTokenAttributes, _ *tokens.SplitFungibleTokenAuthProof, _ txtypes.ExecutionContext) ([]types.UnitID, error) {
-	newTokenID, err := m.pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
+	newTokenID, err := m.shardConf.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	ftData := u.Data().(*tokens.FungibleTokenData)
 
 	// add new token unit
-	newTokenID, err := m.pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
+	newTokenID, err := m.shardConf.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
 	if err != nil {
 		return nil, err
 	}

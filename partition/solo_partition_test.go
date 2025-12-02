@@ -14,6 +14,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/hash"
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testlogger "github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	testnetwork "github.com/unicitynetwork/bft-core/internal/testutils/network"
@@ -21,16 +25,15 @@ import (
 	testevent "github.com/unicitynetwork/bft-core/internal/testutils/partition/event"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	"github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	"github.com/unicitynetwork/bft-core/observability"
 	"github.com/unicitynetwork/bft-core/partition/event"
+	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/txsystem"
-	"github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/hash"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -51,11 +54,11 @@ type SingleNodePartition struct {
 	obs     Observability
 }
 
-func (t *AlwaysValidTransactionValidator) Validate(*types.TransactionOrder, uint64) error {
+func (t *AlwaysValidTransactionValidator) Validate(*types.TransactionOrder, *types.PartitionDescriptionRecord, uint64) error {
 	return nil
 }
 
-func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposal, crypto.Verifier, []byte) error {
+func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposal, *types.PartitionDescriptionRecord, types.RootTrustBase) error {
 	return nil
 }
 
@@ -95,8 +98,8 @@ func newSingleNodeShard(t *testing.T, txSystem txsystem.TransactionSystem, valid
 	}
 
 	// trust base
-	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := trustbase.NewTrustBase(t, rootVerifier)
+	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, rootSigner)
 	net := testnetwork.NewMockNetwork(t)
 	log := testlogger.New(t).With(logger.NodeID(nodeID))
 	obs := observability.WithLogger(testobserve.Default(t), log)
@@ -110,7 +113,15 @@ func newSingleNodeShard(t *testing.T, txSystem txsystem.TransactionSystem, valid
 		WithValidatorNetwork(net),
 	}, nodeOptions...)
 
-	nodeConf, err := NewNodeConf(keyConf, shardConf, trustBase, obs, nodeOptions...)
+	shardConfStore, err := NewShardConfStore(memorydb.New(), obs.Logger())
+	require.NoError(t, err)
+	require.NoError(t, shardConfStore.Store(shardConf))
+
+	trustBaseStore, err := tbstore.NewTrustBaseStore(memorydb.New(), obs.Logger())
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(trustBase))
+
+	nodeConf, err := NewNodeConf(keyConf, shardConfStore, trustBaseStore, obs, nodeOptions...)
 	require.NoError(t, err)
 
 	shard := &SingleNodePartition{
@@ -156,7 +167,7 @@ func runSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 func (s *SingleNodePartition) createInitialUC(t *testing.T) {
 	initialUC, _, err := s.CreateUnicityCertificate(t, &types.InputRecord{Version: 1}, 1)
 	require.NoError(t, err)
-	s.certs[s.nodeConf.shardConf.PartitionID] = initialUC
+	s.certs[s.nodeConf.ShardConf().GetPartitionID()] = initialUC
 	require.NoError(t, s.txSystem.Commit(initialUC))
 }
 
@@ -206,8 +217,8 @@ func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.Input
 	}
 
 	sn.mockNet.Receive(&certification.CertificationResponse{
-		Partition: sn.nodeConf.PartitionID(),
-		Shard:     sn.nodeConf.ShardID(),
+		Partition: sn.nodeConf.ShardConf().GetPartitionID(),
+		Shard:     sn.nodeConf.ShardConf().GetShardID(),
 		Technical: tr,
 		UC:        *uc,
 	})
@@ -218,8 +229,8 @@ SubmitUnicityCertificate wraps the UC into CertificationResponse and sends it to
 */
 func (sn *SingleNodePartition) SubmitUnicityCertificate(t *testing.T, uc *types.UnicityCertificate) {
 	cr := &certification.CertificationResponse{
-		Partition: sn.nodeConf.PartitionID(),
-		Shard:     sn.nodeConf.ShardID(),
+		Partition: sn.nodeConf.ShardConf().GetPartitionID(),
+		Shard:     sn.nodeConf.ShardConf().GetShardID(),
 		UC:        *uc,
 	}
 	tr := technicalRecord(t, uc.InputRecord, []string{sn.node.peer.ID().String()})
@@ -240,8 +251,8 @@ func (sn *SingleNodePartition) WaitHandshake(t *testing.T) {
 	sn.mockNet.ResetSentMessages(network.ProtocolHandshake)
 
 	cr := &certification.CertificationResponse{
-		Partition: sn.nodeConf.shardConf.PartitionID,
-		Shard:     sn.nodeConf.shardConf.ShardID,
+		Partition: sn.nodeConf.ShardConf().GetPartitionID(),
+		Shard:     sn.nodeConf.ShardConf().GetShardID(),
 	}
 	uc := sn.certs[sn.node.PartitionID()]
 	// TODO: makes it a duplicate, same uc already in txs as commitedUC, is this needed?
@@ -269,9 +280,12 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(t *testing.T, ir *types.
 
 	var shardConfHash []byte
 	if sn.node != nil {
-		shardConfHash = sn.node.shardStore.ShardConfHash()
+		shardConfHash, err = sn.node.shardConf.Load().Hash(gocrypto.SHA256)
+		require.NoError(t, err)
 	} else {
-		shardConfHash, err = sn.nodeConf.shardConf.Hash(gocrypto.SHA256)
+		shardConf, err := sn.nodeConf.shardConfStore.GetFirst()
+		require.NoError(t, err)
+		shardConfHash, err = shardConf.Hash(gocrypto.SHA256)
 		require.NoError(t, err)
 	}
 
@@ -287,7 +301,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(t *testing.T, ir *types.
 	}
 
 	data := []*types.UnicityTreeData{{
-		Partition:     sn.nodeConf.PartitionID(),
+		Partition:     sn.nodeConf.ShardConf().GetPartitionID(),
 		ShardTreeRoot: sTree.RootHash(),
 	}}
 	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
@@ -299,7 +313,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(t *testing.T, ir *types.
 	if err != nil {
 		return nil, nil, err
 	}
-	cert, err := ut.Certificate(sn.nodeConf.PartitionID())
+	cert, err := ut.Certificate(sn.nodeConf.ShardConf().GetPartitionID())
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}
@@ -323,7 +337,9 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(t *testing.T, ir *type
 		return nil, tr, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
 	}
 
-	shardConfHash := sn.node.shardStore.ShardConfHash()
+	shardConfHash, err := sn.node.shardConf.Load().Hash(gocrypto.SHA256)
+	require.NoError(t, err)
+
 	sTree, err := types.CreateShardTree(nil, []types.ShardTreeInput{
 		{Shard: types.ShardID{}, IR: ir, TRHash: trHash, ShardConfHash: shardConfHash},
 	}, gocrypto.SHA256)
@@ -426,7 +442,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.node.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
+	sn.node.handleMonitoring(context.Background(), time.Now().Add(-3*sn.node.shardConf.Load().T2Timeout), time.Now())
 }
 
 func createKeyConf(t *testing.T) (*KeyConf, *types.NodeInfo) {

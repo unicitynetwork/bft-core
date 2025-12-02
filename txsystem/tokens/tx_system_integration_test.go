@@ -17,6 +17,7 @@ import (
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testpartition "github.com/unicitynetwork/bft-core/internal/testutils/partition"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/state"
 	"github.com/unicitynetwork/bft-core/txsystem"
 	"github.com/unicitynetwork/bft-core/txsystem/fc/unit"
@@ -47,8 +48,8 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	abNet := testpartition.NewUnicityNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &pdr, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
-		system, err := NewTxSystem(pdr, observability.Default(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
+	abNet.AddShard(t, &pdr, 3, func(tbs *trustbase.TrustBaseStore) txsystem.TransactionSystem {
+		system, err := NewTxSystem(&pdr, observability.Default(t), WithTrustBaseStore(tbs), WithState(genesisState.Clone()))
 		require.NoError(t, err)
 		return system
 	})
@@ -106,10 +107,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	abNet := testpartition.NewUnicityNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &pdr, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNet.AddShard(t, &pdr, 3, func(tbs *trustbase.TrustBaseStore) txsystem.TransactionSystem {
+		tb, err := tbs.LoadFirst()
+		require.NoError(t, err)
 		trustBase = tb
 		genesisState = genesisState.Clone()
-		system, err := NewTxSystem(pdr, observability.Default(t), WithState(genesisState), WithTrustBase(tb))
+		system, err := NewTxSystem(&pdr, observability.Default(t), WithState(genesisState), WithTrustBaseStore(tbs))
 		require.NoError(t, err)
 		states = append(states, genesisState)
 		return system

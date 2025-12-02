@@ -15,9 +15,12 @@ import (
 
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testblock "github.com/unicitynetwork/bft-core/internal/testutils/block"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/state"
 	testctx "github.com/unicitynetwork/bft-core/txsystem/testutils/exec_context"
 	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
@@ -220,7 +223,7 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 		TypeIDLen:       8,
 	}
 
-	m, err := NewFungibleTokensModule(pdr, opts)
+	m, err := NewFungibleTokensModule(&pdr, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -285,7 +288,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	}
 	childTx := createTxOrder(t, childID, tokens.TransactionTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationProofs: [][]byte{templates.EmptyArgument()}}))
 
-	m, err := NewFungibleTokensModule(pdr, opts)
+	m, err := NewFungibleTokensModule(&pdr, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -468,7 +471,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	}
 	tx := createTxOrder(t, nil, tokens.TransactionTypeMintFT, attributes)
 	tx.NetworkID = pdr.NetworkID
-	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, pdr))
 	m, err := NewFungibleTokensModule(pdr, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
@@ -787,7 +790,7 @@ func TestSplitFungibleToken_WithExistingDummyUnitsOk(t *testing.T) {
 	tx := createTxOrder(t, existingTokenID, tokens.TransactionTypeSplitFT, attr, testtransaction.WithAuthProof(authProof))
 
 	// calculate split target unit id
-	newTokenID, err := m.pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
+	newTokenID, err := m.shardConf.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
 	require.NoError(t, err)
 
 	// create that token as dummy unit ahead of time
@@ -941,9 +944,12 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 }
 
 func TestJoinFungibleToken_Ok(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
-	opts.trustBase = testtb.NewTrustBase(t, verifier)
+	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, signer)))
+	opts.trustBaseStore = trustBaseStore
 	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
@@ -977,9 +983,12 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	trustBaseStore, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, trustBaseStore.Store(testtb.NewTrustBase(t, signer)))
 	opts := defaultOpts(t)
-	opts.trustBase = testtb.NewTrustBase(t, verifier)
+	opts.trustBaseStore = trustBaseStore
 
 	burnTxInvalidTargetTokenID := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
 		TypeID:             existingTokenTypeID,
