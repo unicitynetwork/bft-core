@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/unicitynetwork/bft-core/state"
-	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 	"github.com/unicitynetwork/bft-go-base/txsystem/money"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	"github.com/unicitynetwork/bft-core/state"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 )
 
 func (m *Module) executeSwapTx(tx *types.TransactionOrder, _ *money.SwapDCAttributes, _ *money.SwapDCAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
@@ -96,7 +97,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 		if err != nil {
 			return fmt.Errorf("dust transfer proof is not valid at index %d: %w", i, err)
 		}
-		trustBase, err := m.trustBaseStore.GetByEpoch(proofUC.InputRecord.Epoch)
+		trustBase, err := m.trustBaseStore.GetByEpoch(proofUC.GetRootEpoch())
 		if err != nil {
 			return fmt.Errorf("failed to get trust base for dust transfer proof at index %d: %w", i, err)
 		}

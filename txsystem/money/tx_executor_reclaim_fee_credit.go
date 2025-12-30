@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
 	"github.com/unicitynetwork/bft-go-base/txsystem/money"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 
 	"github.com/unicitynetwork/bft-core/state"
 )
@@ -109,7 +110,7 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 	if err != nil {
 		return fmt.Errorf("invalid transFC proof: %w", err)
 	}
-	trustBase, err := m.trustBaseStore.GetByEpoch(proofUC.InputRecord.Epoch)
+	trustBase, err := m.trustBaseStore.GetByEpoch(proofUC.GetRootEpoch())
 	if err != nil {
 		return fmt.Errorf("failed to get trust base for closeFC proof: %w", err)
 	}

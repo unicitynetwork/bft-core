@@ -11,9 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func mockExecutedBlock(round, qcRound uint64) ExecutedBlock {
@@ -25,7 +26,7 @@ func mockExecutedBlock(round, qcRound uint64) ExecutedBlock {
 				VoteInfo: &drctypes.RoundInfo{
 					RoundNumber:       qcRound,
 					ParentRoundNumber: qcRound - 1,
-					Epoch:             0,
+					Epoch:             drctypes.GenesisRootEpoch,
 					CurrentRootHash:   randomHash,
 				},
 				LedgerCommitInfo: &types.UnicitySeal{

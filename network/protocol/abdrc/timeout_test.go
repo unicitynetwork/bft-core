@@ -22,11 +22,11 @@ func TestTimeoutMsg_Bytes(t *testing.T) {
 	timeoutMsg := &TimeoutMsg{
 		Timeout: &types.Timeout{
 			Round: 10,
-			Epoch: 0,
+			Epoch: types.GenesisRootEpoch,
 			HighQc: &types.QuorumCert{
 				VoteInfo: &types.RoundInfo{
 					RoundNumber:       9,
-					Epoch:             0,
+					Epoch:             types.GenesisRootEpoch,
 					Timestamp:         0x0010670314583523,
 					ParentRoundNumber: 8,
 					CurrentRootHash:   []byte{0, 1, 3}},
@@ -37,7 +37,7 @@ func TestTimeoutMsg_Bytes(t *testing.T) {
 	}
 	serialized := []byte{
 		0, 0, 0, 0, 0, 0, 0, 10,
-		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 1,
 		0, 0, 0, 0, 0, 0, 0, 9,
 		't', 'e', 's', 't',
 	}
@@ -48,11 +48,11 @@ func TestBytesFromTimeoutVote(t *testing.T) {
 	timeoutMsg := &TimeoutMsg{
 		Timeout: &types.Timeout{
 			Round: 10,
-			Epoch: 0,
+			Epoch: types.GenesisRootEpoch,
 			HighQc: &types.QuorumCert{
 				VoteInfo: &types.RoundInfo{
 					RoundNumber:       9,
-					Epoch:             0,
+					Epoch:             types.GenesisRootEpoch,
 					Timestamp:         0x0010670314583523,
 					ParentRoundNumber: 8,
 					CurrentRootHash:   []byte{0, 1, 3}},
@@ -92,7 +92,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Timeout: &types.Timeout{
 					Round: 10,
-					Epoch: 0,
+					Epoch: types.GenesisRootEpoch,
 					HighQc: &types.QuorumCert{
 						VoteInfo: testutils.NewDummyRootRoundInfo(10),
 						//LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, NewDummyVoteInfo(9)),
@@ -109,7 +109,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Timeout: &types.Timeout{
 					Round: 10,
-					Epoch: 0,
+					Epoch: types.GenesisRootEpoch,
 					HighQc: &types.QuorumCert{
 						VoteInfo: testutils.NewDummyRootRoundInfo(9),
 						//LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, NewDummyVoteInfo(9)),
@@ -126,7 +126,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Timeout: &types.Timeout{
 					Round: 10,
-					Epoch: 0,
+					Epoch: types.GenesisRootEpoch,
 					HighQc: &types.QuorumCert{
 						VoteInfo:   testutils.NewDummyRootRoundInfo(8),
 						Signatures: map[string]hex.Bytes{"1": {0, 1, 2, 3}},
@@ -143,7 +143,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Timeout: &types.Timeout{
 					Round: 10,
-					Epoch: 0,
+					Epoch: types.GenesisRootEpoch,
 					HighQc: &types.QuorumCert{
 						VoteInfo:   testutils.NewDummyRootRoundInfo(7),
 						Signatures: map[string]hex.Bytes{"1": {0, 1, 2, 3}},
@@ -162,7 +162,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Timeout: &types.Timeout{
 					Round: 10,
-					Epoch: 0,
+					Epoch: types.GenesisRootEpoch,
 					HighQc: &types.QuorumCert{
 						VoteInfo:         testutils.NewDummyRootRoundInfo(9),
 						LedgerCommitInfo: testutils.NewDummyCommitInfo(t, gocrypto.SHA256, testutils.NewDummyRootRoundInfo(9)),
@@ -196,7 +196,7 @@ func TestTimeoutMsg_Sign(t *testing.T) {
 	x := &TimeoutMsg{
 		Timeout: &types.Timeout{
 			Round: 10,
-			Epoch: 0,
+			Epoch: types.GenesisRootEpoch,
 			HighQc: &types.QuorumCert{
 				VoteInfo:         testutils.NewDummyRootRoundInfo(9),
 				LedgerCommitInfo: testutils.NewDummyCommitInfo(t, gocrypto.SHA256, testutils.NewDummyRootRoundInfo(9)),
@@ -238,31 +238,31 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 		Signatures:       map[string]hex.Bytes{"1": sig1, "2": sig2, "3": sig3},
 	}
 	// unknown signer
-	tmoMsg := NewTimeoutMsg(types.NewTimeout(votedRound, 0, highQc), "12", nil)
+	tmoMsg := NewTimeoutMsg(types.NewTimeout(votedRound, types.GenesisRootEpoch, highQc), "12", nil)
 	require.NoError(t, tmoMsg.Sign(s1))
 	require.ErrorContains(t, tmoMsg.Verify(tbs), `author '12' is not part of the trust base`)
 
 	// all ok
 	lastTC := &types.TimeoutCert{
-		Timeout: types.NewTimeout(highQc.GetRound()+1, 0, highQc),
+		Timeout: types.NewTimeout(highQc.GetRound()+1, types.GenesisRootEpoch, highQc),
 		Signatures: map[string]*types.TimeoutVote{
-			"1": {HqcRound: highQc.GetRound(), Signature: testutils.CalcTimeoutSig(t, s1, highQc.GetRound()+1, 0, highQc.GetRound(), "1")},
-			"2": {HqcRound: highQc.GetRound(), Signature: testutils.CalcTimeoutSig(t, s2, highQc.GetRound()+1, 0, highQc.GetRound(), "2")},
-			"3": {HqcRound: highQc.GetRound(), Signature: testutils.CalcTimeoutSig(t, s3, highQc.GetRound()+1, 0, highQc.GetRound(), "3")},
+			"1": {HqcRound: highQc.GetRound(), Signature: testutils.CalcTimeoutSig(t, s1, highQc.GetRound()+1, types.GenesisRootEpoch, highQc.GetRound(), "1")},
+			"2": {HqcRound: highQc.GetRound(), Signature: testutils.CalcTimeoutSig(t, s2, highQc.GetRound()+1, types.GenesisRootEpoch, highQc.GetRound(), "2")},
+			"3": {HqcRound: highQc.GetRound(), Signature: testutils.CalcTimeoutSig(t, s3, highQc.GetRound()+1, types.GenesisRootEpoch, highQc.GetRound(), "3")},
 		},
 	}
-	tmoMsg = NewTimeoutMsg(types.NewTimeout(highQc.GetRound()+2, 0, highQc), "1", lastTC)
+	tmoMsg = NewTimeoutMsg(types.NewTimeout(highQc.GetRound()+2, types.GenesisRootEpoch, highQc), "1", lastTC)
 	require.NoError(t, tmoMsg.Sign(s1))
 	require.NoError(t, tmoMsg.Verify(tbs))
 
 	// adjust after signing
 	tmoMsg.Timeout.Epoch = 99
-	require.ErrorContains(t, tmoMsg.Verify(tbs), "failed to get trust base for timeout verification: trust base not found")
+	require.ErrorContains(t, tmoMsg.Verify(tbs), "failed to get trust base for timeout verification, epoch 99: trust base not found")
 
 	// check that lastTC.Verify is called
-	tmoMsg.Timeout.Epoch = 0
+	tmoMsg.Timeout.Epoch = types.GenesisRootEpoch
 	tmoMsg.LastTC.Timeout.Epoch = 99
-	require.ErrorContains(t, tmoMsg.Verify(tbs), "invalid last TC: failed to get trust base for vote verification: trust base not found")
+	require.ErrorContains(t, tmoMsg.Verify(tbs), "invalid last TC: failed to get trust base for vote verification, epoch 99: trust base not found")
 }
 
 func TestTimeoutMsg_GetRound(t *testing.T) {

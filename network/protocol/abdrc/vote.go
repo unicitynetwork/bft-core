@@ -5,11 +5,12 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
-	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
-	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
+
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
 type VoteMsg struct {
@@ -70,7 +71,7 @@ func (x *VoteMsg) Verify(tbs *trustbase.TrustBaseStore) error {
 	}
 	highQcTrustBase, err := tbs.GetByEpoch(x.HighQc.VoteInfo.Epoch)
 	if err != nil {
-		return fmt.Errorf("failed to get trust base for high QC verification: %w", err)
+		return fmt.Errorf("failed to get trust base for high QC verification epoch %d: %w", x.HighQc.VoteInfo.Epoch, err)
 	}
 	if err := x.HighQc.Verify(highQcTrustBase); err != nil {
 		return fmt.Errorf("vote from '%s' high QC error: %w", x.Author, err)
@@ -81,7 +82,7 @@ func (x *VoteMsg) Verify(tbs *trustbase.TrustBaseStore) error {
 	}
 	voteTrustBase, err := tbs.GetByEpoch(x.VoteInfo.Epoch)
 	if err != nil {
-		return fmt.Errorf("failed to get trust base for vote verification: %w", err)
+		return fmt.Errorf("failed to get trust base for vote verification, epoch %d: %w", x.VoteInfo.Epoch, err)
 	}
 	if _, err := voteTrustBase.VerifySignature(bs, x.Signature, x.Author); err != nil {
 		return fmt.Errorf("vote from '%s' signature verification error: %w", x.Author, err)

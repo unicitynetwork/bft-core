@@ -69,7 +69,7 @@ func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 	for _, node := range nodes {
 		require.NoError(t, tb.Sign(node.NodeID, sb.signers[node.NodeID]))
 	}
-	sb.trustBaseStore.Store(tb)
+	require.NoError(t, sb.trustBaseStore.Store(tb))
 
 	return sb
 }
@@ -98,7 +98,8 @@ func (sb structBuilder) RandomPeerID(t *testing.T) string {
 QC returns valid QC (with random data) for round "round"
 */
 func (sb structBuilder) QC(t *testing.T, round uint64) *QuorumCert {
-	voteInfo := &RoundInfo{RoundNumber: round, ParentRoundNumber: round - 1, Epoch: 0, Timestamp: 1670314583523, CurrentRootHash: test.RandomBytes(32)}
+	voteInfo := &RoundInfo{RoundNumber: round, ParentRoundNumber: round - 1, Epoch: GenesisRootEpoch,
+		Timestamp: 1670314583523, CurrentRootHash: test.RandomBytes(32)}
 	h, err := voteInfo.Hash(crypto.SHA256)
 	require.NoError(t, err)
 	commitInfo := &types.UnicitySeal{Version: 1, PreviousHash: h}
@@ -122,7 +123,7 @@ func (sb structBuilder) Timeout(t *testing.T) *Timeout {
 	qcRound := round - 1
 
 	return &Timeout{
-		Epoch:  0,
+		Epoch:  GenesisRootEpoch,
 		Round:  round,
 		HighQc: sb.QC(t, qcRound),
 	}
@@ -135,7 +136,7 @@ func (sb structBuilder) TimeoutCert(t *testing.T) *TimeoutCert {
 	}
 
 	for k, v := range sb.signers {
-		sig := calcTimeoutSig(t, v, tc.Timeout.Round, 0, tc.Timeout.GetHqcRound(), k)
+		sig := calcTimeoutSig(t, v, tc.Timeout.Round, tc.Timeout.Epoch, tc.Timeout.GetHqcRound(), k)
 		tc.Signatures[k] = &TimeoutVote{HqcRound: tc.Timeout.GetHqcRound(), Signature: sig}
 	}
 	return tc

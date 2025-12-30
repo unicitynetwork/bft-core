@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 )
 
 type Timeout struct {
@@ -55,7 +56,7 @@ func (x *Timeout) Verify(tbs *trustbase.TrustBaseStore) error {
 	}
 	highQcTrustBase, err := tbs.GetByEpoch(x.HighQc.VoteInfo.Epoch)
 	if err != nil {
-		return fmt.Errorf("failed to get trust base for high QC verification: %w", err)
+		return fmt.Errorf("failed to get trust base for high QC verification, epoch %d: %w", x.HighQc.VoteInfo.Epoch, err)
 	}
 	if err := x.HighQc.Verify(highQcTrustBase); err != nil {
 		return fmt.Errorf("invalid high QC: %w", err)
@@ -146,7 +147,7 @@ func (x *TimeoutCert) Verify(tbs *trustbase.TrustBaseStore) error {
 
 	tb, err := tbs.GetByEpoch(x.Timeout.Epoch)
 	if err != nil {
-		return fmt.Errorf("failed to get trust base for vote verification: %w", err)
+		return fmt.Errorf("failed to get trust base for vote verification, epoch %d: %w", x.Timeout.Epoch, err)
 	}
 	var signedVotes uint64
 	var maxSignedRound uint64

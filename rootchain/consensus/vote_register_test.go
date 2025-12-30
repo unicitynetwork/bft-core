@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
-	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
+
+	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
 type DummyQuorum struct {
@@ -27,7 +28,7 @@ func (d *DummyQuorum) GetMaxFaultyNodes() uint64 { return d.faulty }
 func NewDummyVoteInfo(round uint64, rootHash []byte) *drctypes.RoundInfo {
 	return &drctypes.RoundInfo{
 		RoundNumber:       round,
-		Epoch:             0,
+		Epoch:             drctypes.GenesisRootEpoch,
 		Timestamp:         1111,
 		ParentRoundNumber: round - 1,
 		CurrentRootHash:   rootHash,
@@ -56,7 +57,7 @@ func NewDummyVote(t *testing.T, author string, round uint64, rootHash []byte) *a
 }
 
 func NewDummyTimeoutVote(hqc *drctypes.QuorumCert, round uint64, author string) *abdrc.TimeoutMsg {
-	timeoutMsg := abdrc.NewTimeoutMsg(drctypes.NewTimeout(round, 0, hqc), author, nil)
+	timeoutMsg := abdrc.NewTimeoutMsg(drctypes.NewTimeout(round, drctypes.GenesisRootEpoch, hqc), author, nil)
 	// will not actually sign it, but just create a dummy sig
 	timeoutMsg.Signature = []byte{0, 1, 2, 3}
 	return timeoutMsg
@@ -64,7 +65,7 @@ func NewDummyTimeoutVote(hqc *drctypes.QuorumCert, round uint64, author string) 
 
 func NewDummyTc(round uint64, qc *drctypes.QuorumCert) *drctypes.TimeoutCert {
 	timeout := &drctypes.Timeout{
-		Epoch:  0,
+		Epoch:  drctypes.GenesisRootEpoch,
 		Round:  round,
 		HighQc: qc,
 	}
@@ -245,7 +246,7 @@ func TestVoteRegister_Tc(t *testing.T) {
 	require.EqualValues(t, 3, voteCnt)
 	require.Equal(t, uint64(len(tc.Signatures)), quorumInfo.GetQuorumThreshold())
 	require.Equal(t, tc.Timeout.Round, uint64(4))
-	require.Equal(t, tc.Timeout.Epoch, uint64(0))
+	require.Equal(t, tc.Timeout.Epoch, uint64(1))
 	// TC must include the most recent QC seen by any node (in this case from qcRound3 - round 3)
 	require.Equal(t, tc.Timeout.HighQc.VoteInfo.RoundNumber, uint64(3))
 }

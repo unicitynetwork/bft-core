@@ -22,7 +22,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tetratelabs/wazero v1.8.1
-	github.com/unicitynetwork/bft-go-base v1.0.3-0.20251229093250-7ba32481c011
+	github.com/unicitynetwork/bft-go-base v1.0.3-0.20251230081246-e5204716ebf2
 	go.etcd.io/bbolt v1.4.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.32.0

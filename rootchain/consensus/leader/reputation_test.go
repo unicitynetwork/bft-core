@@ -530,8 +530,8 @@ func Test_ReputationBased(t *testing.T) {
 	processRound := func(rl *ReputationBased, round uint64) error {
 		// create QC for the previous round
 		qc := &types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
-			VoteInfo:         &types.RoundInfo{RoundNumber: round - 1, ParentRoundNumber: round - 2},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}, Epoch: types.GenesisRootEpoch},
+			VoteInfo:         &types.RoundInfo{RoundNumber: round - 1, ParentRoundNumber: round - 2, Epoch: types.GenesisRootEpoch},
 			Signatures:       make(map[string]hex.Bytes),
 		}
 		// add n-f random signers, select f randomly in range [0..4)

@@ -9,10 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func Test_BoltDB_Block(t *testing.T) {
@@ -218,7 +219,7 @@ func Test_BoltDB_VoteMsg(t *testing.T) {
 			VoteInfo: &rctypes.RoundInfo{
 				Version:     1,
 				RoundNumber: 9872,
-				Epoch:       1,
+				Epoch:       rctypes.GenesisRootEpoch,
 				Timestamp:   types.NewTimestamp(),
 			},
 			Author:    "node id",
@@ -232,7 +233,7 @@ func Test_BoltDB_VoteMsg(t *testing.T) {
 		// timeout vote
 		voteTO := &abdrc.TimeoutMsg{
 			Timeout: &rctypes.Timeout{
-				Epoch: 1,
+				Epoch: rctypes.GenesisRootEpoch,
 				Round: 10,
 			},
 			LastTC: &rctypes.TimeoutCert{
@@ -259,7 +260,7 @@ func Test_BoltDB_TimeoutCert(t *testing.T) {
 		err = db.db.Update(func(tx *bbolt.Tx) error { return tx.DeleteBucket(bucketCertificates) })
 		require.NoError(t, err)
 
-		tc := &rctypes.TimeoutCert{Timeout: rctypes.NewTimeout(7, 1, &rctypes.QuorumCert{})}
+		tc := &rctypes.TimeoutCert{Timeout: rctypes.NewTimeout(7, rctypes.GenesisRootEpoch, &rctypes.QuorumCert{})}
 		require.ErrorIs(t, db.WriteTC(tc), errNoCertificatesBucket)
 
 		tc, err = db.ReadLastTC()
@@ -276,7 +277,7 @@ func Test_BoltDB_TimeoutCert(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, tc)
 
-		tc = &rctypes.TimeoutCert{Timeout: rctypes.NewTimeout(7, 1, &rctypes.QuorumCert{})}
+		tc = &rctypes.TimeoutCert{Timeout: rctypes.NewTimeout(7, rctypes.GenesisRootEpoch, &rctypes.QuorumCert{})}
 		require.NoError(t, db.WriteTC(tc))
 		tc2, err := db.ReadLastTC()
 		require.NoError(t, err)

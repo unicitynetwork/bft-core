@@ -93,7 +93,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 				},
 				LastTc: &drctypes.TimeoutCert{
 					Timeout: &drctypes.Timeout{
-						Epoch:  0,
+						Epoch:  drctypes.GenesisRootEpoch,
 						Round:  7,
 						HighQc: nil,
 					},
@@ -209,7 +209,7 @@ func TestProposalMsg_Verify(t *testing.T) {
 			Block: &drctypes.BlockData{
 				Author:    "1",
 				Round:     10,
-				Epoch:     0,
+				Epoch:     drctypes.GenesisRootEpoch,
 				Timestamp: 1234,
 				Payload:   &drctypes.Payload{},
 				Qc:        lastRoundQc,
@@ -274,7 +274,7 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	addQCSignature(t, lastRoundQc, "3", s3)
 	// round 9 was timeout
 	timeout := &drctypes.Timeout{
-		Epoch:  0,
+		Epoch:  drctypes.GenesisRootEpoch,
 		Round:  9,
 		HighQc: lastRoundQc,
 	}
@@ -290,7 +290,7 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 		Block: &drctypes.BlockData{
 			Author:    "1",
 			Round:     10,
-			Epoch:     0,
+			Epoch:     drctypes.GenesisRootEpoch,
 			Timestamp: 1234,
 			Payload:   &drctypes.Payload{},
 			Qc:        lastRoundQc,

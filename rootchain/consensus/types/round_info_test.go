@@ -10,7 +10,7 @@ import (
 func TestRoundInfo_MarshalCBOR(t *testing.T) {
 	x := &RoundInfo{
 		RoundNumber:       4,
-		Epoch:             1,
+		Epoch:             GenesisRootEpoch,
 		Timestamp:         0x12345678,
 		ParentRoundNumber: 3,
 		CurrentRootHash:   make([]byte, 32),
@@ -42,7 +42,7 @@ func TestRoundInfo_GetRound(t *testing.T) {
 func TestRoundInfo_Hash(t *testing.T) {
 	x := &RoundInfo{
 		RoundNumber:       4,
-		Epoch:             1,
+		Epoch:             GenesisRootEpoch,
 		Timestamp:         0x12345678,
 		ParentRoundNumber: 3,
 		CurrentRootHash:   make([]byte, 32),
@@ -57,7 +57,7 @@ func TestRoundInfo_IsValid(t *testing.T) {
 	validRI := RoundInfo{
 		ParentRoundNumber: 22,
 		RoundNumber:       23,
-		Epoch:             0,
+		Epoch:             GenesisRootEpoch,
 		Timestamp:         1257894000,
 		CurrentRootHash:   []byte{0, 1, 2, 5},
 	}

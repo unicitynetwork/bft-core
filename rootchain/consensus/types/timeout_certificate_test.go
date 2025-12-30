@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/unicitynetwork/bft-core/internal/testutils"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	"github.com/unicitynetwork/bft-core/internal/testutils"
 )
 
 func calcTimeoutSig(t *testing.T, s abcrypto.Signer, round, epoch, hQcRound uint64, author string) []byte {
@@ -29,14 +30,14 @@ func TestTimeoutCert_Add(t *testing.T) {
 	voteInfo := &RoundInfo{
 		RoundNumber:       8,
 		ParentRoundNumber: 7,
-		Epoch:             0,
+		Epoch:             GenesisRootEpoch,
 		Timestamp:         1670314583523,
 		CurrentRootHash:   test.RandomBytes(32)}
 	h, err := voteInfo.Hash(gocrypto.SHA256)
 	require.NoError(t, err)
 	timeoutCert := &TimeoutCert{
 		Timeout: &Timeout{
-			Epoch: 0,
+			Epoch: GenesisRootEpoch,
 			Round: 10,
 			HighQc: &QuorumCert{
 				VoteInfo:         voteInfo,
@@ -47,7 +48,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Signatures: make(map[string]*TimeoutVote),
 	}
 	t1 := &Timeout{
-		Epoch: 0,
+		Epoch: GenesisRootEpoch,
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
@@ -62,13 +63,13 @@ func TestTimeoutCert_Add(t *testing.T) {
 	voteInfo = &RoundInfo{
 		RoundNumber:       7,
 		ParentRoundNumber: 6,
-		Epoch:             0,
+		Epoch:             GenesisRootEpoch,
 		Timestamp:         1670314583523,
 		CurrentRootHash:   test.RandomBytes(32)}
 	h, err = voteInfo.Hash(gocrypto.SHA256)
 	require.NoError(t, err)
 	t2 := &Timeout{
-		Epoch: 0,
+		Epoch: GenesisRootEpoch,
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
@@ -85,13 +86,13 @@ func TestTimeoutCert_Add(t *testing.T) {
 	voteInfo = &RoundInfo{
 		RoundNumber:       9,
 		ParentRoundNumber: 8,
-		Epoch:             0,
+		Epoch:             GenesisRootEpoch,
 		Timestamp:         1670314583523,
 		CurrentRootHash:   test.RandomBytes(32)}
 	h, err = voteInfo.Hash(gocrypto.SHA256)
 	require.NoError(t, err)
 	t3 := &Timeout{
-		Epoch: 0,
+		Epoch: GenesisRootEpoch,
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
@@ -111,7 +112,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 
 	// attempt to add vote from wrong round
 	t4 := &Timeout{
-		Epoch: 0,
+		Epoch: GenesisRootEpoch,
 		Round: timeoutCert.Timeout.Round + 1,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
@@ -192,7 +193,7 @@ func TestTimeoutCert_Verify(t *testing.T) {
 			hqcR := tc.Timeout.HighQc.VoteInfo.RoundNumber + 1
 			tc.Signatures[k] = &TimeoutVote{
 				HqcRound:  hqcR,
-				Signature: calcTimeoutSig(t, sb.signers[k], tc.Timeout.Round, 0, hqcR, k),
+				Signature: calcTimeoutSig(t, sb.signers[k], tc.Timeout.Round, tc.Timeout.Epoch, hqcR, k),
 			}
 			break
 		}
@@ -286,11 +287,11 @@ func Test_Timeout_Verify(t *testing.T) {
 func TestBytesFromTimeoutVote(t *testing.T) {
 	timeout := &Timeout{
 		Round: 10,
-		Epoch: 0,
+		Epoch: GenesisRootEpoch,
 		HighQc: &QuorumCert{
 			VoteInfo: &RoundInfo{
 				RoundNumber:       9,
-				Epoch:             0,
+				Epoch:             GenesisRootEpoch,
 				Timestamp:         0x0010670314583523,
 				ParentRoundNumber: 8,
 				CurrentRootHash:   []byte{0, 1, 3}},

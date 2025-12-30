@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/unicitynetwork/bft-core/tree/avl"
-	"github.com/unicitynetwork/bft-core/txsystem/fc/unit"
-	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 	"github.com/unicitynetwork/bft-go-base/txsystem/fc"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	"github.com/unicitynetwork/bft-core/tree/avl"
+	"github.com/unicitynetwork/bft-core/txsystem/fc/unit"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 )
 
 func (f *FeeCreditModule) executeAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCreditAttributes, _ *fc.AddFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
@@ -85,7 +86,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	if err != nil {
 		return fmt.Errorf("invalid transFC proof: %w", err)
 	}
-	trustBase, err := f.trustBaseStore.GetByEpoch(proofUC.InputRecord.Epoch)
+	trustBase, err := f.trustBaseStore.GetByEpoch(proofUC.GetRootEpoch())
 	if err != nil {
 		return fmt.Errorf("failed to get trust base for transFC proof: %w", err)
 	}

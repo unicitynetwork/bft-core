@@ -13,7 +13,7 @@ import (
 
 const (
 	GenesisRootRound uint64 = 1
-	GenesisRootEpoch uint64 = 0
+	GenesisRootEpoch uint64 = 1
 )
 
 var (
