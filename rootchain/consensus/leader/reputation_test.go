@@ -109,8 +109,8 @@ func Test_ReputationBased_Update(t *testing.T) {
 		require.NotNil(t, rl)
 
 		qc := &types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
-			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}, Epoch: types.GenesisRootEpoch},
+			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1, Epoch: types.GenesisRootEpoch},
 			Signatures:       map[string]hex.Bytes{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}
 		err = rl.Update(qc, 3, loadBlock)
@@ -133,8 +133,8 @@ func Test_ReputationBased_Update(t *testing.T) {
 		require.NotNil(t, rl)
 
 		qc := &types.QuorumCert{
-			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}},
-			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1},
+			LedgerCommitInfo: &abt.UnicitySeal{Version: 1, PreviousHash: []byte{0, 0, 0, 0}, Epoch: types.GenesisRootEpoch},
+			VoteInfo:         &types.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1, Epoch: types.GenesisRootEpoch},
 			Signatures:       map[string]hex.Bytes{signerAkey: {1, 2, 3}, signerBkey: {4, 5, 6}},
 		}
 		require.NoError(t, rl.Update(qc, 3, loadBlock))
