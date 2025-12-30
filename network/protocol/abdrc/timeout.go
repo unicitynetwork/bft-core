@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
-	abdrc "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	abdrc "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
 type TimeoutMsg struct {
@@ -65,7 +66,7 @@ func (x *TimeoutMsg) Verify(tbs *trustbase.TrustBaseStore) error {
 	}
 	timeoutTrustBase, err := tbs.GetByEpoch(x.Timeout.Epoch)
 	if err != nil {
-		return fmt.Errorf("failed to get trust base for timeout verification: %w", err)
+		return fmt.Errorf("failed to get trust base for timeout verification, epoch %d: %w", x.Timeout.Epoch, err)
 	}
 	if _, err := timeoutTrustBase.VerifySignature(x.Bytes(), x.Signature, x.Author); err != nil {
 		return fmt.Errorf("signature verification failed: %w", err)

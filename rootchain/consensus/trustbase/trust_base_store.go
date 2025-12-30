@@ -131,7 +131,7 @@ func (s *TrustBaseStore) Store(trustBase types.RootTrustBase) error {
 
 	// verify trust base extends previous trust base
 	var previousTrustBase *types.RootTrustBaseV1
-	if epoch > 0 {
+	if epoch > 1 {
 		var err error
 		previousTrustBase, err = s.GetByEpoch(epoch - 1)
 		if err != nil {

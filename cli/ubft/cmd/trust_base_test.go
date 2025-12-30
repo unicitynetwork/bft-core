@@ -13,6 +13,7 @@ import (
 )
 
 func TestTrustBaseGenerateAndSign(t *testing.T) {
+	ctx := context.Background()
 	logF := testobserve.NewFactory(t)
 
 	// root node 1
@@ -21,7 +22,7 @@ func TestTrustBaseGenerateAndSign(t *testing.T) {
 	cmd.baseCmd.SetArgs([]string{
 		"root-node", "init", "--home", homeDir1, "--generate",
 	})
-	require.NoError(t, cmd.Execute(context.Background()))
+	require.NoError(t, cmd.Execute(ctx))
 	nodeInfoFile1 := filepath.Join(homeDir1, nodeInfoFileName)
 
 	// root node 2
@@ -30,7 +31,7 @@ func TestTrustBaseGenerateAndSign(t *testing.T) {
 	cmd.baseCmd.SetArgs([]string{
 		"root-node", "init", "--home", homeDir2, "--generate",
 	})
-	require.NoError(t, cmd.Execute(context.Background()))
+	require.NoError(t, cmd.Execute(ctx))
 	nodeInfoFile2 := filepath.Join(homeDir2, nodeInfoFileName)
 
 	cmd = New(logF)
@@ -41,27 +42,26 @@ func TestTrustBaseGenerateAndSign(t *testing.T) {
 		"--node-info", nodeInfoFile2,
 		"--network-id", "5",
 		"--quorum-threshold", "2",
-		"--epoch", "0",
 	})
-	require.NoError(t, cmd.Execute(context.Background()))
+	require.NoError(t, cmd.Execute(ctx))
 
 	// verify the resulting file
 	trustBasePath := filepath.Join(homeDir1, "trust-base.json")
 	trustBase, err := util.ReadJsonFile(trustBasePath, &types.RootTrustBaseV1{})
 	require.NoError(t, err)
 	require.Equal(t, types.NetworkID(5), trustBase.NetworkID)
-	require.Equal(t, uint64(0), trustBase.Epoch)
+	require.Equal(t, uint64(1), trustBase.Epoch)
 	require.Len(t, trustBase.RootNodes, 2)
 
 	// root node 1 signs the trust base in its home dir
 	cmd = New(logF)
 	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir1, "--trust-base", trustBasePath})
-	require.NoError(t, cmd.Execute(context.Background()))
+	require.NoError(t, cmd.Execute(ctx))
 
 	// root node 2 signs the trust base at custom location
 	cmd = New(logF)
 	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir2, "--trust-base", trustBasePath})
-	require.NoError(t, cmd.Execute(context.Background()))
+	require.NoError(t, cmd.Execute(ctx))
 
 	// verify trust base has 2 signatures
 	trustBase, err = util.ReadJsonFile(filepath.Join(homeDir1, "trust-base.json"), &types.RootTrustBaseV1{})
@@ -89,7 +89,7 @@ func TestTrustBaseSignPrevious(t *testing.T) {
 	require.NoError(t, cmd.Execute(context.Background()))
 	nodeInfoFile2 := filepath.Join(homeDir2, nodeInfoFileName)
 
-	// generate trust base for epoch 0
+	// generate trust base for epoch 1
 	trustBase0Path := filepath.Join(homeDir1, "trust-base-0.json")
 	cmd = New(logF)
 	cmd.baseCmd.SetArgs([]string{
@@ -98,11 +98,11 @@ func TestTrustBaseSignPrevious(t *testing.T) {
 		"--output-file-name", "trust-base-0.json",
 		"--node-info", nodeInfoFile1,
 		"--node-info", nodeInfoFile2,
-		"--epoch", "0",
+		"--epoch", "1",
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
-	// sign epoch 0 trust base
+	// sign epoch 1 trust base
 	cmd = New(logF)
 	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir1, "--trust-base", trustBase0Path})
 	require.NoError(t, cmd.Execute(context.Background()))
@@ -124,7 +124,7 @@ func TestTrustBaseSignPrevious(t *testing.T) {
 	require.NoError(t, cmd.Execute(context.Background()))
 	nodeInfoFile4 := filepath.Join(homeDir4, nodeInfoFileName)
 
-	// generate trust base for epoch 1
+	// generate trust base for epoch 2
 	trustBase1Path := filepath.Join(homeDir3, "trust-base-1.json")
 	cmd = New(logF)
 	cmd.baseCmd.SetArgs([]string{
@@ -133,13 +133,13 @@ func TestTrustBaseSignPrevious(t *testing.T) {
 		"--output-file-name", "trust-base-1.json",
 		"--node-info", nodeInfoFile3,
 		"--node-info", nodeInfoFile4,
-		"--epoch", "1",
+		"--epoch", "2",
 		"--epoch-start", "50",
 		"--previous-trust-base", trustBase0Path,
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
-	// sign epoch 1 trust base with PREVIOUS epoch validators (node 1, 2)
+	// sign epoch 2 trust base with PREVIOUS epoch validators (node 1, 2)
 	cmd = New(logF)
 	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir1, "--trust-base", trustBase1Path})
 	require.NoError(t, cmd.Execute(context.Background()))

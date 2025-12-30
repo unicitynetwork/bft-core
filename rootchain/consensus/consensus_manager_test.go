@@ -212,7 +212,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) 
 	require.Equal(t, uint64(3), lastVoteMsg.VoteInfo.RoundNumber)
 	// round 3 is skipped, as it timeouts
 	require.Equal(t, uint64(1), lastVoteMsg.VoteInfo.ParentRoundNumber)
-	require.Equal(t, uint64(0), lastVoteMsg.VoteInfo.Epoch)
+	require.Equal(t, uint64(1), lastVoteMsg.VoteInfo.Epoch)
 	require.Nil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 }
 
@@ -399,7 +399,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	lastVoteMsg = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
 	require.Equal(t, uint64(2), lastVoteMsg.VoteInfo.RoundNumber)
 	require.Equal(t, uint64(1), lastVoteMsg.VoteInfo.ParentRoundNumber)
-	require.Equal(t, uint64(0), lastVoteMsg.VoteInfo.Epoch)
+	require.Equal(t, uint64(1), lastVoteMsg.VoteInfo.Epoch)
 	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 
 	// send vote back to validator

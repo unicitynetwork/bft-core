@@ -6,11 +6,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
-	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
+
+	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
 func initSafetyModule(t *testing.T, id string, db SafetyStorage) *SafetyModule {
@@ -314,7 +315,8 @@ func TestSafetyModule_SignTimeout(t *testing.T) {
 	require.NoError(t, err)
 	qc.Signatures = map[string]hex.Bytes{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	tmoMsg := &abdrc.TimeoutMsg{
-		Timeout: &drctypes.Timeout{Epoch: 0,
+		Timeout: &drctypes.Timeout{
+			Epoch:  drctypes.GenesisRootEpoch,
 			Round:  3,
 			HighQc: qc,
 		},

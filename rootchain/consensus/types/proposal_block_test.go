@@ -20,7 +20,7 @@ func TestBlockDataHash(t *testing.T) {
 		Qc: &QuorumCert{
 			VoteInfo: &RoundInfo{
 				RoundNumber:       1,
-				Epoch:             0,
+				Epoch:             GenesisRootEpoch,
 				Timestamp:         0x0010670314583523,
 				ParentRoundNumber: 0,
 				CurrentRootHash:   []byte{0, 1, 3}},

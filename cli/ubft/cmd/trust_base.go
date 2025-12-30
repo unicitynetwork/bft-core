@@ -73,7 +73,8 @@ func trustBaseGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 		panic(err)
 	}
 	cmd.Flags().Uint64Var(&flags.QuorumThreshold, "quorum-threshold", 0, "define custom quorum threshold (default: len(nodes)*2/3+1")
-	cmd.Flags().Uint64Var(&flags.Epoch, "epoch", 0, "epoch assigned to this trust base, must be one greater than the epoch of the previous trust base")
+	cmd.Flags().Uint64Var(&flags.Epoch, "epoch", 1, "epoch assigned to this trust base, must be "+
+		"one greater than the epoch of the previous trust base. The genesis epoch must be 1.")
 	cmd.Flags().Uint64Var(&flags.EpochStart, "epoch-start", 0, "root round in which this trust base is activated")
 	cmd.Flags().StringVar(&flags.PreviousTrustBase, "previous-trust-base", "", "previous epoch's trust base, not required for genesis epoch")
 	cmd.Flags().StringVar(&flags.OutputFileName, "output-file-name", trustBaseFileName, "the generated trust base file name, stored to homedir")

@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
 func CalcTimeoutSig(t *testing.T, s abcrypto.Signer, round, epoch, hQcRound uint64, author string) []byte {
@@ -44,7 +45,7 @@ func WithTimestamp(time uint64) RoundInfoOption {
 }
 
 func NewDummyRootRoundInfo(round uint64, options ...RoundInfoOption) *abtypes.RoundInfo {
-	voteInfo := &abtypes.RoundInfo{RoundNumber: round, Epoch: 0,
+	voteInfo := &abtypes.RoundInfo{RoundNumber: round, Epoch: abtypes.GenesisRootEpoch,
 		Timestamp: 1670314583523, ParentRoundNumber: round - 1, CurrentRootHash: []byte{0, 1, 3}}
 	for _, o := range options {
 		o(voteInfo)

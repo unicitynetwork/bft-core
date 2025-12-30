@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
-	abdrc "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
+
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	abdrc "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
 var (
@@ -52,7 +53,7 @@ func (x *ProposalMsg) Verify(tbs *trustbase.TrustBaseStore) error {
 	}
 	tb, err := tbs.GetByEpoch(x.Block.Epoch)
 	if err != nil {
-		return fmt.Errorf("failed to get trust base for block verification: %w", err)
+		return fmt.Errorf("failed to get trust base for block verification, epoch %d: %w", x.Block.Epoch, err)
 	}
 	if err := x.Block.Verify(tb); err != nil {
 		return fmt.Errorf("block verification failed: %w", err)

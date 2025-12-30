@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	test "github.com/unicitynetwork/bft-core/internal/testutils"
-	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/txsystem/money"
 	"github.com/unicitynetwork/bft-go-base/types"
+
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	testcertificates "github.com/unicitynetwork/bft-core/internal/testutils/certificates"
 )
 
 const (

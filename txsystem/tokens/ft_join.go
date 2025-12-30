@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/unicitynetwork/bft-core/state"
-	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 	"github.com/unicitynetwork/bft-go-base/txsystem/tokens"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	"github.com/unicitynetwork/bft-core/state"
+	txtypes "github.com/unicitynetwork/bft-core/txsystem/types"
 )
 
 func (m *FungibleTokensModule) executeJoinFT(tx *types.TransactionOrder, _ *tokens.JoinFungibleTokenAttributes, _ *tokens.JoinFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
@@ -85,7 +86,7 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		if err != nil {
 			return fmt.Errorf("invalid burn transaction proof: %w", err)
 		}
-		trustBase, err := m.trustBaseStore.GetByEpoch(proofUC.InputRecord.Epoch)
+		trustBase, err := m.trustBaseStore.GetByEpoch(proofUC.GetRootEpoch())
 		if err != nil {
 			return fmt.Errorf("failed to get trust base for transFC proof: %w", err)
 		}

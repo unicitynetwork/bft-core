@@ -19,6 +19,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
+	"github.com/unicitynetwork/bft-go-base/types/hex"
+
 	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
@@ -27,9 +31,6 @@ import (
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
 
 type (
@@ -450,7 +451,7 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 	if timeoutVoteMsg == nil {
 		// create timeout vote
 		timeoutVoteMsg = abdrc.NewTimeoutMsg(
-			drctypes.NewTimeout(x.pacemaker.GetCurrentRound(), 0, x.blockStore.GetHighQc()),
+			drctypes.NewTimeout(x.pacemaker.GetCurrentRound(), x.trustBase.Load().Epoch, x.blockStore.GetHighQc()),
 			x.id.String(),
 			x.pacemaker.LastRoundTC())
 		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {

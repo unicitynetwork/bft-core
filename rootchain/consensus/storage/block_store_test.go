@@ -10,12 +10,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-core/rootchain/partitions"
 	testpartition "github.com/unicitynetwork/bft-core/rootchain/partitions/testutils"
 	"github.com/unicitynetwork/bft-core/rootchain/testutils"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 func initBlockStoreFromGenesis(t *testing.T, shardConf *types.PartitionDescriptionRecord) *BlockStore {
@@ -383,7 +384,7 @@ func genesisBlockWithShard(t *testing.T, shardConf *types.PartitionDescriptionRe
 			Version:              1,
 			NetworkID:            5,
 			RootChainRoundNumber: 4,
-			Epoch:                0,
+			Epoch:                rctypes.GenesisRootEpoch,
 			Timestamp:            123,
 			Hash:                 []byte{1, 2, 3},
 			PreviousHash:         []byte{3, 2, 1},

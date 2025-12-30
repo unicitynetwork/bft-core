@@ -4,13 +4,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
+	"github.com/stretchr/testify/require"
+
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	testtxsystem "github.com/unicitynetwork/bft-core/internal/testutils/txsystem"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-core/txsystem"
-	"github.com/unicitynetwork/bft-go-base/types"
-
-	"github.com/stretchr/testify/require"
 	testtransaction "github.com/unicitynetwork/bft-core/txsystem/testutils/transaction"
 )
 

@@ -33,6 +33,7 @@ import (
 	"github.com/unicitynetwork/bft-core/observability"
 	"github.com/unicitynetwork/bft-core/partition/event"
 	tbstore "github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
+	types2 "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-core/txsystem"
 )
 
@@ -383,6 +384,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(t *testing.T, ir *type
 func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*types.UnicitySeal, error) {
 	u := &types.UnicitySeal{
 		Version:              1,
+		Epoch:                types2.GenesisRootEpoch,
 		RootChainRoundNumber: roundNumber,
 		Timestamp:            types.NewTimestamp(),
 		Hash:                 rootHash,

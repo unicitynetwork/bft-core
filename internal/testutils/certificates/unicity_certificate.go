@@ -7,9 +7,10 @@ import (
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	test "github.com/unicitynetwork/bft-core/internal/testutils"
 	"github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
+
+	test "github.com/unicitynetwork/bft-core/internal/testutils"
 )
 
 func CreateUnicityCertificate(
@@ -72,6 +73,7 @@ func CreateUnicityCertificate(
 func createUnicitySeal(rootHash []byte, roundNumber uint64, previousHash []byte) *types.UnicitySeal {
 	return &types.UnicitySeal{
 		Version:              1,
+		Epoch:                1,
 		RootChainRoundNumber: roundNumber,
 		Timestamp:            types.NewTimestamp(),
 		PreviousHash:         previousHash,
