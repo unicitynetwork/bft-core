@@ -451,7 +451,7 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 	if timeoutVoteMsg == nil {
 		// create timeout vote
 		timeoutVoteMsg = abdrc.NewTimeoutMsg(
-			drctypes.NewTimeout(x.pacemaker.GetCurrentRound(), 1, x.blockStore.GetHighQc()), // TODO hardcoded epoch
+			drctypes.NewTimeout(x.pacemaker.GetCurrentRound(), x.trustBase.Load().Epoch, x.blockStore.GetHighQc()),
 			x.id.String(),
 			x.pacemaker.LastRoundTC())
 		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {
