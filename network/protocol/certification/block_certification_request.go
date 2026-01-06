@@ -22,6 +22,7 @@ type BlockCertificationRequest struct {
 	ShardID     types.ShardID      `json:"shardId"`
 	NodeID      string             `json:"nodeId"`
 	InputRecord *types.InputRecord `json:"inputRecord"`
+	ZkProof     []byte             `json:"zkProof"` // ZK proof for state transition validation
 	BlockSize   uint64             `json:"blockSize"`
 	StateSize   uint64             `json:"stateSize"`
 	Signature   hex.Bytes          `json:"signature"`
@@ -84,6 +85,9 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 }
 
 func (x BlockCertificationRequest) Bytes() ([]byte, error) {
+	// Exclude signature and ZK proof from signed data
+	// ZK proof is validated separately by the verifier
 	x.Signature = nil
+	x.ZkProof = nil
 	return types.Cbor.Marshal(x)
 }

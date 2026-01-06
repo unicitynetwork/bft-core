@@ -21,6 +21,7 @@ import (
 	"github.com/unicitynetwork/bft-core/observability"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/zkverifier"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 )
@@ -53,6 +54,7 @@ type (
 		subscription     *Subscriptions
 		net              PartitionNet
 		consensusManager ConsensusManager
+		zkVerifier       zkverifier.ZKVerifier
 
 		log    *slog.Logger
 		tracer trace.Tracer
@@ -67,12 +69,18 @@ func New(
 	pNet PartitionNet,
 	cm ConsensusManager,
 	observe Observability,
+	zkVerifier zkverifier.ZKVerifier,
 ) (*Node, error) {
 	if peer == nil {
 		return nil, fmt.Errorf("partition listener is nil")
 	}
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
+	}
+	if zkVerifier == nil {
+		// Default to NoOp verifier if none provided
+		zkVerifier = &zkverifier.NoOpVerifier{}
+		observe.Logger().Warn("No ZK verifier provided, using NoOp verifier (accepts all proofs)")
 	}
 
 	meter := observe.Meter("rootchain.node")
@@ -90,12 +98,21 @@ func New(
 		subscription:     subs,
 		net:              pNet,
 		consensusManager: cm,
+		zkVerifier:       zkVerifier,
 		log:              observe.Logger(),
 		tracer:           observe.Tracer("rootchain.node"),
 	}
 	if err := node.initMetrics(meter); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
+
+	// Log verifier configuration
+	if zkVerifier.IsEnabled() {
+		observe.Logger().Info(fmt.Sprintf("ZK proof verification enabled (proof type: %s)", zkVerifier.ProofType()))
+	} else {
+		observe.Logger().Warn("ZK proof verification disabled - accepting all proofs")
+	}
+
 	return node, nil
 }
 
@@ -237,6 +254,14 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		return err
 	}
 
+	// Verify ZK proof (if verifier is enabled)
+	if err := v.verifyZKProof(ctx, req, si); err != nil {
+		v.log.WarnContext(ctx, "ZK proof verification failed",
+			logger.Error(err),
+			logger.Shard(req.PartitionID, req.ShardID))
+		return fmt.Errorf("ZK proof verification failed: %w", err)
+	}
+
 	if err := v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID); err != nil {
 		return fmt.Errorf("subscribing the sender: %w", err)
 	}
@@ -291,4 +316,52 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 			v.incomingRequests.Clear(ctx, cr.Partition, cr.Shard)
 		}
 	}
+}
+
+// verifyZKProof verifies the ZK proof in the block certification request
+func (v *Node) verifyZKProof(ctx context.Context, req *certification.BlockCertificationRequest, si *storage.ShardInfo) error {
+	if !v.zkVerifier.IsEnabled() {
+		// Verification disabled - accept all
+		return nil
+	}
+
+	ir := req.InputRecord
+	if ir == nil {
+		return fmt.Errorf("input record is nil")
+	}
+
+	// Get state roots from InputRecord
+	previousStateRoot := ir.PreviousHash
+	newStateRoot := ir.Hash
+
+	// Skip verification for sync UCs and genesis blocks:
+	// 1. Sync UCs: both hashes are null/empty (handshake/subscription requests)
+	// 2. Genesis block: previousHash is null/empty (first block with no parent)
+	if len(previousStateRoot) == 0 && len(newStateRoot) == 0 {
+		v.log.DebugContext(ctx, "Skipping ZK proof verification for sync UC",
+			logger.Shard(req.PartitionID, req.ShardID))
+		return nil
+	}
+	if len(previousStateRoot) == 0 {
+		v.log.InfoContext(ctx, "Skipping ZK proof verification for genesis block",
+			logger.Shard(req.PartitionID, req.ShardID))
+		return nil
+	}
+
+	v.log.DebugContext(ctx, "Verifying ZK proof",
+		logger.Shard(req.PartitionID, req.ShardID),
+		logger.Data(slog.Int("proof_size", len(req.ZkProof))),
+		logger.Data(slog.String("proof_type", string(v.zkVerifier.ProofType()))),
+		logger.Data(slog.Uint64("round", ir.RoundNumber)))
+
+	// Verify proof: previousStateRoot -> newStateRoot transition
+	if err := v.zkVerifier.VerifyProof(req.ZkProof, previousStateRoot, newStateRoot); err != nil {
+		return fmt.Errorf("ZK proof verification failed: %w", err)
+	}
+
+	v.log.InfoContext(ctx, "ZK proof verified successfully",
+		logger.Shard(req.PartitionID, req.ShardID),
+		logger.Data(slog.Uint64("round", ir.RoundNumber)))
+
+	return nil
 }

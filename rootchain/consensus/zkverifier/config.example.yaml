@@ -1,0 +1,134 @@
+# BFT Core ZK Verification Configuration Example
+#
+# This file demonstrates how to configure ZK proof verification for L2 state transitions.
+# Copy this file and customize it for your deployment.
+
+# ============================================================================
+# DEVELOPMENT / TESTING CONFIGURATION (ZK verification disabled)
+# ============================================================================
+
+# When testing without real ZK proofs:
+# ubft root-node run \
+#   --zk-verification-enabled=false
+
+# ============================================================================
+# PRODUCTION CONFIGURATION (SP1 verification enabled)
+# ============================================================================
+
+# Generate verification key from your SP1 prover:
+#   cd uni-evm
+#   cargo run --release --bin generate-vkey -- --output sp1.vkey
+#   cp sp1.vkey /etc/bft-core/
+
+# Start root node with ZK verification:
+# ubft root-node run \
+#   --zk-verification-enabled=true \
+#   --zk-proof-type=sp1 \
+#   --zk-vkey-path=/etc/bft-core/sp1.vkey
+
+# ============================================================================
+# CONFIGURATION OPTIONS
+# ============================================================================
+
+# --zk-verification-enabled (boolean)
+#   Enable/disable ZK proof verification
+#   Default: false
+#   Production: true
+#
+# --zk-proof-type (string)
+#   Type of ZK proof system
+#   Options: "sp1", "risc0", "exec", "none"
+#   Default: "sp1"
+#   Production: "sp1"
+#
+# --zk-vkey-path (string)
+#   Path to verification key file
+#   Required when: zk-verification-enabled=true AND zk-proof-type=sp1
+#   Example: /etc/bft-core/sp1.vkey
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+
+# export UBFT_ZK_VERIFICATION_ENABLED=true
+# export UBFT_ZK_PROOF_TYPE=sp1
+# export UBFT_ZK_VKEY_PATH=/etc/bft-core/sp1.vkey
+
+# ============================================================================
+# VERIFICATION KEY MANAGEMENT
+# ============================================================================
+
+# The verification key must match the prover program ID.
+#
+# 1. Generate vkey from Uni-EVM prover:
+#    cd uni-evm
+#    cargo run --release --bin generate-vkey -- --output sp1.vkey
+#
+# 2. Deploy vkey to all root chain nodes:
+#    scp sp1.vkey root-node-1:/etc/bft-core/
+#    scp sp1.vkey root-node-2:/etc/bft-core/
+#    scp sp1.vkey root-node-3:/etc/bft-core/
+#
+# 3. Verify file permissions:
+#    chmod 644 /etc/bft-core/sp1.vkey
+#
+# 4. Verify checksum across all nodes:
+#    sha256sum /etc/bft-core/sp1.vkey
+
+# ============================================================================
+# MONITORING
+# ============================================================================
+
+# Metrics to monitor:
+# - bft_zk_verification_total{result="success"}
+# - bft_zk_verification_total{result="failure"}
+# - bft_zk_verification_duration_seconds
+#
+# Log messages:
+# - INFO: "ZK proof verification enabled (proof type: sp1)"
+# - WARN: "ZK proof verification disabled - accepting all proofs"
+# - WARN: "ZK proof verification failed"
+# - DEBUG: "Verifying ZK proof"
+
+# ============================================================================
+# TROUBLESHOOTING
+# ============================================================================
+
+# Error: "failed to read verification key"
+# Solution: Verify --zk-vkey-path points to valid file with correct permissions
+#
+# Error: "verification key is empty"
+# Solution: Regenerate verification key from prover
+#
+# Error: "proof verification failed"
+# Solution: Ensure verification key matches prover program ID
+#           Check SP1 library version compatibility
+#           Verify proof format is SP1 compressed
+
+# ============================================================================
+# SECURITY WARNINGS
+# ============================================================================
+
+# ⚠️  CRITICAL: The current SP1 verifier is a PLACEHOLDER implementation
+#               It accepts all well-formed proofs without cryptographic verification
+#
+# Before production deployment:
+# 1. Integrate actual SP1 verification library (see INTEGRATION_GUIDE.md)
+# 2. Test with real SP1 proofs from Uni-EVM
+# 3. Test rejection of invalid/malicious proofs
+# 4. Security audit of verification implementation
+# 5. Monitor verification latency and failure rates
+
+# ============================================================================
+# MIGRATION PLAN
+# ============================================================================
+
+# Phase 1: Deploy with verification disabled
+#   --zk-verification-enabled=false
+#
+# Phase 2: Deploy with verification enabled but non-blocking (future feature)
+#   Log failures but don't reject requests
+#
+# Phase 3: Deploy with verification enabled and blocking
+#   --zk-verification-enabled=true
+#   Reject requests with invalid proofs
