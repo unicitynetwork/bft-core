@@ -256,9 +256,15 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 
 	// Verify ZK proof (if verifier is enabled)
 	if err := v.verifyZKProof(ctx, req, si); err != nil {
-		v.log.WarnContext(ctx, "ZK proof verification failed",
+		v.log.WarnContext(ctx, "ZK proof verification failed - sending last valid UC",
 			logger.Error(err),
 			logger.Shard(req.PartitionID, req.ShardID))
+
+		// Send last valid UC immediately when proof verification fails
+		// This allows the partition to sync back to the last certified state
+		if se := v.sendResponse(ctx, req.NodeID, si.LastCR); se != nil {
+			err = errors.Join(err, fmt.Errorf("failed to send last valid UC: %w", se))
+		}
 		return fmt.Errorf("ZK proof verification failed: %w", err)
 	}
 

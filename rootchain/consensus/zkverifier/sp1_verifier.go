@@ -31,7 +31,7 @@ func NewSP1Verifier(vkeyPath string) (*SP1Verifier, error) {
 			ffiVerifier: ffiVerifier,
 		}, nil
 	} else {
-		return nil, fmt.Errorf("SP1 FFI verifier not available: %w", err)
+		return nil, fmt.Errorf("SP1 FFI verifier not available: %w, vkeyPath: %s", err, vkeyPath)
 	}
 
 }

@@ -1,7 +1,6 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-use std::ptr;
-use sp1_sdk::{ProverClient, SP1Stdin, SP1ProofWithPublicValues};
+use sp1_sdk::{ProverClient, SP1ProofWithPublicValues};
 
 /// Error codes for FFI interface
 #[repr(C)]
@@ -86,7 +85,7 @@ fn verify_proof_internal(
         .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
 
     // Create prover client (used for verification)
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
 
     // Verify the proof
     client.verify(&proof, &vkey)
