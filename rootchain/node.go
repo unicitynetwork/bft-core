@@ -360,8 +360,9 @@ func (v *Node) verifyZKProof(ctx context.Context, req *certification.BlockCertif
 		logger.Data(slog.String("proof_type", string(v.zkVerifier.ProofType()))),
 		logger.Data(slog.Uint64("round", ir.RoundNumber)))
 
-	// Verify proof: previousStateRoot -> newStateRoot transition
-	if err := v.zkVerifier.VerifyProof(req.ZkProof, previousStateRoot, newStateRoot); err != nil {
+	// Verify proof: previousStateRoot -> newStateRoot transition with block hash
+	blockHash := ir.BlockHash
+	if err := v.zkVerifier.VerifyProof(req.ZkProof, previousStateRoot, newStateRoot, blockHash); err != nil {
 		return fmt.Errorf("ZK proof verification failed: %w", err)
 	}
 

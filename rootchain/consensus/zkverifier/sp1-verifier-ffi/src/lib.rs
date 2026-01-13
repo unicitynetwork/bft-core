@@ -22,6 +22,7 @@ pub enum SP1VerifyResult {
 /// * `proof_len` - Length of proof
 /// * `prev_state_root` - Pointer to 32-byte previous state root
 /// * `new_state_root` - Pointer to 32-byte new state root
+/// * `block_hash` - Pointer to 32-byte block hash
 /// * `error_out` - Output pointer for error message (caller must free with sp1_free_string)
 ///
 /// # Returns
@@ -34,6 +35,7 @@ pub extern "C" fn sp1_verify_proof(
     proof_len: usize,
     prev_state_root: *const u8,
     new_state_root: *const u8,
+    block_hash: *const u8,
     error_out: *mut *mut c_char,
 ) -> SP1VerifyResult {
     // Safety checks
@@ -42,8 +44,8 @@ pub extern "C" fn sp1_verify_proof(
         return SP1VerifyResult::InternalError;
     }
 
-    if prev_state_root.is_null() || new_state_root.is_null() {
-        set_error(error_out, "null state root pointer");
+    if prev_state_root.is_null() || new_state_root.is_null() || block_hash.is_null() {
+        set_error(error_out, "null state root or block hash pointer");
         return SP1VerifyResult::InvalidPublicInputs;
     }
 
@@ -52,9 +54,10 @@ pub extern "C" fn sp1_verify_proof(
     let proof_data = unsafe { std::slice::from_raw_parts(proof_bytes, proof_len) };
     let prev_root = unsafe { std::slice::from_raw_parts(prev_state_root, 32) };
     let new_root = unsafe { std::slice::from_raw_parts(new_state_root, 32) };
+    let blk_hash = unsafe { std::slice::from_raw_parts(block_hash, 32) };
 
     // Perform verification
-    match verify_proof_internal(vkey_data, proof_data, prev_root, new_root) {
+    match verify_proof_internal(vkey_data, proof_data, prev_root, new_root, blk_hash) {
         Ok(()) => SP1VerifyResult::Success,
         Err(e) => {
             set_error(error_out, &e.to_string());
@@ -75,6 +78,7 @@ fn verify_proof_internal(
     proof_data: &[u8],
     prev_state_root: &[u8],
     new_state_root: &[u8],
+    block_hash: &[u8],
 ) -> anyhow::Result<()> {
     // Deserialize verification key
     let vkey: sp1_sdk::SP1VerifyingKey = bincode::deserialize(vkey_data)
@@ -94,11 +98,21 @@ fn verify_proof_internal(
     // Extract public values from proof
     let public_values = proof.public_values.as_slice();
 
-    // Validate that public values contain expected state roots
-    // Expected format: [prev_state_root (32 bytes), new_state_root (32 bytes)]
-    if public_values.len() < 64 {
+    // Validate that public values contain expected data
+    // Expected format (from ProgramOutput::encode() with l2 feature):
+    // - 0-31: initial_state_hash (prev_state_root)
+    // - 32-63: final_state_hash (new_state_root)
+    // - 64-95: l1_out_messages_merkle_root (L2 feature)
+    // - 96-127: l1_in_messages_rolling_hash (L2 feature)
+    // - 128-159: blob_versioned_hash (L2 feature)
+    // - 160-191: last_block_hash (block_hash)
+    // - 192+: chain_id, non_privileged_count, etc.
+    //
+    // Note: ethrex's guest program has the 'l2' feature enabled by default,
+    // which adds 3 H256 fields (96 bytes) before the block hash.
+    if public_values.len() < 192 {
         return Err(anyhow::anyhow!(
-            "Public values too short: expected at least 64 bytes, got {}",
+            "Public values too short: expected at least 192 bytes for ethrex l2 format, got {}",
             public_values.len()
         ));
     }
@@ -118,6 +132,15 @@ fn verify_proof_internal(
             "New state root mismatch: expected {:?}, got {:?}",
             new_state_root,
             &public_values[32..64]
+        ));
+    }
+
+    // Check block hash matches (at offset 160 due to l2 feature fields)
+    if &public_values[160..192] != block_hash {
+        return Err(anyhow::anyhow!(
+            "Block hash mismatch: expected {:?}, got {:?}",
+            block_hash,
+            &public_values[160..192]
         ));
     }
 
@@ -218,6 +241,8 @@ fn set_error(error_out: *mut *mut c_char, message: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
+    use std::ptr;
 
     #[test]
     fn test_null_pointers() {
@@ -227,6 +252,7 @@ mod tests {
             0,
             ptr::null(),
             0,
+            ptr::null(),
             ptr::null(),
             ptr::null(),
             &mut error,

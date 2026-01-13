@@ -929,7 +929,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 	}
 
 	x.leaderCnt.Add(ctx, 1)
-	x.log.InfoContext(ctx, "new round start, node is leader")
+	// x.log.InfoContext(ctx, "new round start, node is leader")
 
 	// find shards with T2 timeouts
 	timedOutShards, err := x.t2Timeouts.GetT2Timeouts(round)

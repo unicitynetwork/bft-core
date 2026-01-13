@@ -59,7 +59,7 @@ func NewSP1VerifierFFI(vkeyPath string) (*SP1VerifierFFI, error) {
 }
 
 // VerifyProof verifies an SP1 proof using the Rust FFI library
-func (v *SP1VerifierFFI) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte) error {
+func (v *SP1VerifierFFI) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte) error {
 	// Validate inputs
 	if len(proof) == 0 {
 		return fmt.Errorf("%w: proof is empty", ErrInvalidProofFormat)
@@ -69,6 +69,9 @@ func (v *SP1VerifierFFI) VerifyProof(proof []byte, previousStateRoot []byte, new
 	}
 	if len(newStateRoot) != 32 {
 		return fmt.Errorf("%w: newStateRoot must be 32 bytes", ErrInvalidProofFormat)
+	}
+	if len(blockHash) != 32 {
+		return fmt.Errorf("%w: blockHash must be 32 bytes", ErrInvalidProofFormat)
 	}
 
 	// Prepare C pointers
@@ -87,6 +90,7 @@ func (v *SP1VerifierFFI) VerifyProof(proof []byte, previousStateRoot []byte, new
 		C.size_t(len(proof)),
 		(*C.uint8_t)(unsafe.Pointer(&previousStateRoot[0])),
 		(*C.uint8_t)(unsafe.Pointer(&newStateRoot[0])),
+		(*C.uint8_t)(unsafe.Pointer(&blockHash[0])),
 		&errorOut,
 	)
 

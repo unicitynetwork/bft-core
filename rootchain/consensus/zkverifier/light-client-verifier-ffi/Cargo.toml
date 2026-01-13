@@ -1,0 +1,24 @@
+[package]
+name = "light-client-verifier-ffi"
+version = "0.1.0"
+edition = "2021"
+
+# Make this package independent of parent workspace
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+# Core dependencies for witness deserialization and validation
+rkyv = { version = "0.8.10", features = ["std", "unaligned"] }
+anyhow = "1.0"
+
+# ethrex dependencies for validation logic (use local paths to uni-evm's ethrex submodule)
+ethrex-core = { path = "../../../../../ethrex/crates/common", package = "ethrex-common" }
+guest_program = { path = "../../../../../ethrex/crates/l2/prover/src/guest_program" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

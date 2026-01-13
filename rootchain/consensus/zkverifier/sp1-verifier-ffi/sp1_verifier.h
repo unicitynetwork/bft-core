@@ -35,6 +35,7 @@ typedef enum {
  * @param proof_len Length of proof in bytes
  * @param prev_state_root Pointer to 32-byte previous state root
  * @param new_state_root Pointer to 32-byte new state root
+ * @param block_hash Pointer to 32-byte block hash
  * @param error_out Output pointer for error message (must be freed with sp1_free_string)
  * @return SP1VerifyResult status code
  */
@@ -45,6 +46,7 @@ SP1VerifyResult sp1_verify_proof(
     size_t proof_len,
     const uint8_t* prev_state_root,
     const uint8_t* new_state_root,
+    const uint8_t* block_hash,
     char** error_out
 );
 

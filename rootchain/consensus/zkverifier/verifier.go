@@ -24,6 +24,8 @@ const (
 	ProofTypeRISC0 ProofType = "risc0"
 	// ProofTypeExec indicates execution without proving (testing only)
 	ProofTypeExec ProofType = "exec"
+	// ProofTypeLightClient indicates light client mode (full witness validation)
+	ProofTypeLightClient ProofType = "light_client"
 	// ProofTypeNone indicates no proof verification (disabled)
 	ProofTypeNone ProofType = "none"
 )
@@ -34,8 +36,9 @@ type ZKVerifier interface {
 	// proof: The ZK proof bytes
 	// previousStateRoot: Hash of the previous state
 	// newStateRoot: Hash of the new state (claimed)
+	// blockHash: Hash of the block header (for light client mode)
 	// Returns nil if proof is valid, error otherwise
-	VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte) error
+	VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte) error
 
 	// ProofType returns the type of proofs this verifier handles
 	ProofType() ProofType
@@ -84,6 +87,8 @@ func NewVerifier(cfg *Config) (ZKVerifier, error) {
 	switch cfg.ProofType {
 	case ProofTypeSP1:
 		return NewSP1Verifier(cfg.VerificationKeyPath)
+	case ProofTypeLightClient:
+		return NewLightClientVerifier()
 	case ProofTypeRISC0:
 		return nil, fmt.Errorf("RISC0 verifier not implemented")
 	case ProofTypeExec, ProofTypeNone:
@@ -96,7 +101,7 @@ func NewVerifier(cfg *Config) (ZKVerifier, error) {
 // NoOpVerifier is a verifier that always returns success (for testing/disabled mode)
 type NoOpVerifier struct{}
 
-func (v *NoOpVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte) error {
+func (v *NoOpVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte) error {
 	// No verification performed
 	return nil
 }

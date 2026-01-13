@@ -40,7 +40,7 @@ func TestNewVerifier_NoOpForExec(t *testing.T) {
 	require.False(t, verifier.IsEnabled())
 
 	// Should accept any proof
-	err = verifier.VerifyProof([]byte("not a real proof"), make([]byte, 32), make([]byte, 32))
+	err = verifier.VerifyProof([]byte("not a real proof"), make([]byte, 32), make([]byte, 32), make([]byte, 32))
 	require.NoError(t, err)
 }
 
@@ -96,10 +96,10 @@ func TestNoOpVerifier(t *testing.T) {
 	require.Equal(t, ProofTypeNone, v.ProofType())
 
 	// Should accept any input
-	err := v.VerifyProof(nil, nil, nil)
+	err := v.VerifyProof(nil, nil, nil, nil)
 	require.NoError(t, err)
 
-	err = v.VerifyProof([]byte("test"), []byte("prev"), []byte("new"))
+	err = v.VerifyProof([]byte("test"), []byte("prev"), []byte("new"), []byte("block"))
 	require.NoError(t, err)
 }
 
@@ -118,6 +118,7 @@ func TestSP1Verifier_InvalidInputs(t *testing.T) {
 		proof             []byte
 		previousStateRoot []byte
 		newStateRoot      []byte
+		blockHash         []byte
 		wantErr           bool
 		errContains       string
 	}{
@@ -126,6 +127,7 @@ func TestSP1Verifier_InvalidInputs(t *testing.T) {
 			proof:             []byte{},
 			previousStateRoot: make([]byte, 32),
 			newStateRoot:      make([]byte, 32),
+			blockHash:         make([]byte, 32),
 			wantErr:           true,
 			errContains:       "proof is empty",
 		},
@@ -134,6 +136,7 @@ func TestSP1Verifier_InvalidInputs(t *testing.T) {
 			proof:             make([]byte, 100),
 			previousStateRoot: make([]byte, 16),
 			newStateRoot:      make([]byte, 32),
+			blockHash:         make([]byte, 32),
 			wantErr:           true,
 			errContains:       "previousStateRoot must be 32 bytes",
 		},
@@ -142,14 +145,25 @@ func TestSP1Verifier_InvalidInputs(t *testing.T) {
 			proof:             make([]byte, 100),
 			previousStateRoot: make([]byte, 32),
 			newStateRoot:      make([]byte, 16),
+			blockHash:         make([]byte, 32),
 			wantErr:           true,
 			errContains:       "newStateRoot must be 32 bytes",
+		},
+		{
+			name:              "invalid block hash length",
+			proof:             make([]byte, 100),
+			previousStateRoot: make([]byte, 32),
+			newStateRoot:      make([]byte, 32),
+			blockHash:         make([]byte, 16),
+			wantErr:           true,
+			errContains:       "blockHash must be 32 bytes",
 		},
 		{
 			name:              "proof too small",
 			proof:             make([]byte, 32), // Less than 64 bytes
 			previousStateRoot: make([]byte, 32),
 			newStateRoot:      make([]byte, 32),
+			blockHash:         make([]byte, 32),
 			wantErr:           true,
 			errContains:       "SP1 proof too small",
 		},
@@ -158,13 +172,14 @@ func TestSP1Verifier_InvalidInputs(t *testing.T) {
 			proof:             make([]byte, 128),
 			previousStateRoot: make([]byte, 32),
 			newStateRoot:      make([]byte, 32),
+			blockHash:         make([]byte, 32),
 			wantErr:           false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := verifier.VerifyProof(tc.proof, tc.previousStateRoot, tc.newStateRoot)
+			err := verifier.VerifyProof(tc.proof, tc.previousStateRoot, tc.newStateRoot, tc.blockHash)
 			if tc.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.errContains)
