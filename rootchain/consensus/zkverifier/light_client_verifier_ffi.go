@@ -1,3 +1,5 @@
+//go:build zkverifier_ffi
+
 package zkverifier
 
 // #cgo LDFLAGS: -L${SRCDIR}/light-client-verifier-ffi/target/release -llight_client_verifier_ffi -ldl -lm

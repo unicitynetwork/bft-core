@@ -37,15 +37,26 @@ func NewSP1Verifier(vkeyPath string) (*SP1Verifier, error) {
 }
 
 // readFile reads a file and returns its contents
+// Sanitizes path to prevent directory traversal attacks (CWE-22)
 func readFile(path string) ([]byte, error) {
-	absPath, err := filepath.Abs(path)
+	// Clean and normalize the path
+	cleanPath := filepath.Clean(path)
+
+	// Resolve to absolute path
+	absPath, err := filepath.Abs(cleanPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve path: %w", err)
 	}
 
-	data, err := os.ReadFile(absPath)
+	// Resolve any symlinks to prevent traversal via symlinks
+	realPath, err := filepath.EvalSymlinks(absPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file %s: %w", absPath, err)
+		return nil, fmt.Errorf("failed to resolve symlinks: %w", err)
+	}
+
+	data, err := os.ReadFile(realPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %s: %w", realPath, err)
 	}
 
 	return data, nil
