@@ -1,3 +1,5 @@
+//go:build zkverifier_ffi
+
 package zkverifier
 
 // #cgo LDFLAGS: -L${SRCDIR}/sp1-verifier-ffi/target/release -lsp1_verifier_ffi -ldl -lm

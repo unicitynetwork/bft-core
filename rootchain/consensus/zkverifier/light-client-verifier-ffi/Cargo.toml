@@ -14,9 +14,9 @@ crate-type = ["cdylib", "staticlib"]
 rkyv = { version = "0.8.10", features = ["std", "unaligned"] }
 anyhow = "1.0"
 
-# ethrex dependencies for validation logic (use local paths to uni-evm's ethrex submodule)
-ethrex-core = { path = "../../../../../ethrex/crates/common", package = "ethrex-common" }
-guest_program = { path = "../../../../../ethrex/crates/l2/prover/src/guest_program" }
+# ethrex dependencies for validation logic (use GitHub fork)
+ethrex-core = { git = "https://github.com/ristik/ethrex", branch = "uni-evm", package = "ethrex-common" }
+guest_program = { git = "https://github.com/ristik/ethrex", branch = "uni-evm" }
 
 [profile.release]
 opt-level = 3

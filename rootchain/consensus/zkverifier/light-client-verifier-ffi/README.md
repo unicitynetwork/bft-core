@@ -32,8 +32,20 @@ This library provides a Foreign Function Interface (FFI) for BFT Core (written i
 
 ### Prerequisites
 
-- Rust nightly (ethrex uses unstable features)
-- Access to uni-evm's ethrex submodule
+- Rust stable or nightly toolchain
+- Internet connection (to fetch ethrex dependencies from GitHub)
+- C compiler (GCC or Clang)
+
+### Dependencies
+
+This library depends on ethrex components from the uni-evm fork:
+- **Repository**: https://github.com/ristik/ethrex
+- **Branch**: `uni-evm`
+- **Components used**:
+  - `ethrex-common` (core types)
+  - `guest_program` (validation logic)
+
+Dependencies are fetched automatically via Cargo from GitHub - no local submodules required.
 
 ### Build Steps
 

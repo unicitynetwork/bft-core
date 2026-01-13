@@ -1,11 +1,23 @@
 # Build
 
-Run `make build` to build the application. Executable will be built to `build/ubft`. 
+Run `make build` to build the application. Executable will be built to `build/ubft`.
 
 ### Build dependencies
 
 * [`Go`](https://go.dev/doc/install) version 1.24.
 * `C` compiler, recent versions of [GCC](https://gcc.gnu.org/) are recommended. In Debian and Ubuntu repositories, GCC is part of the build-essential package. On macOS, GCC can be installed with [Homebrew](https://formulae.brew.sh/formula/gcc).
+
+### Build targets
+
+| Target | Description |
+|--------|-------------|
+| `make build` | Build without FFI (default, no Rust required) |
+| `make build-with-ffi` | Build with FFI support |
+| `make build-rust-ffi` | Build Rust FFI libraries only |
+| `make build-sp1-ffi` | Build SP1 verifier FFI |
+| `make build-light-client-ffi` | Build Light Client verifier FFI |
+| `make clean-ffi` | Clean Rust build artifacts |
+| `make check-rust` | Verify Rust toolchain |
 
 # Money Partition
 
@@ -15,8 +27,8 @@ Run `make build` to build the application. Executable will be built to `build/ub
    * Initial bill owner predicate can be specified with flag `-i predicate-in-hex`.
 2. Run script `./start.sh -r -p money` to start root chain and 3 money partition nodes
 3. Run script `./stop.sh -a` to stop the root chain and partition nodes.
-   
-   Alternatively, use `stop.sh` to stop any partition or root and `start.sh` to resume. See command help for more details. 
+
+   Alternatively, use `stop.sh` to stop any partition or root and `start.sh` to resume. See command help for more details.
 
 # User Token Partition
 
