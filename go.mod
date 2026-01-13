@@ -22,7 +22,6 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tetratelabs/wazero v1.8.1
-	github.com/unicitynetwork/bft-go-base v1.0.3-0.20251230081246-e5204716ebf2
 	go.etcd.io/bbolt v1.4.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.32.0
@@ -38,8 +37,6 @@ require (
 	golang.org/x/time v0.5.0
 	gopkg.in/yaml.v3 v3.0.1
 )
-
-replace github.com/unicitynetwork/bft-go-base => ../bft-go-base
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -161,6 +158,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
+	github.com/unicitynetwork/bft-go-base v1.0.3-0.20260113141611-ef8e60451f16 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
