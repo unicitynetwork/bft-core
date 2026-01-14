@@ -7,7 +7,7 @@ edition = "2021"
 [workspace]
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 sp1-sdk = "5.0.8"

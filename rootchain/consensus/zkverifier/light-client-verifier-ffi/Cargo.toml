@@ -7,7 +7,7 @@ edition = "2021"
 [workspace]
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 # Core dependencies for witness deserialization and validation
