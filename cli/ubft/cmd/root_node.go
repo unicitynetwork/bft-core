@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
@@ -252,6 +254,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		}
 		mux.HandleFunc("PUT /api/v1/configurations", putShardConfigHandler(orchestration.AddShardConfig))
 		mux.HandleFunc("PUT /api/v1/trustbases", putTrustBaseHandler(trustBaseStore.Store))
+		mux.HandleFunc("GET /api/v1/trustbases", getTrustBaseHandler(trustBaseStore, obs))
 		mux.HandleFunc("GET /api/v1/roundInfo", getRoundInfoHandler(cm.GetState, obs))
 		return httpsrv.Run(ctx,
 			&http.Server{
@@ -285,6 +288,106 @@ func createHost(ctx context.Context, keyConf *partition.KeyConf, flags *rootNode
 		return nil, err
 	}
 	return network.NewPeer(ctx, peerConf, obs.Logger(), obs.PrometheusRegisterer())
+}
+
+type TrustBasesResponse struct {
+	_          struct{} `cbor:",toarray"`
+	TrustBases []*types.RootTrustBaseV1
+}
+
+func getTrustBaseHandler(trustBaseStore *trustbase.TrustBaseStore, obs Observability) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// return trust base records for the epochs from <epoch1> to <epoch2>, inclusively.
+		// Both parameters are optional and default to the latest epoch.
+		// parameters are uint64 (0 value is not allowed by business rules)
+		lastTrustBase, err := trustBaseStore.LoadLast()
+		if err != nil {
+			obs.Logger().Error(fmt.Sprintf("GET trustbases request: failed to load latest active epoch: %v", err))
+			http.Error(w, "failed to load latest trust base", http.StatusInternalServerError)
+			return
+		}
+
+		epoch1, epoch2, err := validateQueryParams(r, lastTrustBase.Epoch)
+		if err != nil {
+			obs.Logger().Warn(fmt.Sprintf("GET trustbases request: %v", err))
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		trustBases, err := fetchTrustBases(trustBaseStore, epoch1, epoch2)
+		if err != nil {
+			obs.Logger().Warn(fmt.Sprintf("GET trustbases request: %v", err))
+			http.Error(w, "failed to load trust base", http.StatusInternalServerError)
+			return
+		}
+
+		result := &TrustBasesResponse{TrustBases: trustBases}
+		if err := writeCborResponse(w, result); err != nil {
+			obs.Logger().Error(fmt.Sprintf("failed to write response: %v", err))
+		}
+	}
+}
+
+func fetchTrustBases(store *trustbase.TrustBaseStore, epoch1, epoch2 uint64) ([]*types.RootTrustBaseV1, error) {
+	var trustBases []*types.RootTrustBaseV1
+	for i := epoch1; i <= epoch2; i++ {
+		tb, err := store.GetByEpoch(i)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load trust base for epoch %d: %w", i, err)
+		}
+		trustBases = append(trustBases, tb)
+	}
+	return trustBases, nil
+}
+
+func writeCborResponse(w http.ResponseWriter, response any) error {
+	w.Header().Set("Content-Type", "application/cbor")
+	encoder, err := types.Cbor.GetEncoder(w)
+	if err != nil {
+		return fmt.Errorf("failed to create cbor encoder: %w", err)
+	}
+	if err := encoder.Encode(response); err != nil {
+		return fmt.Errorf("failed to encode response: %w", err)
+	}
+	return nil
+}
+
+func validateQueryParams(r *http.Request, lastEpoch uint64) (uint64, uint64, error) {
+	q := r.URL.Query()
+
+	epoch1, err := parseUint64WithDefault(q, "epoch1", lastEpoch)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to parse epoch1 query param: %v", err)
+	}
+	epoch2, err := parseUint64WithDefault(q, "epoch2", lastEpoch)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to parse epoch2 query param: %v", err)
+	}
+
+	if epoch1 == 0 || epoch2 == 0 {
+		return 0, 0, fmt.Errorf("epoch1 and epoch2 should be greater than 0")
+	}
+	if epoch1 > epoch2 {
+		return 0, 0, fmt.Errorf("epoch2 must be greater than or equal to epoch1")
+	}
+	if epoch1 > lastEpoch || epoch2 > lastEpoch {
+		return 0, 0, fmt.Errorf("epoch1 and epoch2 cannot be greater than latest epoch")
+	}
+	return epoch1, epoch2, nil
+}
+
+func parseUint64WithDefault(q url.Values, key string, defaultValue uint64) (uint64, error) {
+	valStr := q.Get(key)
+	if valStr == "" {
+		return defaultValue, nil
+	}
+
+	v, err := strconv.ParseUint(valStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", key, err)
+	}
+
+	return v, nil
 }
 
 func putTrustBaseHandler(addTrustBaseFn func(trustBase types.RootTrustBase) error) http.HandlerFunc {
