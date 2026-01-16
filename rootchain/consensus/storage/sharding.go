@@ -250,14 +250,15 @@ func NewShardInfo(shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Ha
 		return nil, fmt.Errorf("failed to calculate shard conf hash: %w", err)
 	}
 	si := &ShardInfo{
-		PartitionID:   shardConf.PartitionID,
-		ShardID:       shardConf.ShardID,
-		T2Timeout:     shardConf.T2Timeout,
-		ShardConfHash: shardConfHash,
-		RootHash:      nil,
-		PrevEpochFees: types.RawCBOR{0xA0}, // CBOR map(0)
-		LastCR:        nil,
-		IR:            &types.InputRecord{Version: 1},
+		PartitionID:     shardConf.PartitionID,
+		ShardID:         shardConf.ShardID,
+		T2Timeout:       shardConf.T2Timeout,
+		ShardConfHash:   shardConfHash,
+		RootHash:        nil,
+		PrevEpochFees:   types.RawCBOR{0xA0}, // CBOR map(0)
+		LastCR:          nil,
+		IR:              &types.InputRecord{Version: 1},
+		PartitionParams: maps.Clone(shardConf.PartitionParams),
 	}
 
 	if si.PrevEpochStat, err = types.Cbor.Marshal(si.Stat); err != nil {
@@ -334,8 +335,116 @@ type ShardInfo struct {
 	IR *types.InputRecord
 	TR certification.TechnicalRecord
 
+	// PartitionParams contains proof configuration from PartitionDescriptionRecord.
+	// Used for per-partition ZK proof verification settings.
+	// NOTE: This field MUST remain at the end of the exported fields for backward
+	// compatibility with CBOR deserialization of older data.
+	PartitionParams map[string]string
+
 	nodeIDs   []string // sorted list of partition node IDs
 	trustBase map[string]abcrypto.Verifier
+}
+
+// shardInfoV1 is used for CBOR serialization/deserialization with toarray format.
+// This is the format without PartitionParams (pre-v2 format).
+type shardInfoV1 struct {
+	_             struct{} `cbor:",toarray"`
+	PartitionID   types.PartitionID
+	ShardID       types.ShardID
+	T2Timeout     time.Duration
+	ShardConfHash []byte
+	RootHash      []byte
+	PrevEpochStat types.RawCBOR
+	Stat          certification.StatisticalRecord
+	PrevEpochFees types.RawCBOR
+	Fees          map[string]uint64
+	LastCR        *certification.CertificationResponse
+	IR            *types.InputRecord
+	TR            certification.TechnicalRecord
+}
+
+// shardInfoV2 is used for CBOR serialization/deserialization with toarray format.
+// This is the format with PartitionParams (v2 format).
+type shardInfoV2 struct {
+	_               struct{} `cbor:",toarray"`
+	PartitionID     types.PartitionID
+	ShardID         types.ShardID
+	T2Timeout       time.Duration
+	ShardConfHash   []byte
+	RootHash        []byte
+	PrevEpochStat   types.RawCBOR
+	Stat            certification.StatisticalRecord
+	PrevEpochFees   types.RawCBOR
+	Fees            map[string]uint64
+	LastCR          *certification.CertificationResponse
+	IR              *types.InputRecord
+	TR              certification.TechnicalRecord
+	PartitionParams map[string]string
+}
+
+// MarshalCBOR implements cbor.Marshaler for ShardInfo.
+// Always uses the v2 format (with PartitionParams).
+func (si ShardInfo) MarshalCBOR() ([]byte, error) {
+	v2 := shardInfoV2{
+		PartitionID:     si.PartitionID,
+		ShardID:         si.ShardID,
+		T2Timeout:       si.T2Timeout,
+		ShardConfHash:   si.ShardConfHash,
+		RootHash:        si.RootHash,
+		PrevEpochStat:   si.PrevEpochStat,
+		Stat:            si.Stat,
+		PrevEpochFees:   si.PrevEpochFees,
+		Fees:            si.Fees,
+		LastCR:          si.LastCR,
+		IR:              si.IR,
+		TR:              si.TR,
+		PartitionParams: si.PartitionParams,
+	}
+	return types.Cbor.Marshal(v2)
+}
+
+// UnmarshalCBOR implements cbor.Unmarshaler for ShardInfo.
+// Supports both v1 (without PartitionParams) and v2 (with PartitionParams) formats.
+func (si *ShardInfo) UnmarshalCBOR(data []byte) error {
+	// Try v2 format first (with PartitionParams)
+	var v2 shardInfoV2
+	if err := types.Cbor.Unmarshal(data, &v2); err == nil {
+		si.PartitionID = v2.PartitionID
+		si.ShardID = v2.ShardID
+		si.T2Timeout = v2.T2Timeout
+		si.ShardConfHash = v2.ShardConfHash
+		si.RootHash = v2.RootHash
+		si.PrevEpochStat = v2.PrevEpochStat
+		si.Stat = v2.Stat
+		si.PrevEpochFees = v2.PrevEpochFees
+		si.Fees = v2.Fees
+		si.LastCR = v2.LastCR
+		si.IR = v2.IR
+		si.TR = v2.TR
+		si.PartitionParams = v2.PartitionParams
+		return nil
+	}
+
+	// Fall back to v1 format (without PartitionParams)
+	var v1 shardInfoV1
+	if err := types.Cbor.Unmarshal(data, &v1); err != nil {
+		return fmt.Errorf("decoding ShardInfo: %w", err)
+	}
+
+	si.PartitionID = v1.PartitionID
+	si.ShardID = v1.ShardID
+	si.T2Timeout = v1.T2Timeout
+	si.ShardConfHash = v1.ShardConfHash
+	si.RootHash = v1.RootHash
+	si.PrevEpochStat = v1.PrevEpochStat
+	si.Stat = v1.Stat
+	si.PrevEpochFees = v1.PrevEpochFees
+	si.Fees = v1.Fees
+	si.LastCR = v1.LastCR
+	si.IR = v1.IR
+	si.TR = v1.TR
+	si.PartitionParams = nil // v1 format doesn't have this field
+	return nil
 }
 
 func (si *ShardInfo) resetFeeList(shardConf *types.PartitionDescriptionRecord) {
@@ -383,14 +492,15 @@ func (si *ShardInfo) nextEpoch(shardConf *types.PartitionDescriptionRecord, hash
 		return nil, fmt.Errorf("failed to calculate shard conf hash: %w", err)
 	}
 	nextSI := &ShardInfo{
-		PartitionID:   shardConf.PartitionID,
-		ShardID:       shardConf.ShardID,
-		T2Timeout:     shardConf.T2Timeout,
-		ShardConfHash: shardConfHash,
-		RootHash:      si.RootHash,
-		LastCR:        si.LastCR,
-		IR:            si.IR,
-		TR:            si.TR,
+		PartitionID:     shardConf.PartitionID,
+		ShardID:         shardConf.ShardID,
+		T2Timeout:       shardConf.T2Timeout,
+		ShardConfHash:   shardConfHash,
+		RootHash:        si.RootHash,
+		LastCR:          si.LastCR,
+		IR:              si.IR,
+		TR:              si.TR,
+		PartitionParams: maps.Clone(shardConf.PartitionParams),
 	}
 
 	if nextSI.PrevEpochFees, err = types.Cbor.Marshal(si.Fees); err != nil {

@@ -1,134 +1,162 @@
 # BFT Core ZK Verification Configuration Example
 #
-# This file demonstrates how to configure ZK proof verification for L2 state transitions.
-# Copy this file and customize it for your deployment.
-
-# ============================================================================
-# DEVELOPMENT / TESTING CONFIGURATION (ZK verification disabled)
-# ============================================================================
-
-# When testing without real ZK proofs:
-# ubft root-node run \
-#   --zk-verification-enabled=false
-
-# ============================================================================
-# PRODUCTION CONFIGURATION (SP1 verification enabled)
-# ============================================================================
-
-# Generate verification key from your SP1 prover:
-#   cd uni-evm
-#   cargo run --release --bin generate-vkey -- --output sp1.vkey
-#   cp sp1.vkey /etc/bft-core/
-
-# Start root node with ZK verification:
-# ubft root-node run \
-#   --zk-verification-enabled=true \
-#   --zk-proof-type=sp1 \
-#   --zk-vkey-path=/etc/bft-core/sp1.vkey
-
-# ============================================================================
-# CONFIGURATION OPTIONS
-# ============================================================================
-
-# --zk-verification-enabled (boolean)
-#   Enable/disable ZK proof verification
-#   Default: false
-#   Production: true
+# ZK proof verification is configured PER-PARTITION via PartitionDescriptionRecord.PartitionParams.
+# This allows different partitions to use different proof types or no ZK proofs at all.
 #
-# --zk-proof-type (string)
-#   Type of ZK proof system
-#   Options: "sp1", "risc0", "exec", "none"
-#   Default: "sp1"
-#   Production: "sp1"
+# There are NO global CLI flags for ZK verification - all configuration is per-partition.
+
+# ============================================================================
+# PER-PARTITION CONFIGURATION
+# ============================================================================
+
+# Proof configuration is specified in the PartitionDescriptionRecord.PartitionParams map.
+# This is set when creating or updating a partition configuration.
 #
-# --zk-vkey-path (string)
-#   Path to verification key file
-#   Required when: zk-verification-enabled=true AND zk-proof-type=sp1
-#   Example: /etc/bft-core/sp1.vkey
+# Supported partition params:
+#   proof_type  - Type of ZK proof (sp1, light_client, exec, or empty for m-of-n only)
+#   vkey_path   - Path to verification key file (required for SP1)
 
 # ============================================================================
-# ENVIRONMENT VARIABLES
+# PARTITION CONFIGURATION EXAMPLES
 # ============================================================================
 
-# export UBFT_ZK_VERIFICATION_ENABLED=true
-# export UBFT_ZK_PROOF_TYPE=sp1
-# export UBFT_ZK_VKEY_PATH=/etc/bft-core/sp1.vkey
+# Example 1: Partition with m-of-n signature verification only (no ZK proofs)
+# PartitionDescriptionRecord:
+#   partition_id: 1
+#   partition_params: {}
+#   # or omit partition_params entirely
+
+# Example 2: Partition with SP1 ZK proof verification
+# PartitionDescriptionRecord:
+#   partition_id: 2
+#   partition_params:
+#     proof_type: "sp1"
+#     vkey_path: "/etc/bft-core/partition-2.vkey"
+
+# Example 3: Partition with Light Client proof verification
+# PartitionDescriptionRecord:
+#   partition_id: 3
+#   partition_params:
+#     proof_type: "light_client"
+
+# Example 4: Partition with exec (development/testing - accepts all proofs)
+# PartitionDescriptionRecord:
+#   partition_id: 4
+#   partition_params:
+#     proof_type: "exec"
+
+# ============================================================================
+# PROOF TYPE OPTIONS
+# ============================================================================
+
+# proof_type values:
+#
+# (empty)       - M-of-n validator signature verification only (default)
+#                 No ZK proof required in BlockCertificationRequest
+#
+# "sp1"         - SP1 ZK proof verification
+#                 Requires: vkey_path pointing to SP1 verification key
+#                 Requires: Build with -tags zkverifier_ffi
+#
+# "light_client" - Light client proof verification
+#                 Requires: Build with -tags zkverifier_ffi
+#
+# "exec"        - Development/testing mode
+#                 Accepts all well-formed proofs without verification
+
+# ============================================================================
+# BUILD TAGS
+# ============================================================================
+
+# SP1 and Light Client verification require FFI support:
+#
+#   make build-ffi           # Build with FFI support
+#   # or
+#   go build -tags zkverifier_ffi ./...
+#
+# Without FFI support, only "exec" proof type is available.
+# Attempting to configure a partition with "sp1" or "light_client" will fail
+# at startup if FFI is not built in.
 
 # ============================================================================
 # VERIFICATION KEY MANAGEMENT
 # ============================================================================
 
-# The verification key must match the prover program ID.
+# For SP1 proof type, each partition needs its own verification key.
 #
-# 1. Generate vkey from Uni-EVM prover:
-#    cd uni-evm
-#    cargo run --release --bin generate-vkey -- --output sp1.vkey
+# 1. Generate vkey from the partition's prover:
+#    cd partition-prover
+#    cargo run --release --bin generate-vkey -- --output partition.vkey
 #
 # 2. Deploy vkey to all root chain nodes:
-#    scp sp1.vkey root-node-1:/etc/bft-core/
-#    scp sp1.vkey root-node-2:/etc/bft-core/
-#    scp sp1.vkey root-node-3:/etc/bft-core/
+#    scp partition.vkey root-node-1:/etc/bft-core/partition-X.vkey
+#    scp partition.vkey root-node-2:/etc/bft-core/partition-X.vkey
+#    scp partition.vkey root-node-3:/etc/bft-core/partition-X.vkey
 #
 # 3. Verify file permissions:
-#    chmod 644 /etc/bft-core/sp1.vkey
+#    chmod 644 /etc/bft-core/partition-X.vkey
 #
 # 4. Verify checksum across all nodes:
-#    sha256sum /etc/bft-core/sp1.vkey
+#    sha256sum /etc/bft-core/partition-X.vkey
+#
+# 5. Configure partition with vkey_path in PartitionParams
+
+# ============================================================================
+# FAIL-HARD BEHAVIOR
+# ============================================================================
+
+# If a partition is configured with a proof type that's unavailable:
+#
+# - At config load time: Partition configuration is REJECTED
+# - At runtime: This cannot happen (caught at config load)
+#
+# There is NO fallback to m-of-n if proof verification is configured.
+# If you want m-of-n only, don't set proof_type or set it to empty string.
 
 # ============================================================================
 # MONITORING
 # ============================================================================
 
 # Metrics to monitor:
-# - bft_zk_verification_total{result="success"}
-# - bft_zk_verification_total{result="failure"}
-# - bft_zk_verification_duration_seconds
+# - bft_zk_verification_total{partition="X", result="success"}
+# - bft_zk_verification_total{partition="X", result="failure"}
+# - bft_zk_verification_duration_seconds{partition="X"}
 #
 # Log messages:
-# - INFO: "ZK proof verification enabled (proof type: sp1)"
-# - WARN: "ZK proof verification disabled - accepting all proofs"
-# - WARN: "ZK proof verification failed"
-# - DEBUG: "Verifying ZK proof"
+# - INFO: "Root node initialized with per-partition ZK proof verification"
+# - INFO: "ZK proof verified successfully" (partition=X, round=Y)
+# - WARN: "ZK proof verification failed" (partition=X)
+# - DEBUG: "Verifying ZK proof" (partition=X, proof_size=N)
 
 # ============================================================================
 # TROUBLESHOOTING
 # ============================================================================
 
+# Error: "proof type \"sp1\" not available (build with -tags zkverifier_ffi to enable)"
+# Solution: Rebuild with FFI support: make build-ffi
+#
+# Error: "vkey_path required for SP1 proof type"
+# Solution: Add vkey_path to partition_params in PartitionDescriptionRecord
+#
 # Error: "failed to read verification key"
-# Solution: Verify --zk-vkey-path points to valid file with correct permissions
+# Solution: Verify vkey_path points to valid file with correct permissions
 #
-# Error: "verification key is empty"
-# Solution: Regenerate verification key from prover
-#
-# Error: "proof verification failed"
-# Solution: Ensure verification key matches prover program ID
-#           Check SP1 library version compatibility
-#           Verify proof format is SP1 compressed
+# Error: "getting verifier for partition X: ..."
+# Solution: Check partition configuration in orchestration database
 
 # ============================================================================
-# SECURITY WARNINGS
+# MIGRATION FROM GLOBAL CONFIG
 # ============================================================================
 
-# ⚠️  CRITICAL: The current SP1 verifier is a PLACEHOLDER implementation
-#               It accepts all well-formed proofs without cryptographic verification
-#
-# Before production deployment:
-# 1. Integrate actual SP1 verification library (see INTEGRATION_GUIDE.md)
-# 2. Test with real SP1 proofs from Uni-EVM
-# 3. Test rejection of invalid/malicious proofs
-# 4. Security audit of verification implementation
-# 5. Monitor verification latency and failure rates
-
-# ============================================================================
-# MIGRATION PLAN
-# ============================================================================
-
-# Phase 1: Deploy with verification disabled
-#   --zk-verification-enabled=false
-#
-# Phase 2: Deploy with verification enabled but non-blocking (future feature)
-#   Log failures but don't reject requests
-#
-# Phase 3: Deploy with verification enabled and blocking
+# If you were using the old global CLI flags:
 #   --zk-verification-enabled=true
-#   Reject requests with invalid proofs
+#   --zk-proof-type=sp1
+#   --zk-vkey-path=/etc/bft-core/sp1.vkey
+#
+# Migration steps:
+# 1. Remove the CLI flags (they no longer exist)
+# 2. For each partition that needs ZK verification:
+#    - Update PartitionDescriptionRecord.PartitionParams:
+#        proof_type: "sp1"
+#        vkey_path: "/etc/bft-core/partition-X.vkey"
+# 3. Partitions without ZK verification need no changes (m-of-n by default)

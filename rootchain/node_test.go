@@ -33,15 +33,15 @@ func Test_rootNode(t *testing.T) {
 		cm := mockConsensusManager{}
 		partNet := mockPartitionNet{}
 
-		node, err := New(nil, partNet, cm, nopObs, nil)
+		node, err := New(nil, partNet, cm, nopObs)
 		require.Nil(t, node)
 		require.EqualError(t, err, `partition listener is nil`)
 
-		node, err = New(&nwPeer, nil, cm, nopObs, nil)
+		node, err = New(&nwPeer, nil, cm, nopObs)
 		require.Nil(t, node)
 		require.EqualError(t, err, `network is nil`)
 
-		node, err = New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err = New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 		require.NotNil(t, node)
 		require.Equal(t, &nwPeer, node.GetPeer())
@@ -59,7 +59,7 @@ func Test_rootNode(t *testing.T) {
 		partMsg := make(chan any)
 		partNet := mockPartitionNet{recCh: func() <-chan any { return partMsg }}
 
-		node, err := New(nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 		require.NotNil(t, node)
 		require.Equal(t, nwPeer, node.GetPeer())
@@ -99,7 +99,7 @@ func Test_rootNode(t *testing.T) {
 
 		partNet, _ := newMockPartitionNet()
 
-		node, err := New(nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 		require.NotNil(t, node)
 		require.Equal(t, nwPeer, node.GetPeer())
@@ -134,7 +134,7 @@ func Test_sendResponse(t *testing.T) {
 	certResp := validCertificationResponse(t)
 
 	t.Run("invalid peer ID", func(t *testing.T) {
-		node, err := New(&nwPeer, mockPartitionNet{}, cm, nopObs, nil)
+		node, err := New(&nwPeer, mockPartitionNet{}, cm, nopObs)
 		require.NoError(t, err)
 
 		err = node.sendResponse(t.Context(), "", &certResp)
@@ -147,7 +147,7 @@ func Test_sendResponse(t *testing.T) {
 	t.Run("invalid CertificationResponse", func(t *testing.T) {
 		// CertResp is coming from ConsensusManager so this should be impossible?
 		// just send it out and shard nodes should be able to ignore invalid CRsp?
-		node, err := New(&nwPeer, mockPartitionNet{}, cm, nopObs, nil)
+		node, err := New(&nwPeer, mockPartitionNet{}, cm, nopObs)
 		require.NoError(t, err)
 
 		cr := certResp
@@ -163,7 +163,7 @@ func Test_sendResponse(t *testing.T) {
 				return expErr
 			},
 		}
-		node, err := New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 		err = node.sendResponse(t.Context(), nodeID, &certResp)
 		require.ErrorIs(t, err, expErr)
@@ -178,7 +178,7 @@ func Test_sendResponse(t *testing.T) {
 				return nil
 			},
 		}
-		node, err := New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 		require.NoError(t, node.sendResponse(t.Context(), nodeID, &certResp))
 	})
@@ -202,7 +202,7 @@ func Test_onHandshake(t *testing.T) {
 	t.Run("invalid handshake msg", func(t *testing.T) {
 		partNet := mockPartitionNet{}
 		cm := mockConsensusManager{}
-		node, err := New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 		msg := handshake.Handshake{
 			PartitionID: 0, // invalid partition ID
@@ -228,7 +228,7 @@ func Test_onHandshake(t *testing.T) {
 				return nil, expErr
 			},
 		}
-		node, err := New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 		err = node.onHandshake(t.Context(), &msg)
 		require.EqualError(t, err, fmt.Errorf(`reading partition %s certificate: %w`, msg.PartitionID, expErr).Error())
@@ -245,7 +245,7 @@ func Test_onHandshake(t *testing.T) {
 				return newMockShardInfo(t, nodeID.String(), publicKey, certResp), nil
 			},
 		}
-		node, err := New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 
 		msg := handshake.Handshake{
@@ -271,7 +271,7 @@ func Test_onHandshake(t *testing.T) {
 				return newMockShardInfo(t, nodeID.String(), publicKey, certResp), nil
 			},
 		}
-		node, err := New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 
 		msg := handshake.Handshake{
@@ -298,7 +298,7 @@ func Test_handlePartitionMsg(t *testing.T) {
 	t.Run("unsupported message", func(t *testing.T) {
 		partNet := mockPartitionNet{}
 		cm := mockConsensusManager{}
-		node, err := New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 		err = node.handlePartitionMsg(t.Context(), 555)
 		require.EqualError(t, err, `unknown message type int`)
@@ -320,7 +320,7 @@ func Test_handlePartitionMsg(t *testing.T) {
 				return newMockShardInfo(t, nodeID.String(), publicKey, certResp), nil
 			},
 		}
-		node, err := New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 
 		msg := handshake.Handshake{
@@ -343,7 +343,7 @@ func Test_handlePartitionMsg(t *testing.T) {
 				return nil, expErr
 			},
 		}
-		node, err := New(&nwPeer, partNet, cm, nopObs, nil)
+		node, err := New(&nwPeer, partNet, cm, nopObs)
 		require.NoError(t, err)
 
 		msg := certification.BlockCertificationRequest{
@@ -363,7 +363,7 @@ func Test_partitionMsgLoop(t *testing.T) {
 		cm := mockConsensusManager{}
 
 		done := make(chan struct{})
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(t.Context())
@@ -385,7 +385,7 @@ func Test_partitionMsgLoop(t *testing.T) {
 		cm := mockConsensusManager{}
 
 		done := make(chan struct{})
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 
 		go func() {
@@ -410,7 +410,7 @@ func Test_partitionMsgLoop(t *testing.T) {
 		cm := mockConsensusManager{}
 
 		done := make(chan struct{})
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(t.Context())
@@ -521,7 +521,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 			},
 		}
 
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
 		require.EqualError(t, err, `acquiring shard 00000001 -  info: no SI`)
@@ -534,7 +534,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 			},
 		}
 
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 		cr := validCertRequest
 		cr.NodeID = "not valid ID"
@@ -563,7 +563,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 				return &storage.ShardInfo{LastCR: &certResp}, nil
 			},
 		}
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 
 		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
@@ -590,7 +590,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 				return si, nil
 			},
 		}
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 
 		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
@@ -613,7 +613,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 		}
 		key := partitionShard{validCertRequest.PartitionID, validCertRequest.ShardID.Key()}
 
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 		require.NotContains(t, node.incomingRequests.store, key)
 
@@ -657,7 +657,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 		}
 		key := partitionShard{validCertRequest.PartitionID, validCertRequest.ShardID.Key()}
 
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 		require.NotContains(t, node.incomingRequests.store, key)
 
@@ -714,7 +714,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 		}
 		key := partitionShard{validCertRequest.PartitionID, validCertRequest.ShardID.Key()}
 
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 		require.NotContains(t, node.incomingRequests.store, key)
 
@@ -754,7 +754,7 @@ func Test_handleConsensus(t *testing.T) {
 		cm := mockConsensusManager{}
 
 		done := make(chan struct{})
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(t.Context())
@@ -775,7 +775,7 @@ func Test_handleConsensus(t *testing.T) {
 		cm := mockConsensusManager{certificationResult: make(chan *certification.CertificationResponse)}
 
 		done := make(chan struct{})
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 
 		go func() {
@@ -806,7 +806,7 @@ func Test_handleConsensus(t *testing.T) {
 			},
 		}
 
-		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t), nil)
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
 		require.NoError(t, err)
 
 		go func() {

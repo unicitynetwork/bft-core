@@ -28,7 +28,6 @@ import (
 	"github.com/unicitynetwork/bft-core/rootchain/consensus"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
-	"github.com/unicitynetwork/bft-core/rootchain/consensus/zkverifier"
 	"github.com/unicitynetwork/bft-core/rootchain/partitions"
 )
 
@@ -54,11 +53,6 @@ type (
 		BlockRate        uint32
 		MaxRequests      uint   // validator partition certification request channel capacity
 		RPCServerAddress string // address on which http server is exposed with metrics endpoint
-
-		// ZK verification configuration
-		ZKVerificationEnabled bool
-		ZKProofType           string
-		ZKVerificationKeyPath string
 	}
 )
 
@@ -116,14 +110,6 @@ func rootNodeRunCmd(baseFlags *baseFlags) *cobra.Command {
 		fmt.Sprintf("path to the orchestration database (default: %s)", filepath.Join("$UBFT_HOME", orchestrationDBFileName)))
 
 	cmd.Flags().Uint32Var(&flags.BlockRate, "block-rate", consensus.BlockRate, "block rate (consensus parameter)")
-
-	// ZK verification flags
-	cmd.Flags().BoolVar(&flags.ZKVerificationEnabled, "zk-verification-enabled", false,
-		"Enable ZK proof verification for L2 state transitions")
-	cmd.Flags().StringVar(&flags.ZKProofType, "zk-proof-type", "sp1",
-		"ZK proof type (sp1, risc0, exec, none)")
-	cmd.Flags().StringVar(&flags.ZKVerificationKeyPath, "zk-vkey-path", "",
-		"Path to ZK verification key file (.vkey)")
 
 	hideFlags(cmd, "block-rate")
 	return cmd
@@ -242,23 +228,11 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return err
 	}
 
-	// Initialize ZK verifier
-	zkVerifierCfg := &zkverifier.Config{
-		Enabled:             flags.ZKVerificationEnabled,
-		ProofType:           zkverifier.ProofType(flags.ZKProofType),
-		VerificationKeyPath: flags.ZKVerificationKeyPath,
-	}
-	zkVerifier, err := zkverifier.NewVerifier(zkVerifierCfg)
-	if err != nil {
-		return fmt.Errorf("failed to initialize ZK verifier: %w", err)
-	}
-
 	node, err := rootchain.New(
 		host,
 		partitionNet,
 		cm,
 		obs,
-		zkVerifier,
 	)
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)

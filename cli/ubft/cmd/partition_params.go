@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/zkverifier"
 	"github.com/unicitynetwork/bft-core/txsystem"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
@@ -114,4 +115,64 @@ func parseUint64(key, value string) (uint64, error) {
 		return 0, fmt.Errorf("failed to parse param %q value: %w", key, err)
 	}
 	return ret, nil
+}
+
+// ProofPartitionParams holds parsed proof configuration from partition params.
+type ProofPartitionParams struct {
+	// ProofType specifies the proof type for the partition.
+	// Empty/none means m-of-n signature verification only.
+	ProofType zkverifier.ProofType
+
+	// VerificationKeyPath is the path to the verification key file.
+	// Required for SP1 proof type.
+	VerificationKeyPath string
+}
+
+// ParseProofPartitionParams extracts proof configuration from partition params.
+// Returns error if the configuration is invalid.
+func ParseProofPartitionParams(params map[string]string) (*ProofPartitionParams, error) {
+	result := &ProofPartitionParams{
+		ProofType:           zkverifier.ParseProofTypeFromParams(params),
+		VerificationKeyPath: zkverifier.ParseVKeyPathFromParams(params),
+	}
+
+	// Validate the configuration
+	if result.ProofType != zkverifier.ProofTypeNone && result.ProofType != "" {
+		if !zkverifier.IsProofTypeAvailable(result.ProofType) {
+			return nil, fmt.Errorf("proof type %q not available (build with -tags zkverifier_ffi to enable)", result.ProofType)
+		}
+
+		if result.ProofType == zkverifier.ProofTypeSP1 && result.VerificationKeyPath == "" {
+			return nil, fmt.Errorf("vkey_path required for SP1 proof type")
+		}
+	}
+
+	return result, nil
+}
+
+// IsEnabled returns true if ZK proof verification is enabled for this configuration.
+func (p *ProofPartitionParams) IsEnabled() bool {
+	switch p.ProofType {
+	case zkverifier.ProofTypeNone, zkverifier.ProofTypeExec, "":
+		return false
+	default:
+		return true
+	}
+}
+
+// ToPartitionParams converts the proof configuration to a partition params map.
+func (p *ProofPartitionParams) ToPartitionParams() map[string]string {
+	if p.ProofType == zkverifier.ProofTypeNone || p.ProofType == "" {
+		return nil
+	}
+
+	params := map[string]string{
+		zkverifier.ParamProofType: string(p.ProofType),
+	}
+
+	if p.VerificationKeyPath != "" {
+		params[zkverifier.ParamVerificationKeyPath] = p.VerificationKeyPath
+	}
+
+	return params
 }

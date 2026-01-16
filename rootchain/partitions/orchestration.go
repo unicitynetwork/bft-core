@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/unicitynetwork/bft-core/logger"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/zkverifier"
 	"github.com/unicitynetwork/bft-go-base/types"
 	bolt "go.etcd.io/bbolt"
 )
@@ -210,7 +211,10 @@ func storeShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) er
 
 func verifyShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) error {
 	if shardConf.Epoch == 0 {
-		return shardConf.IsValid()
+		if err := shardConf.IsValid(); err != nil {
+			return err
+		}
+		return verifyProofConfig(shardConf)
 	}
 
 	lastShardConf, err := getShardConf(tx, shardConf.PartitionID, shardConf.ShardID, math.MaxUint64)
@@ -223,7 +227,35 @@ func verifyShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) e
 	if err = shardConf.Verify(lastShardConf); err != nil {
 		return fmt.Errorf("shard conf does not extend previous shard conf: %w", err)
 	}
-	return err
+	return verifyProofConfig(shardConf)
+}
+
+// verifyProofConfig validates the ZK proof configuration in partition params.
+// Returns error if:
+// - proof_type is specified but not available (FFI not built)
+// - SP1 proof_type is specified but vkey_path is missing
+func verifyProofConfig(shardConf *types.PartitionDescriptionRecord) error {
+	proofType := zkverifier.ParseProofTypeFromParams(shardConf.PartitionParams)
+
+	// Empty/none proof type is always valid (m-of-n mode)
+	if proofType == zkverifier.ProofTypeNone || proofType == "" {
+		return nil
+	}
+
+	// Check if proof type is available in current build
+	if !zkverifier.IsProofTypeAvailable(proofType) {
+		return fmt.Errorf("proof type %q not available (build with -tags zkverifier_ffi to enable)", proofType)
+	}
+
+	// SP1 requires verification key path
+	if proofType == zkverifier.ProofTypeSP1 {
+		vkeyPath := zkverifier.ParseVKeyPathFromParams(shardConf.PartitionParams)
+		if vkeyPath == "" {
+			return fmt.Errorf("vkey_path required for SP1 proof type")
+		}
+	}
+
+	return nil
 }
 
 // schema:

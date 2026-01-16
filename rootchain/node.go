@@ -54,7 +54,7 @@ type (
 		subscription     *Subscriptions
 		net              PartitionNet
 		consensusManager ConsensusManager
-		zkVerifier       zkverifier.ZKVerifier
+		zkRegistry       *zkverifier.Registry
 
 		log    *slog.Logger
 		tracer trace.Tracer
@@ -69,18 +69,12 @@ func New(
 	pNet PartitionNet,
 	cm ConsensusManager,
 	observe Observability,
-	zkVerifier zkverifier.ZKVerifier,
 ) (*Node, error) {
 	if peer == nil {
 		return nil, fmt.Errorf("partition listener is nil")
 	}
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
-	}
-	if zkVerifier == nil {
-		// Default to NoOp verifier if none provided
-		zkVerifier = &zkverifier.NoOpVerifier{}
-		observe.Logger().Warn("No ZK verifier provided, using NoOp verifier (accepts all proofs)")
 	}
 
 	meter := observe.Meter("rootchain.node")
@@ -98,7 +92,7 @@ func New(
 		subscription:     subs,
 		net:              pNet,
 		consensusManager: cm,
-		zkVerifier:       zkVerifier,
+		zkRegistry:       zkverifier.NewRegistry(),
 		log:              observe.Logger(),
 		tracer:           observe.Tracer("rootchain.node"),
 	}
@@ -106,12 +100,7 @@ func New(
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
 
-	// Log verifier configuration
-	if zkVerifier.IsEnabled() {
-		observe.Logger().Info(fmt.Sprintf("ZK proof verification enabled (proof type: %s)", zkVerifier.ProofType()))
-	} else {
-		observe.Logger().Warn("ZK proof verification disabled - accepting all proofs")
-	}
+	observe.Logger().Info("Root node initialized with per-partition ZK proof verification")
 
 	return node, nil
 }
@@ -326,14 +315,20 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 
 // verifyZKProof verifies the ZK proof in the block certification request
 func (v *Node) verifyZKProof(ctx context.Context, req *certification.BlockCertificationRequest, si *storage.ShardInfo) error {
-	if !v.zkVerifier.IsEnabled() {
-		// Verification disabled - accept all
-		return nil
-	}
-
 	ir := req.InputRecord
 	if ir == nil {
 		return fmt.Errorf("input record is nil")
+	}
+
+	// Get verifier for this partition's configuration
+	verifier, err := v.zkRegistry.GetVerifier(si.PartitionID, si.ShardID, si.IR.Epoch, si.PartitionParams)
+	if err != nil {
+		return fmt.Errorf("getting verifier for partition %s: %w", si.PartitionID, err)
+	}
+
+	if !verifier.IsEnabled() {
+		// m-of-n mode - no ZK proof verification
+		return nil
 	}
 
 	// Get state roots from InputRecord
@@ -357,12 +352,12 @@ func (v *Node) verifyZKProof(ctx context.Context, req *certification.BlockCertif
 	v.log.DebugContext(ctx, "Verifying ZK proof",
 		logger.Shard(req.PartitionID, req.ShardID),
 		logger.Data(slog.Int("proof_size", len(req.ZkProof))),
-		logger.Data(slog.String("proof_type", string(v.zkVerifier.ProofType()))),
+		logger.Data(slog.String("proof_type", string(verifier.ProofType()))),
 		logger.Data(slog.Uint64("round", ir.RoundNumber)))
 
 	// Verify proof: previousStateRoot -> newStateRoot transition with block hash
 	blockHash := ir.BlockHash
-	if err := v.zkVerifier.VerifyProof(req.ZkProof, previousStateRoot, newStateRoot, blockHash); err != nil {
+	if err := verifier.VerifyProof(req.ZkProof, previousStateRoot, newStateRoot, blockHash); err != nil {
 		return fmt.Errorf("ZK proof verification failed: %w", err)
 	}
 

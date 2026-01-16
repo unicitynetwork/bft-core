@@ -356,7 +356,7 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		node, err := rootchain.New(rootPeer, rootNet, cm, obs, nil)
+		node, err := rootchain.New(rootPeer, rootNet, cm, obs)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}
