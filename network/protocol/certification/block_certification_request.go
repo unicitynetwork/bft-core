@@ -85,10 +85,8 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 }
 
 func (x BlockCertificationRequest) Bytes() ([]byte, error) {
-	// Exclude signature and ZK proof from signed data
-	// ZK proof is validated separately by the verifier
+	// Exclude signature from signed data
 	x.Signature = nil
-	x.ZkProof = nil
 	return types.Cbor.Marshal(x)
 }
 
