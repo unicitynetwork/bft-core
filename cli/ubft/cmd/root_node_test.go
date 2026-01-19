@@ -342,7 +342,7 @@ func Test_GetTrustBases(t *testing.T) {
 	})
 
 	t.Run("ok with multiple trust bases", func(t *testing.T) {
-		res, body := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?epoch1=1&epoch2=2")
+		res, body := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=1&to=2")
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		var response TrustBasesResponse
@@ -354,22 +354,22 @@ func Test_GetTrustBases(t *testing.T) {
 	})
 
 	t.Run("ok with explicit params", func(t *testing.T) {
-		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?epoch1=2&epoch2=2")
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=2&to=2")
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
 	t.Run("bad_request_invalid_epoch", func(t *testing.T) {
-		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?epoch1=0")
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=0")
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
-	t.Run("bad_request_epoch1_gt_epoch2", func(t *testing.T) {
-		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?epoch1=5&epoch2=3")
+	t.Run("bad_request_from_gt_to", func(t *testing.T) {
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=5&to=3")
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
 	t.Run("bad_request_epoch_gt_latest", func(t *testing.T) {
-		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?epoch2=999")
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?to=999")
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 }

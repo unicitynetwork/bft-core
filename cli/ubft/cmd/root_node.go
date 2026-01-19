@@ -355,23 +355,23 @@ func writeCborResponse(w http.ResponseWriter, response any) error {
 func validateQueryParams(r *http.Request, lastEpoch uint64) (uint64, uint64, error) {
 	q := r.URL.Query()
 
-	epoch1, err := parseUint64WithDefault(q, "epoch1", lastEpoch)
+	epoch1, err := parseUint64WithDefault(q, "from", lastEpoch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to parse epoch1 query param: %v", err)
+		return 0, 0, fmt.Errorf("failed to parse from query param: %v", err)
 	}
-	epoch2, err := parseUint64WithDefault(q, "epoch2", lastEpoch)
+	epoch2, err := parseUint64WithDefault(q, "to", lastEpoch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to parse epoch2 query param: %v", err)
+		return 0, 0, fmt.Errorf("failed to parse to query param: %v", err)
 	}
 
 	if epoch1 == 0 || epoch2 == 0 {
-		return 0, 0, fmt.Errorf("epoch1 and epoch2 should be greater than 0")
+		return 0, 0, fmt.Errorf("from and to should be greater than 0")
 	}
 	if epoch1 > epoch2 {
-		return 0, 0, fmt.Errorf("epoch2 must be greater than or equal to epoch1")
+		return 0, 0, fmt.Errorf("to must be greater than or equal to from")
 	}
 	if epoch1 > lastEpoch || epoch2 > lastEpoch {
-		return 0, 0, fmt.Errorf("epoch1 and epoch2 cannot be greater than latest epoch")
+		return 0, 0, fmt.Errorf("from and to cannot be greater than latest epoch")
 	}
 	return epoch1, epoch2, nil
 }
