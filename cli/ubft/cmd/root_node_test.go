@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,13 +16,17 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
 	"github.com/unicitynetwork/bft-go-base/types"
 
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/internal/testutils/net"
 	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	testtime "github.com/unicitynetwork/bft-core/internal/testutils/time"
+	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
@@ -292,6 +297,80 @@ func Test_roundInfoHandler(t *testing.T) {
 			},
 		}
 		require.Equal(t, expected, actual)
+	})
+}
+
+func Test_GetTrustBases(t *testing.T) {
+	s1, v1 := testsig.CreateSignerAndVerifier(t)
+	trustBase1, err := types.NewTrustBase(types.NetworkLocal, []*types.NodeInfo{testtb.NewNodeInfoFromVerifier(t, "1", v1)},
+		types.WithEpoch(1),
+		types.WithEpochStart(1),
+		types.WithQuorumThreshold(1),
+	)
+	require.NoError(t, err)
+	require.NoError(t, trustBase1.Sign("1", s1))
+
+	_, v2 := testsig.CreateSignerAndVerifier(t)
+	trustBase1Hash, err := trustBase1.Hash(crypto.SHA256)
+	require.NoError(t, err)
+	trustBase2, err := types.NewTrustBase(types.NetworkLocal, []*types.NodeInfo{testtb.NewNodeInfoFromVerifier(t, "2", v2)},
+		types.WithEpoch(2),
+		types.WithEpochStart(2),
+		types.WithQuorumThreshold(1),
+		types.WithPreviousTrustBaseHash(trustBase1Hash),
+	)
+	require.NoError(t, err)
+	require.NoError(t, trustBase2.Sign("1", s1)) // sign by previous validator
+
+	tbs, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, tbs.Store(trustBase1))
+	require.NoError(t, tbs.Store(trustBase2))
+
+	hf := getTrustBaseHandler(tbs, observability.Default(t))
+
+	t.Run("ok with default values", func(t *testing.T) {
+		res, body := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases")
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "application/cbor", res.Header.Get("Content-Type"))
+
+		var response TrustBasesResponse
+		require.NoError(t, types.Cbor.Unmarshal(body, &response))
+		require.Len(t, response.TrustBases, 1)
+
+		require.EqualValues(t, 2, response.TrustBases[0].Epoch)
+	})
+
+	t.Run("ok with multiple trust bases", func(t *testing.T) {
+		res, body := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=1&to=2")
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var response TrustBasesResponse
+		require.NoError(t, types.Cbor.Unmarshal(body, &response))
+		require.Len(t, response.TrustBases, 2)
+
+		require.EqualValues(t, 1, response.TrustBases[0].Epoch)
+		require.EqualValues(t, 2, response.TrustBases[1].Epoch)
+	})
+
+	t.Run("ok with explicit params", func(t *testing.T) {
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=2&to=2")
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("bad_request_invalid_epoch", func(t *testing.T) {
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=0")
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("bad_request_from_gt_to", func(t *testing.T) {
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=5&to=3")
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("bad_request_epoch_gt_latest", func(t *testing.T) {
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?to=999")
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 }
 
