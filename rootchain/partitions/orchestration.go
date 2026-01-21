@@ -247,11 +247,21 @@ func verifyProofConfig(shardConf *types.PartitionDescriptionRecord) error {
 		return fmt.Errorf("proof type %q not available (build with -tags zkverifier_ffi to enable)", proofType)
 	}
 
-	// SP1 requires verification key path
+	// SP1 requires verification key path and chain_id
 	if proofType == zkverifier.ProofTypeSP1 {
 		vkeyPath := zkverifier.ParseVKeyPathFromParams(shardConf.PartitionParams)
 		if vkeyPath == "" {
 			return fmt.Errorf("vkey_path required for SP1 proof type")
+		}
+		if _, ok := zkverifier.ParseChainIDFromParams(shardConf.PartitionParams); !ok {
+			return fmt.Errorf("chain_id required for SP1 proof type")
+		}
+	}
+
+	// LightClient requires chain_id
+	if proofType == zkverifier.ProofTypeLightClient {
+		if _, ok := zkverifier.ParseChainIDFromParams(shardConf.PartitionParams); !ok {
+			return fmt.Errorf("chain_id required for light_client proof type")
 		}
 	}
 

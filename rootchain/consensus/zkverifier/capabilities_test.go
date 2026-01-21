@@ -115,3 +115,75 @@ func TestParseVKeyPathFromParams(t *testing.T) {
 		})
 	}
 }
+
+func TestParseChainIDFromParams(t *testing.T) {
+	testCases := []struct {
+		name       string
+		params     map[string]string
+		expectedID uint64
+		expectedOK bool
+	}{
+		{
+			name:       "nil params",
+			params:     nil,
+			expectedID: 0,
+			expectedOK: false,
+		},
+		{
+			name:       "empty params",
+			params:     map[string]string{},
+			expectedID: 0,
+			expectedOK: false,
+		},
+		{
+			name:       "no chain_id",
+			params:     map[string]string{ParamProofType: "sp1"},
+			expectedID: 0,
+			expectedOK: false,
+		},
+		{
+			name:       "empty chain_id",
+			params:     map[string]string{ParamChainID: ""},
+			expectedID: 0,
+			expectedOK: false,
+		},
+		{
+			name:       "invalid chain_id",
+			params:     map[string]string{ParamChainID: "invalid"},
+			expectedID: 0,
+			expectedOK: false,
+		},
+		{
+			name:       "negative chain_id",
+			params:     map[string]string{ParamChainID: "-1"},
+			expectedID: 0,
+			expectedOK: false,
+		},
+		{
+			name:       "valid chain_id 1",
+			params:     map[string]string{ParamChainID: "1"},
+			expectedID: 1,
+			expectedOK: true,
+		},
+		{
+			name:       "valid chain_id mainnet",
+			params:     map[string]string{ParamChainID: "1337"},
+			expectedID: 1337,
+			expectedOK: true,
+		},
+		{
+			name:       "valid large chain_id",
+			params:     map[string]string{ParamChainID: "999999999"},
+			expectedID: 999999999,
+			expectedOK: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, ok := ParseChainIDFromParams(tc.params)
+			require.Equal(t, tc.expectedOK, ok)
+			require.Equal(t, tc.expectedID, result)
+		})
+	}
+}

@@ -6,11 +6,13 @@ import "fmt"
 
 // SP1VerifierFFI is a stub when FFI is not available
 type SP1VerifierFFI struct {
-	vkey []byte
+	vkey    []byte
+	chainID uint64
 }
 
 // NewSP1VerifierFFI returns an error when FFI is not available
-func NewSP1VerifierFFI(vkeyPath string) (*SP1VerifierFFI, error) {
+// chainID: chain identifier of the EVM partition from the partition config (invariant)
+func NewSP1VerifierFFI(vkeyPath string, chainID uint64) (*SP1VerifierFFI, error) {
 	return nil, fmt.Errorf("SP1 FFI verifier not available: build with -tags zkverifier_ffi to enable")
 }
 

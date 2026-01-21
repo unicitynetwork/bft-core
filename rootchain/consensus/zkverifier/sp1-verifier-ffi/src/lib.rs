@@ -23,6 +23,7 @@ pub enum SP1VerifyResult {
 /// * `prev_state_root` - Pointer to 32-byte previous state root
 /// * `new_state_root` - Pointer to 32-byte new state root
 /// * `block_hash` - Pointer to 32-byte block hash
+/// * `chain_id` - Chain ID from partition config
 /// * `error_out` - Output pointer for error message (caller must free with sp1_free_string)
 ///
 /// # Returns
@@ -36,6 +37,7 @@ pub extern "C" fn sp1_verify_proof(
     prev_state_root: *const u8,
     new_state_root: *const u8,
     block_hash: *const u8,
+    chain_id: u64,
     error_out: *mut *mut c_char,
 ) -> SP1VerifyResult {
     // Safety checks
@@ -57,7 +59,7 @@ pub extern "C" fn sp1_verify_proof(
     let blk_hash = unsafe { std::slice::from_raw_parts(block_hash, 32) };
 
     // Perform verification
-    match verify_proof_internal(vkey_data, proof_data, prev_root, new_root, blk_hash) {
+    match verify_proof_internal(vkey_data, proof_data, prev_root, new_root, blk_hash, chain_id) {
         Ok(()) => SP1VerifyResult::Success,
         Err(e) => {
             set_error(error_out, &e.to_string());
@@ -79,6 +81,7 @@ fn verify_proof_internal(
     prev_state_root: &[u8],
     new_state_root: &[u8],
     block_hash: &[u8],
+    chain_id: u64,
 ) -> anyhow::Result<()> {
     // Deserialize verification key
     let vkey: sp1_sdk::SP1VerifyingKey = bincode::deserialize(vkey_data)
@@ -106,13 +109,14 @@ fn verify_proof_internal(
     // - 96-127: l1_in_messages_rolling_hash (L2 feature)
     // - 128-159: blob_versioned_hash (L2 feature)
     // - 160-191: last_block_hash (block_hash)
-    // - 192+: chain_id, non_privileged_count, etc.
+    // - 192-199: chain_id (u64, little-endian)
+    // - 200+: non_privileged_count, etc.
     //
     // Note: ethrex's guest program has the 'l2' feature enabled by default,
     // which adds 3 H256 fields (96 bytes) before the block hash.
-    if public_values.len() < 192 {
+    if public_values.len() < 200 {
         return Err(anyhow::anyhow!(
-            "Public values too short: expected at least 192 bytes for ethrex l2 format, got {}",
+            "Public values too short: expected at least 200 bytes for ethrex l2 format (including chain_id), got {}",
             public_values.len()
         ));
     }
@@ -141,6 +145,20 @@ fn verify_proof_internal(
             "Block hash mismatch: expected {:?}, got {:?}",
             block_hash,
             &public_values[160..192]
+        ));
+    }
+
+    // Check chain_id matches
+    let proof_chain_id = u64::from_le_bytes(
+        public_values[192..200]
+            .try_into()
+            .expect("slice is exactly 8 bytes")
+    );
+    if proof_chain_id != chain_id {
+        return Err(anyhow::anyhow!(
+            "Chain ID mismatch: expected {} (chain_id from partition config), got {} (from proof)",
+            chain_id,
+            proof_chain_id
         ));
     }
 
@@ -255,6 +273,7 @@ mod tests {
             ptr::null(),
             ptr::null(),
             ptr::null(),
+            1, // chain_id
             &mut error,
         );
         assert_eq!(result as i32, SP1VerifyResult::InternalError as i32);

@@ -21,6 +21,7 @@ func TestNewVerifier_SP1_WithoutFFI(t *testing.T) {
 		Enabled:             true,
 		ProofType:           ProofTypeSP1,
 		VerificationKeyPath: vkeyPath,
+		ChainID:             1,
 	}
 
 	verifier, err := NewVerifier(cfg)
@@ -34,6 +35,7 @@ func TestNewVerifier_SP1_MissingVKey_WithoutFFI(t *testing.T) {
 		Enabled:             true,
 		ProofType:           ProofTypeSP1,
 		VerificationKeyPath: "/nonexistent/path/test.vkey",
+		ChainID:             1,
 	}
 
 	verifier, err := NewVerifier(cfg)
@@ -49,7 +51,7 @@ func TestSP1Verifier_InvalidInputs_WithoutFFI(t *testing.T) {
 	err := os.WriteFile(vkeyPath, []byte("fake_verification_key_data"), 0644)
 	require.NoError(t, err)
 
-	verifier, err := NewSP1Verifier(vkeyPath)
+	verifier, err := NewSP1Verifier(vkeyPath, 1)
 	require.Error(t, err)
 	require.Nil(t, verifier)
 	require.Contains(t, err.Error(), "build with -tags zkverifier_ffi")
@@ -61,7 +63,7 @@ func TestSP1Verifier_EmptyVKey_WithoutFFI(t *testing.T) {
 	err := os.WriteFile(vkeyPath, []byte{}, 0644)
 	require.NoError(t, err)
 
-	verifier, err := NewSP1Verifier(vkeyPath)
+	verifier, err := NewSP1Verifier(vkeyPath, 1)
 	require.Error(t, err)
 	require.Nil(t, verifier)
 	require.Contains(t, err.Error(), "build with -tags zkverifier_ffi")

@@ -38,6 +38,7 @@ typedef enum {
  * @param prev_state_root Pointer to 32-byte previous state root
  * @param new_state_root Pointer to 32-byte new state root
  * @param block_hash Pointer to 32-byte block hash
+ * @param chain_id Chain ID of EVM instance from partition config
  * @param error_out Output pointer for error message (must be freed with light_client_free_string)
  * @return LightClientVerifyResult status code
  */
@@ -47,6 +48,7 @@ LightClientVerifyResult light_client_verify_proof(
     const uint8_t* prev_state_root,
     const uint8_t* new_state_root,
     const uint8_t* block_hash,
+    uint64_t chain_id,
     char** error_out
 );
 

@@ -23,6 +23,7 @@ func TestNewVerifier_SP1_WithFFI(t *testing.T) {
 		Enabled:             true,
 		ProofType:           ProofTypeSP1,
 		VerificationKeyPath: vkeyPath,
+		ChainID:             1,
 	}
 
 	verifier, err := NewVerifier(cfg)
@@ -37,6 +38,7 @@ func TestNewVerifier_SP1_MissingVKey_WithFFI(t *testing.T) {
 		Enabled:             true,
 		ProofType:           ProofTypeSP1,
 		VerificationKeyPath: "/nonexistent/path/test.vkey",
+		ChainID:             1,
 	}
 
 	verifier, err := NewVerifier(cfg)
@@ -52,7 +54,7 @@ func TestSP1Verifier_InvalidInputs_WithFFI(t *testing.T) {
 	err := os.WriteFile(vkeyPath, make([]byte, 64), 0644)
 	require.NoError(t, err)
 
-	verifier, err := NewSP1Verifier(vkeyPath)
+	verifier, err := NewSP1Verifier(vkeyPath, 1)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -121,7 +123,7 @@ func TestSP1Verifier_EmptyVKey_WithFFI(t *testing.T) {
 	err := os.WriteFile(vkeyPath, []byte{}, 0644)
 	require.NoError(t, err)
 
-	verifier, err := NewSP1Verifier(vkeyPath)
+	verifier, err := NewSP1Verifier(vkeyPath, 1)
 	require.Error(t, err)
 	require.Nil(t, verifier)
 	// FFI will detect empty vkey

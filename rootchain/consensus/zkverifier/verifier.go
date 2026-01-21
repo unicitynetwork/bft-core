@@ -60,6 +60,10 @@ type Config struct {
 	// For RISC0: path to the verification key
 	VerificationKeyPath string
 
+    // chainID: chain identifier of the EVM partition from the partition config (invariant)
+	// must match the chain_id in proof public values
+	ChainID uint64
+
 	// AdditionalConfig holds prover-specific configuration
 	AdditionalConfig map[string]interface{}
 }
@@ -86,9 +90,9 @@ func NewVerifier(cfg *Config) (ZKVerifier, error) {
 
 	switch cfg.ProofType {
 	case ProofTypeSP1:
-		return NewSP1Verifier(cfg.VerificationKeyPath)
+		return NewSP1Verifier(cfg.VerificationKeyPath, cfg.ChainID)
 	case ProofTypeLightClient:
-		return NewLightClientVerifier()
+		return NewLightClientVerifier(cfg.ChainID)
 	case ProofTypeRISC0:
 		return nil, fmt.Errorf("RISC0 verifier not implemented")
 	case ProofTypeExec, ProofTypeNone:

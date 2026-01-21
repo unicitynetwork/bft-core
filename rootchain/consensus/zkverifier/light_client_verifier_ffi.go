@@ -13,11 +13,13 @@ import (
 
 // LightClientVerifierFFI wraps the Rust FFI library for light client proof verification
 type LightClientVerifierFFI struct {
-	enabled bool
+	enabled   bool
+	chainID uint64
 }
 
 // NewLightClientVerifierFFI creates a new FFI-based light client verifier
-func NewLightClientVerifierFFI() (*LightClientVerifierFFI, error) {
+// chainID: chain identifier of the EVM partition from the partition config (invariant)
+func NewLightClientVerifierFFI(chainID uint64) (*LightClientVerifierFFI, error) {
 	// Verify FFI library is available
 	version := C.light_client_ffi_version()
 	if version == nil {
@@ -26,6 +28,7 @@ func NewLightClientVerifierFFI() (*LightClientVerifierFFI, error) {
 
 	return &LightClientVerifierFFI{
 		enabled: true,
+		chainID: chainID,
 	}, nil
 }
 
@@ -60,6 +63,7 @@ func (v *LightClientVerifierFFI) VerifyProof(proof []byte, previousStateRoot []b
 		(*C.uint8_t)(unsafe.Pointer(&previousStateRoot[0])),
 		(*C.uint8_t)(unsafe.Pointer(&newStateRoot[0])),
 		(*C.uint8_t)(unsafe.Pointer(&blockHash[0])),
+		C.uint64_t(v.chainID),
 		&errorOut,
 	)
 

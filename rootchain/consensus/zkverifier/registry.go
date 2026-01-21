@@ -87,10 +87,18 @@ func (r *Registry) createVerifier(params map[string]string) (ZKVerifier, error) 
 		if vkeyPath == "" {
 			return nil, fmt.Errorf("vkey_path required for SP1 proof type")
 		}
-		return NewSP1Verifier(vkeyPath)
+		chainID, ok := ParseChainIDFromParams(params)
+		if !ok {
+			return nil, fmt.Errorf("chain_id required for SP1 proof type")
+		}
+		return NewSP1Verifier(vkeyPath, chainID)
 
 	case ProofTypeLightClient:
-		return NewLightClientVerifier()
+		chainID, ok := ParseChainIDFromParams(params)
+		if !ok {
+			return nil, fmt.Errorf("chain_id required for light_client proof type")
+		}
+		return NewLightClientVerifier(chainID)
 
 	default:
 		return nil, fmt.Errorf("unknown proof type: %s", proofType)

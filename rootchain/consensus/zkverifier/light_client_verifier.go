@@ -13,10 +13,11 @@ type LightClientVerifier struct {
 }
 
 // NewLightClientVerifier creates a new light client verifier
-func NewLightClientVerifier() (*LightClientVerifier, error) {
+// chainID: chain identifier of the EVM partition from the partition config (invariant)
+func NewLightClientVerifier(chainID uint64) (*LightClientVerifier, error) {
 	// Try to create FFI verifier
-	if ffiVerifier, err := NewLightClientVerifierFFI(); err == nil {
-		slog.Info("Using Light Client FFI verifier", "version", GetLightClientFFIVersion())
+	if ffiVerifier, err := NewLightClientVerifierFFI(chainID); err == nil {
+		slog.Info("Using Light Client FFI verifier", "version", GetLightClientFFIVersion(), "chain_id", chainID)
 		return &LightClientVerifier{
 			enabled:     true,
 			ffiVerifier: ffiVerifier,

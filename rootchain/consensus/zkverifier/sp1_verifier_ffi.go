@@ -13,11 +13,13 @@ import (
 
 // SP1VerifierFFI wraps the Rust FFI library for SP1 proof verification
 type SP1VerifierFFI struct {
-	vkey []byte
+	vkey    []byte
+	chainID uint64
 }
 
 // NewSP1VerifierFFI creates a new FFI-based SP1 verifier
-func NewSP1VerifierFFI(vkeyPath string) (*SP1VerifierFFI, error) {
+// chainID: chain identifier of the EVM partition from the partition config (invariant)
+func NewSP1VerifierFFI(vkeyPath string, chainID uint64) (*SP1VerifierFFI, error) {
 	// Load verification key
 	vkey, err := loadVerificationKey(vkeyPath)
 	if err != nil {
@@ -56,7 +58,8 @@ func NewSP1VerifierFFI(vkeyPath string) (*SP1VerifierFFI, error) {
 	}
 
 	return &SP1VerifierFFI{
-		vkey: vkey,
+		vkey:    vkey,
+		chainID: chainID,
 	}, nil
 }
 
@@ -93,6 +96,7 @@ func (v *SP1VerifierFFI) VerifyProof(proof []byte, previousStateRoot []byte, new
 		(*C.uint8_t)(unsafe.Pointer(&previousStateRoot[0])),
 		(*C.uint8_t)(unsafe.Pointer(&newStateRoot[0])),
 		(*C.uint8_t)(unsafe.Pointer(&blockHash[0])),
+		C.uint64_t(v.chainID),
 		&errorOut,
 	)
 

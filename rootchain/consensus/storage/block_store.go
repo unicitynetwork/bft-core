@@ -197,7 +197,8 @@ func (x *BlockStore) GetCertificate(id types.PartitionID, shard types.ShardID) (
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	if si, ok := committedBlock.ShardState.States[types.PartitionShardID{PartitionID: id, ShardID: shard.Key()}]; ok {
+	key := types.PartitionShardID{PartitionID: id, ShardID: shard.Key()}
+	if si, ok := committedBlock.ShardState.States[key]; ok {
 		return si.LastCR, nil
 	}
 	return nil, fmt.Errorf("no certificate found for shard %s - %s", id, shard)
@@ -222,7 +223,8 @@ func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID)
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	if si, ok := committedBlock.ShardState.States[types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}]; ok {
+	key := types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}
+	if si, ok := committedBlock.ShardState.States[key]; ok {
 		return si
 	}
 	return nil

@@ -182,17 +182,6 @@ light-client-verifier-ffi/
 └── README.md                       # This file
 ```
 
-## Configuration
-
-### Chain ID
-
-Currently hardcoded to `1` (matching uni-evm default). TODO: Make configurable via BFT Core config.
-
-```rust
-// In lib.rs
-let chain_id = 1;  // TODO: Get from BFT Core configuration
-```
-
 ## Troubleshooting
 
 ### Build Errors

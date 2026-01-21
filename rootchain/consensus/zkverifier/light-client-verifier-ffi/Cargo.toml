@@ -11,12 +11,14 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 # Core dependencies for witness deserialization and validation
-rkyv = { version = "0.8.10", features = ["std", "unaligned"] }
+# Pin rkyv to same version as uni-evm workspace to ensure compatible serialization
+rkyv = { version = "=0.8.10", features = ["std", "unaligned"] }
 anyhow = "1.0"
 
-# ethrex dependencies for validation logic (use GitHub fork)
-ethrex-core = { git = "https://github.com/ristik/ethrex", branch = "uni-evm", package = "ethrex-common" }
-guest_program = { git = "https://github.com/ristik/ethrex", branch = "uni-evm" }
+# TODO: use github fork instead of local
+ethrex-core = { path = "../../../../../ethrex/crates/common", package = "ethrex-common" }
+# The l2 feature adds blob_commitment and blob_proof fields to ProgramInput
+guest_program = { path = "../../../../../ethrex/crates/l2/prover/src/guest_program", features = ["l2"] }
 
 [profile.release]
 opt-level = 3

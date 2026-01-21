@@ -5,10 +5,13 @@ package zkverifier
 import "fmt"
 
 // LightClientVerifierFFI is a stub when FFI is not available
-type LightClientVerifierFFI struct{}
+type LightClientVerifierFFI struct {
+	chainID uint64
+}
 
 // NewLightClientVerifierFFI returns an error when FFI is not available
-func NewLightClientVerifierFFI() (*LightClientVerifierFFI, error) {
+// chainID: chain identifier of EVM partition from the partition config (invariant)
+func NewLightClientVerifierFFI(chainID uint64) (*LightClientVerifierFFI, error) {
 	return nil, fmt.Errorf("Light Client FFI verifier not available: build with -tags zkverifier_ffi to enable")
 }
 

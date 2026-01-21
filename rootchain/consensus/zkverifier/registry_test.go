@@ -130,3 +130,34 @@ func TestRegistry_GetVerifier_UnavailableProofType(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not available")
 }
+
+func TestRegistry_GetVerifier_SP1MissingChainID(t *testing.T) {
+	if !IsFFIAvailable() {
+		t.Skip("FFI not available, skipping chain_id requirement test")
+	}
+
+	r := NewRegistry()
+
+	// SP1 with vkey_path but without chain_id should fail
+	params := map[string]string{
+		ParamProofType:           string(ProofTypeSP1),
+		ParamVerificationKeyPath: "/path/to/vkey",
+	}
+	_, err := r.GetVerifier(1, types.ShardID{}, 0, params)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "chain_id required")
+}
+
+func TestRegistry_GetVerifier_LightClientMissingChainID(t *testing.T) {
+	if !IsFFIAvailable() {
+		t.Skip("FFI not available, skipping chain_id requirement test")
+	}
+
+	r := NewRegistry()
+
+	// light_client without chain_id should fail
+	params := map[string]string{ParamProofType: string(ProofTypeLightClient)}
+	_, err := r.GetVerifier(1, types.ShardID{}, 0, params)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "chain_id required")
+}

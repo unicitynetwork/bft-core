@@ -17,14 +17,15 @@ type SP1Verifier struct {
 
 // NewSP1Verifier creates a new SP1 verifier
 // vkeyPath: path to the SP1 verification key file (.vkey)
-func NewSP1Verifier(vkeyPath string) (*SP1Verifier, error) {
+// chainID: chain identifier of the EVM partition from the partition config (invariant)
+func NewSP1Verifier(vkeyPath string, chainID uint64) (*SP1Verifier, error) {
 	if vkeyPath == "" {
 		return nil, fmt.Errorf("verification key path is required for SP1 verifier")
 	}
 
 	// Try to create FFI verifier first
-	if ffiVerifier, err := NewSP1VerifierFFI(vkeyPath); err == nil {
-		slog.Info("Using SP1 FFI verifier", "path", vkeyPath, "version", GetFFIVersion())
+	if ffiVerifier, err := NewSP1VerifierFFI(vkeyPath, chainID); err == nil {
+		slog.Info("Using SP1 FFI verifier", "path", vkeyPath, "version", GetFFIVersion(), "chain_id", chainID)
 		return &SP1Verifier{
 			vkey:        ffiVerifier.vkey,
 			enabled:     true,

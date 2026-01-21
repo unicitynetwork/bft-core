@@ -23,6 +23,7 @@ pub enum LightClientVerifyResult {
 /// * `prev_state_root` - Pointer to 32-byte previous state root
 /// * `new_state_root` - Pointer to 32-byte new state root
 /// * `block_hash` - Pointer to 32-byte block hash
+/// * `chain_id` - EVM chain ID from partition config
 /// * `error_out` - Output pointer for error message (caller must free with light_client_free_string)
 ///
 /// # Returns
@@ -34,6 +35,7 @@ pub extern "C" fn light_client_verify_proof(
     prev_state_root: *const u8,
     new_state_root: *const u8,
     block_hash: *const u8,
+    chain_id: u64,
     error_out: *mut *mut c_char,
 ) -> LightClientVerifyResult {
     // Safety checks
@@ -54,7 +56,7 @@ pub extern "C" fn light_client_verify_proof(
     let blk_hash = unsafe { std::slice::from_raw_parts(block_hash, 32) };
 
     // Perform verification
-    match verify_light_client_proof_internal(payload_data, prev_root, new_root, blk_hash) {
+    match verify_light_client_proof_internal(payload_data, prev_root, new_root, blk_hash, chain_id) {
         Ok(()) => LightClientVerifyResult::Success,
         Err(e) => {
             set_error(error_out, &e.to_string());
@@ -75,6 +77,7 @@ fn verify_light_client_proof_internal(
     prev_state_root: &[u8],
     new_state_root: &[u8],
     block_hash: &[u8],
+    chain_id: u64,
 ) -> anyhow::Result<()> {
     // 1. Check magic header
     if payload_data.len() < 8 {
@@ -102,12 +105,7 @@ fn verify_light_client_proof_internal(
         return Err(anyhow::anyhow!("No blocks in ProgramInput"));
     }
 
-    // 4. Use chain_id from blocks[0].header (assuming it's stored in number for now)
-    // TODO: Get chain_id from BFT Core configuration instead of hardcoding
-    // For now, use the default chain_id from uni-evm config (1)
-    let chain_id = 1;
-
-    // 5. Execute stateless validation
+    // 4. Execute stateless validation
     let output = guest_program::execution::stateless_validation_l1(
         program_input.blocks,
         program_input.execution_witness,
@@ -263,6 +261,7 @@ mod tests {
             ptr::null(),
             ptr::null(),
             ptr::null(),
+            1, // chain_id
             &mut error,
         );
         assert_eq!(result as i32, LightClientVerifyResult::InternalError as i32);
@@ -294,6 +293,7 @@ mod tests {
             prev_root.as_ptr(),
             new_root.as_ptr(),
             block_hash.as_ptr(),
+            1, // chain_id
             &mut error,
         );
 
@@ -318,6 +318,7 @@ mod tests {
             prev_root.as_ptr(),
             new_root.as_ptr(),
             block_hash.as_ptr(),
+            1, // chain_id
             &mut error,
         );
 
