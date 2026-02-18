@@ -5,14 +5,11 @@ import (
 )
 
 // newShardNodeCmd creates a new cobra command for shard node management.
-//
-// shardNodeRunFn - set the function to override the default behavior. Meant for tests.
-func newShardNodeCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.Command {
+func newShardNodeCmd(baseFlags *baseFlags) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "shard-node",
 		Short: "Tools to run a shard node",
 	}
 	cmd.AddCommand(shardNodeInitCmd(baseFlags))
-	cmd.AddCommand(shardNodeRunCmd(baseFlags, shardNodeRunFn))
 	return cmd
 }

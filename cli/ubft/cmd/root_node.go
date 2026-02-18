@@ -25,7 +25,6 @@ import (
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	"github.com/unicitynetwork/bft-core/observability"
-	"github.com/unicitynetwork/bft-core/partition"
 	"github.com/unicitynetwork/bft-core/rootchain"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
@@ -270,7 +269,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 	return g.Wait()
 }
 
-func createHost(ctx context.Context, keyConf *partition.KeyConf, flags *rootNodeRunFlags, obs Observability) (*network.Peer, error) {
+func createHost(ctx context.Context, keyConf *KeyConf, flags *rootNodeRunFlags, obs Observability) (*network.Peer, error) {
 	bootNodes, err := getBootStrapNodes(flags.BootstrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)

@@ -13,11 +13,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/unicitynetwork/bft-go-base/util"
+
 	"github.com/unicitynetwork/bft-core/keyvaluedb"
 	"github.com/unicitynetwork/bft-core/keyvaluedb/boltdb"
 	"github.com/unicitynetwork/bft-core/logger"
-	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/util"
 )
 
 type (
@@ -42,8 +42,6 @@ type (
 		LogCfgFile string
 
 		observe Observability
-
-		partitions map[types.PartitionTypeID]Partition
 	}
 )
 
@@ -189,8 +187,8 @@ func (r *baseFlags) loadConf(path string, defaultFileName string, conf any) erro
 	return nil
 }
 
-func (f *baseFlags) initDB(path string, defaultFileName string) (keyvaluedb.KeyValueDB, error) {
-	path = f.PathWithDefault(path, defaultFileName)
+func (r *baseFlags) initDB(path string, defaultFileName string) (keyvaluedb.KeyValueDB, error) {
+	path = r.PathWithDefault(path, defaultFileName)
 
 	db, err := boltdb.New(path)
 	if err != nil {

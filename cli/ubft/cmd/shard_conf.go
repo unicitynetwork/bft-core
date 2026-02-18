@@ -22,7 +22,6 @@ func newShardConfCmd(baseConfig *baseFlags) *cobra.Command {
 		Short: "Tools to work with shard configuration files",
 	}
 	cmd.AddCommand(shardConfGenerateCmd(baseConfig))
-	cmd.AddCommand(shardConfGenesisCmd(baseConfig))
 	return cmd
 }
 

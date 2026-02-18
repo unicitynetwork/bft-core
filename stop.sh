@@ -8,9 +8,6 @@ function stop() {
     all)
       program="build/ubft"
       ;;
-    shard)
-      program="build/ubft shard-node"
-      ;;
     root)
       program="build/ubft root-node"
       ;;
@@ -29,7 +26,7 @@ function stop() {
   echo "program not running"
 }
 
-usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-s stop shards]"; exit 0; }
+usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root]"; exit 0; }
 
 # stop requires an argument either -a for stop all or -s to stop a all shard nodes
 [ $# -eq 0 ] && usage
@@ -42,9 +39,6 @@ while getopts "hars" o; do
     ;;
   r)
     stop "root"
-    ;;
-  s)
-    stop "shard"
     ;;
   h | *) # help.
     usage && exit 0
