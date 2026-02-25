@@ -52,7 +52,7 @@ type (
 		OrchestrationDBFile string
 
 		BlockRate        uint32
-		MaxRequests      uint   // validator partition certification request channel capacity
+		MaxRequests      uint   // certification request channel capacity
 		RPCServerAddress string // address on which http server is exposed with metrics endpoint
 	}
 )
@@ -143,7 +143,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 
 	host, err := createHost(ctx, keyConf, flags, obs)
 	if err != nil {
-		return fmt.Errorf("creating partition host: %w", err)
+		return fmt.Errorf("creating host: %w", err)
 	}
 	partitionNet, err := network.NewLibP2PRootChainNetwork(host, flags.MaxRequests, defaultNetworkTimeout, obs)
 	if err != nil {

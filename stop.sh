@@ -28,11 +28,11 @@ function stop() {
 
 usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root]"; exit 0; }
 
-# stop requires an argument either -a for stop all or -s to stop a all shard nodes
+# stop requires an argument
 [ $# -eq 0 ] && usage
 
 # handle arguments
-while getopts "hars" o; do
+while getopts "har" o; do
   case "${o}" in
   a) #kill all
     stop "all"

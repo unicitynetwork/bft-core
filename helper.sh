@@ -41,46 +41,6 @@ function boot_node() {
   echo "/ip4/127.0.0.1/tcp/$rootPort/p2p/$nodeId"
 }
 
-# Initializes shard nodes
-# first two arguments are mandatory, third is optional
-# $1 partition type identifier
-# $2 number of nodes to init
-# $3 custom CLI args
-function init_shard_nodes() {
-  home=$1
-  partitionTypeId=$2
-  partitionId=$3
-  nodeCount=$4
-
-  nodeInfoFiles=
-  echo "initializing $4 nodes for partition $partitionId"
-  for i in $(seq 1 "$4")
-  do
-    build/ubft shard-node init --home "${home}$i" --generate
-    nodeInfoFiles+=" --node-info ${home}$i/node-info.json"
-  done
-
-  # Generate shard-conf once to test-nodes
-  build/ubft shard-conf generate --home test-nodes \
-                  --network-id 3 \
-                  --partition-id $partitionId \
-                  --partition-type-id $partitionTypeId \
-                  --epoch-start 10 \
-                  $nodeInfoFiles
-}
-
-function generate_shard_genesis_state() {
-  home=$1
-  partitionId=$2
-  nodeCount=$3
-
-  for i in $(seq 1 "$3")
-  do
-    # Generate genesis state from shard-conf
-    build/ubft shard-conf genesis --home ${home}${i} --shard-conf test-nodes/shard-conf-${partitionId}_0.json
-  done
-}
-
 # Initiallize root nodes
 # $1 number of root nodes
 function init_root_nodes() {
