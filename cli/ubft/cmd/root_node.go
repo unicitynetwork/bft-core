@@ -25,7 +25,6 @@ import (
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	"github.com/unicitynetwork/bft-core/observability"
-	"github.com/unicitynetwork/bft-core/partition"
 	"github.com/unicitynetwork/bft-core/rootchain"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/storage"
@@ -53,7 +52,7 @@ type (
 		OrchestrationDBFile string
 
 		BlockRate        uint32
-		MaxRequests      uint   // validator partition certification request channel capacity
+		MaxRequests      uint   // certification request channel capacity
 		RPCServerAddress string // address on which http server is exposed with metrics endpoint
 	}
 )
@@ -144,7 +143,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 
 	host, err := createHost(ctx, keyConf, flags, obs)
 	if err != nil {
-		return fmt.Errorf("creating partition host: %w", err)
+		return fmt.Errorf("creating host: %w", err)
 	}
 	partitionNet, err := network.NewLibP2PRootChainNetwork(host, flags.MaxRequests, defaultNetworkTimeout, obs)
 	if err != nil {
@@ -270,7 +269,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 	return g.Wait()
 }
 
-func createHost(ctx context.Context, keyConf *partition.KeyConf, flags *rootNodeRunFlags, obs Observability) (*network.Peer, error) {
+func createHost(ctx context.Context, keyConf *KeyConf, flags *rootNodeRunFlags, obs Observability) (*network.Peer, error) {
 	bootNodes, err := getBootStrapNodes(flags.BootstrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)

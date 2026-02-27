@@ -12,11 +12,6 @@ import (
 	"github.com/unicitynetwork/bft-go-base/util"
 )
 
-const (
-	defaultInitialBillValue   = 1000000000000000000
-	defaultDCMoneySupplyValue = 1000000000000000000
-)
-
 type (
 	ShardConfGenerateFlags struct {
 		*baseFlags
@@ -29,11 +24,6 @@ type (
 		EpochStart      uint64
 		T2Timeout       uint32
 		NodeInfoFiles   []string
-
-		MoneyInitialBillOwnerPredicate string
-		TokensAdminOwnerPredicate      string
-		TokensFeelessMode              bool
-		OrchestrationOwnerPredicate    string
 	}
 )
 
@@ -58,13 +48,6 @@ func shardConfGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 		panic(err)
 	}
 	cmd.Flags().StringSliceVarP(&flags.NodeInfoFiles, "node-info", "n", []string{}, "path to node info files")
-	cmd.Flags().StringVar(&flags.MoneyInitialBillOwnerPredicate, "initial-bill-owner-predicate", "",
-		"initial bill owner predicate (money partition only)")
-	cmd.Flags().StringVar(&flags.TokensAdminOwnerPredicate, "admin-owner-predicate", "",
-		"admin owner predicate (tokens partition only)")
-	cmd.Flags().BoolVar(&flags.TokensFeelessMode, "feeless-mode", false, "enable/disable feeless mode (tokens partition only)")
-	cmd.Flags().StringVar(&flags.OrchestrationOwnerPredicate, "owner-predicate", "",
-		"owner predicate (orchestration partition only)")
 
 	return cmd
 }
@@ -102,7 +85,6 @@ func shardConfGenerate(flags *ShardConfGenerateFlags) error {
 		UnitIDLen:       256,
 		T2Timeout:       time.Duration(flags.T2Timeout) * time.Millisecond,
 		Validators:      nodes,
-		PartitionParams: defaultPartitionParams(types.PartitionTypeID(flags.PartitionTypeID), flags),
 	}
 
 	if err = shardConf.IsValid(); err != nil {
@@ -115,12 +97,4 @@ func shardConfGenerate(flags *ShardConfGenerateFlags) error {
 		return fmt.Errorf("failed to save '%s': %w", outputFile, err)
 	}
 	return nil
-}
-
-func defaultPartitionParams(partitionTypeID types.PartitionTypeID, flags *ShardConfGenerateFlags) map[string]string {
-	partition, ok := flags.baseFlags.partitions[partitionTypeID]
-	if !ok {
-		return make(map[string]string, 1)
-	}
-	return partition.DefaultPartitionParams(flags)
 }

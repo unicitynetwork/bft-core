@@ -7,34 +7,6 @@ Run `make build` to build the application. Executable will be built to `build/ub
 * [`Go`](https://go.dev/doc/install) version 1.24.
 * `C` compiler, recent versions of [GCC](https://gcc.gnu.org/) are recommended. In Debian and Ubuntu repositories, GCC is part of the build-essential package. On macOS, GCC can be installed with [Homebrew](https://formulae.brew.sh/formula/gcc).
 
-# Money Partition
-
-1. Run script `./setup-nodes.sh -m 3 -t 0` to generate configuration for a root chain and 3 money partition nodes.
-    The script generates root chain and partition node keys, genesis files.
-    Node configuration files are located in `test-nodes` directory.
-   * Initial bill owner predicate can be specified with flag `-i predicate-in-hex`.
-2. Run script `./start.sh -r -p money` to start root chain and 3 money partition nodes
-3. Run script `./stop.sh -a` to stop the root chain and partition nodes.
-   
-   Alternatively, use `stop.sh` to stop any partition or root and `start.sh` to resume. See command help for more details. 
-
-# User Token Partition
-
-Typical set-up would run money and user token partition as fee credits need to be added to the user token partition
-in order to pay for transactions.
-Theoretically it is also possible run only the user token partition on its own, but it would not make much sense.
-1. Run script `./setup-nodes.sh -m 3 -t 3` to generate configuration for a root chain and 3 money and token partition nodes.
-   The script generates root chain and partition node keys, genesis files.
-   Node configuration files are located in `test-nodes` directory.
-2. Run script `./start.sh -r -p money -p tokens` to start root chain and 3 partition nodes (money and token)
-3. Run script `./stop.sh -a` to stop the root chain and partition nodes.
-
-# Start all partitions at once
-
-1. Run script `./setup-nodes.sh` to generate genesis for root, and 3 money and tokens nodes.
-2. Run `./start.sh -r -p money -p tokens` to start everything
-3. Run `./stop.sh -a` to stop everything
-
 # Configuration
 
 It's possible to define the configuration values from (in the order of precedence):
@@ -75,8 +47,7 @@ Exceptions are:
 - instead of `OTEL_TRACES_EXPORTER` and `OTEL_METRICS_EXPORTER` we use specific
   environment variables (ie `UBFT_TRACING`) or command line flags to select the exporter;
 - propagators are set (`OTEL_PROPAGATORS`)  to “tracecontext,baggage”;
-- `OTEL_SERVICE_NAME` is set based on "best guess" of current binary's role (ie to
-  "ubft.wallet", "ubft.tokens", "ubft.money",...)
+- `OTEL_SERVICE_NAME` is set based on "best guess" of current binary's role
 
 ## Tracing tests
 
@@ -93,16 +64,6 @@ some parameters are already "hardcoded":
 - "always_on" sampler is used (`OTEL_TRACES_SAMPLER`);
 - the `otlptracehttp` exporter is created with "insecure client transport"
   (`OTEL_EXPORTER_OTLP_INSECURE`);
-
-# Generate tests for Rust SDK
-
-If the `UBFT_RUST_SDK_ROOT` environment variable is set (not empty) and points to
-existing directory some tests will generate tests for the Rust predicate SDK.
-
-To generate tests for the Rust predicate SDK run
-```sh
-UBFT_RUST_SDK_ROOT="/path/to/rust-predicates-sdk" go test ./...
-```
 
 # Set up autocompletion
 

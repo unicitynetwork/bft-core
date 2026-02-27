@@ -2,7 +2,6 @@ package testnetwork
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"fmt"
 	"reflect"
@@ -13,23 +12,15 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
-	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
-	"github.com/unicitynetwork/bft-core/network/protocol/blockproposal"
-	"github.com/unicitynetwork/bft-core/network/protocol/certification"
-	"github.com/unicitynetwork/bft-core/network/protocol/handshake"
-	"github.com/unicitynetwork/bft-core/network/protocol/replication"
 	abtypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-core/txbuffer"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type MockNet struct {
 	mutex        sync.Mutex
 	err          error
 	MessageCh    chan any
-	txBuffer     *txbuffer.TxBuffer
 	sentMessages map[string][]PeerMessage
 	protocols    map[reflect.Type]string
 }
@@ -37,32 +28,6 @@ type MockNet struct {
 type PeerMessage struct {
 	peer.ID
 	Message any
-}
-
-func NewMockNetwork(t *testing.T) *MockNet {
-	obs := observability.Default(t)
-	txBuffer, err := txbuffer.New(100, crypto.SHA256, 1, types.ShardID{}, obs)
-	require.NoError(t, err)
-
-	mn := &MockNet{
-		MessageCh:    make(chan any, 100),
-		txBuffer:     txBuffer,
-		sentMessages: make(map[string][]PeerMessage),
-		protocols:    make(map[reflect.Type]string),
-	}
-	err = mn.registerSendProtocols([]msgProtocol{
-		{protocolID: network.ProtocolBlockProposal, msgStruct: blockproposal.BlockProposal{}},
-		{protocolID: network.ProtocolBlockCertification, msgStruct: certification.BlockCertificationRequest{}},
-		{protocolID: network.ProtocolInputForward, msgStruct: types.TransactionOrder{}},
-		{protocolID: network.ProtocolLedgerReplicationReq, msgStruct: replication.LedgerReplicationRequest{}},
-		{protocolID: network.ProtocolLedgerReplicationResp, msgStruct: replication.LedgerReplicationResponse{}},
-		{protocolID: network.ProtocolHandshake, msgStruct: handshake.Handshake{}},
-		{protocolID: network.ProtocolUnicityCertificates, msgStruct: certification.CertificationResponse{}},
-	})
-	if err != nil {
-		panic(fmt.Errorf("failed to register protocols: %w", err))
-	}
-	return mn
 }
 
 func NewRootMockNetwork() *MockNet {
@@ -108,10 +73,6 @@ func (m *MockNet) Send(ctx context.Context, msg any, receivers ...peer.ID) error
 	return nil
 }
 
-func (m *MockNet) SetErrorState(err error) {
-	m.err = err
-}
-
 func (m *MockNet) SentMessages(protocol string) []PeerMessage {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -155,46 +116,6 @@ func (m *MockNet) WaitRootProposal(t *testing.T) *abdrc.ProposalMsg {
 
 func (m *MockNet) ReceivedChannel() <-chan any {
 	return m.MessageCh
-}
-
-func (m *MockNet) AddTransaction(ctx context.Context, tx *types.TransactionOrder) ([]byte, error) {
-	if m.txBuffer != nil {
-		return m.txBuffer.Add(ctx, tx)
-	}
-	return nil, nil
-}
-
-func (m *MockNet) ProcessTransactions(ctx context.Context, txProcessor network.TxProcessor) {
-	for {
-		tx, err := m.txBuffer.Remove(ctx)
-		if err != nil {
-			return
-		}
-		if err := txProcessor(ctx, tx); err != nil {
-			continue
-		}
-	}
-}
-
-func (m *MockNet) ForwardTransactions(ctx context.Context, receiverFunc network.TxReceiver) {
-}
-
-func (m *MockNet) PublishBlock(ctx context.Context, block *types.Block) error {
-	return nil
-}
-
-func (m *MockNet) SubscribeToBlocks(ctx context.Context) error {
-	return nil
-}
-
-func (m *MockNet) UnsubscribeFromBlocks() {
-}
-
-func (n *MockNet) RegisterValidatorProtocols() error {
-	return nil
-}
-
-func (n *MockNet) UnregisterValidatorProtocols() {
 }
 
 type msgProtocol struct {

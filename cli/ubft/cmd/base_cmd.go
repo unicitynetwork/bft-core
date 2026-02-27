@@ -10,12 +10,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
 	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-core/observability"
-	"github.com/unicitynetwork/bft-core/partition"
-	"github.com/unicitynetwork/bft-core/state"
-	"github.com/unicitynetwork/bft-core/txsystem"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type (
@@ -28,24 +25,12 @@ type (
 		Logger(cfg *logger.LogConfiguration) (*slog.Logger, error)
 		Observability(metrics, traces string) (observability.MeterAndTracer, error)
 	}
-
-	Partition interface {
-		PartitionTypeID() types.PartitionTypeID
-		PartitionTypeIDString() string
-		DefaultPartitionParams(flags *ShardConfGenerateFlags) map[string]string
-		NewGenesisState(shardConf *types.PartitionDescriptionRecord) (*state.State, error)
-		CreateTxSystem(flags *ShardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error)
-	}
 )
 
-func New(obsF Factory, opts ...interface{}) *UnicityBFTApp {
+func New(obsF Factory) *UnicityBFTApp {
 	baseCmd, baseConfig := newBaseCmd(obsF)
 	app := &UnicityBFTApp{baseCmd: baseCmd, baseConfig: baseConfig}
-	app.AddSubcommands(opts)
-	app.addPartition(NewMoneyPartition())
-	app.addPartition(NewTokensPartition())
-	app.addPartition(NewOrchestrationPartition())
-
+	app.AddSubcommands()
 	return app
 }
 
@@ -60,30 +45,16 @@ func (a *UnicityBFTApp) Execute(ctx context.Context) (err error) {
 	return a.baseCmd.ExecuteContext(ctx)
 }
 
-func (a *UnicityBFTApp) AddSubcommands(opts []interface{}) {
+func (a *UnicityBFTApp) AddSubcommands() {
 	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newTrustBaseCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newShardNodeCmd(a.baseConfig, convertOptsToRunnable(opts)))
+	a.baseCmd.AddCommand(newShardNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newShardConfCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newNodeIDCmd(a.baseConfig))
 }
 
-func (a *UnicityBFTApp) RegisterPartition(partition Partition) error {
-	if _, ok := a.baseConfig.partitions[partition.PartitionTypeID()]; ok {
-		return fmt.Errorf("partition type %s already registered", partition.PartitionTypeIDString())
-	}
-	a.addPartition(partition)
-	return nil
-}
-
-func (a *UnicityBFTApp) addPartition(partition Partition) {
-	a.baseConfig.partitions[partition.PartitionTypeID()] = partition
-}
-
 func newBaseCmd(obsF Factory) (*cobra.Command, *baseFlags) {
-	config := &baseFlags{
-		partitions: make(map[types.PartitionTypeID]Partition),
-	}
+	config := &baseFlags{}
 	// baseCmd represents the base command when called without any subcommands
 	var baseCmd = &cobra.Command{
 		Use:           "ubft",
