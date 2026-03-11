@@ -6,9 +6,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
+
+	testobserve "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 )
 
 func TestShardConf_Generate(t *testing.T) {
@@ -33,6 +34,7 @@ func TestShardConf_Generate(t *testing.T) {
 		"--partition-type-id", "1",
 		"--epoch", "8",
 		"--epoch-start", "100",
+		"--partition-params", "dFG=6",
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
@@ -45,4 +47,6 @@ func TestShardConf_Generate(t *testing.T) {
 	require.Equal(t, uint64(8), rec.Epoch)
 	require.Equal(t, uint64(100), rec.EpochStart)
 	require.Len(t, rec.Validators, 1)
+	require.Len(t, rec.PartitionParams, 1)
+	require.Equal(t, "6", rec.PartitionParams["dFG"])
 }
