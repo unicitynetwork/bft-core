@@ -24,6 +24,7 @@ type (
 		EpochStart      uint64
 		T2Timeout       uint32
 		NodeInfoFiles   []string
+		PartitionParams map[string]string
 	}
 )
 
@@ -48,6 +49,7 @@ func shardConfGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 		panic(err)
 	}
 	cmd.Flags().StringSliceVarP(&flags.NodeInfoFiles, "node-info", "n", []string{}, "path to node info files")
+	cmd.Flags().StringToStringVar(&flags.PartitionParams, "partition-params", nil, "partition parameters as key=value pairs")
 
 	return cmd
 }
@@ -85,6 +87,7 @@ func shardConfGenerate(flags *ShardConfGenerateFlags) error {
 		UnitIDLen:       256,
 		T2Timeout:       time.Duration(flags.T2Timeout) * time.Millisecond,
 		Validators:      nodes,
+		PartitionParams: flags.PartitionParams,
 	}
 
 	if err = shardConf.IsValid(); err != nil {
