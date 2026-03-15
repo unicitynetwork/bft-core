@@ -254,7 +254,7 @@ func (x *Pacemaker) startNewRound(ctx context.Context, round uint64) {
 	x.pendingVotes.Reset()
 	x.currentRound.Store(round)
 
-	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx)) // #nosec G118 cancel is called via x.stopRoundClock closure
 	stopped := x.startRoundClock(ctx, x.minRoundLen, x.maxRoundLen)
 	x.stopRoundClock = func() {
 		cancel()

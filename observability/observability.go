@@ -165,7 +165,7 @@ func (o *otelMetricsAndTrace) initTraceProvider(exporter string, res *resource.R
 func serviceName() string {
 	for _, v := range os.Args {
 		switch v {
-		case "root", "tokens", "money":
+		case "root":
 			return "ubft." + v
 		}
 	}

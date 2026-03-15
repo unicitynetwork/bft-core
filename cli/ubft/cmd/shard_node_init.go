@@ -10,7 +10,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
 
-	"github.com/unicitynetwork/bft-core/partition"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/util"
@@ -93,7 +92,7 @@ func (c *keyConfFlags) addKeyConfFlags(cmd *cobra.Command, enableGenerate bool) 
 		fmt.Sprintf("path to the key configuration file (default: %s)", filepath.Join("$UBFT_HOME", keyConfFileName)))
 }
 
-func (c *keyConfFlags) loadKeyConf(baseFlags *baseFlags, generate bool) (ret *partition.KeyConf, err error) {
+func (c *keyConfFlags) loadKeyConf(baseFlags *baseFlags, generate bool) (ret *KeyConf, err error) {
 	keyConfPath := baseFlags.PathWithDefault(c.KeyConfFile, keyConfFileName)
 
 	if generate && !util.FileExists(keyConfPath) {
@@ -114,7 +113,7 @@ func (c *keyConfFlags) loadKeyConf(baseFlags *baseFlags, generate bool) (ret *pa
 	return ret, baseFlags.loadConf(keyConfPath, keyConfFileName, &ret)
 }
 
-func generateKeys() (*partition.KeyConf, error) {
+func generateKeys() (*KeyConf, error) {
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	if err != nil {
 		return nil, err
@@ -131,12 +130,12 @@ func generateKeys() (*partition.KeyConf, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &partition.KeyConf{
-		SigKey: partition.Key{
+	return &KeyConf{
+		SigKey: Key{
 			Algorithm:  keyAlgorithmSecp256k1,
 			PrivateKey: sigPrivKeyBytes,
 		},
-		AuthKey: partition.Key{
+		AuthKey: Key{
 			Algorithm:  keyAlgorithmSecp256k1,
 			PrivateKey: authPrivKeyBytes,
 		},

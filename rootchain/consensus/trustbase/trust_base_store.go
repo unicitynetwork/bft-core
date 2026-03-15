@@ -111,6 +111,23 @@ func (s *TrustBaseStore) LoadFirst() (*types.RootTrustBaseV1, error) {
 	return s.GetByEpoch(epoch)
 }
 
+// LoadLast returns trust base for the latest epoch.
+func (s *TrustBaseStore) LoadLast() (*types.RootTrustBaseV1, error) {
+	dbIt := s.db.Last()
+	defer func() {
+		if err := dbIt.Close(); err != nil {
+			s.log.Warn("closing DB iterator", logger.Error(err))
+		}
+	}()
+
+	if !dbIt.Valid() {
+		return nil, fmt.Errorf("empty trust base db")
+	}
+
+	_, epoch := fromDBKey(dbIt.Key())
+	return s.GetByEpoch(epoch)
+}
+
 // Store saves CBOR encoded trust base to db, indexed by the version and epoch.
 func (s *TrustBaseStore) Store(trustBase types.RootTrustBase) error {
 	epoch := trustBase.GetEpoch()

@@ -2,137 +2,36 @@ package cmd
 
 import (
 	"bytes"
-	"context"
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
 	"github.com/unicitynetwork/bft-go-base/types"
 
-	"github.com/unicitynetwork/bft-core/internal/testutils/net"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/internal/testutils/observability"
-	testtime "github.com/unicitynetwork/bft-core/internal/testutils/time"
+	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	testtb "github.com/unicitynetwork/bft-core/internal/testutils/trustbase"
+	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
-func TestRootValidator_OK(t *testing.T) {
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	observe := observability.Default(t)
-	obsF := observe.Factory()
-
-	// init money node
-	moneyHome := writeShardConf(t, defaultMoneyShardConf)
-	cmd := New(obsF)
-	cmd.baseCmd.SetArgs([]string{
-		"shard-node", "init", "--generate", "--home", moneyHome,
-	})
-	require.NoError(t, cmd.Execute(context.Background()))
-
-	// init root node 1
-	rootHome1 := t.TempDir()
-	cmd = New(obsF)
-	cmd.baseCmd.SetArgs([]string{
-		"root-node", "init", "--generate", "--home", rootHome1,
-	})
-	require.NoError(t, cmd.Execute(context.Background()))
-
-	// init root node 2
-	rootHome2 := t.TempDir()
-	cmd = New(obsF)
-	cmd.baseCmd.SetArgs([]string{
-		"root-node", "init", "--generate", "--home", rootHome2,
-	})
-	require.NoError(t, cmd.Execute(context.Background()))
-
-	// generate trust base
-	cmd = New(obsF)
-	cmd.baseCmd.SetArgs([]string{
-		"trust-base", "generate",
-		"--home", rootHome1,
-		"--node-info", filepath.Join(rootHome1, nodeInfoFileName),
-		"--node-info", filepath.Join(rootHome2, nodeInfoFileName),
-	})
-	require.NoError(t, cmd.Execute(context.Background()))
-
-	// sign trust base
-	cmd = New(obsF)
-	trustBaseFile := filepath.Join(rootHome1, "trust-base.json")
-	cmd.baseCmd.SetArgs([]string{
-		"trust-base", "sign",
-		"--key-conf", filepath.Join(rootHome1, keyConfFileName),
-		"--trust-base", trustBaseFile,
-	})
-	require.NoError(t, cmd.Execute(context.Background()))
-
-	cmd = New(obsF)
-	cmd.baseCmd.SetArgs([]string{
-		"trust-base", "sign",
-		"--key-conf", filepath.Join(rootHome2, keyConfFileName),
-		"--trust-base", trustBaseFile,
-	})
-	require.NoError(t, cmd.Execute(context.Background()))
-
-	// start the root node and expect no errors
-	testtime.MustRunInTime(t, 5*time.Second, func() {
-		appStoppedWg := sync.WaitGroup{}
-		address := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
-
-		// start the root node in background
-		appStoppedWg.Add(1)
-		go func() {
-			defer appStoppedWg.Done()
-			cmd = New(obsF)
-			cmd.baseCmd.SetArgs([]string{
-				"root-node", "run",
-				"--home", rootHome1,
-				"--address", address,
-				"--trust-base", filepath.Join(rootHome1, trustBaseFileName),
-			})
-			require.ErrorIs(t, cmd.Execute(ctx), context.Canceled)
-		}()
-
-		// Close the app
-		ctxCancel()
-		// Wait for test asserts to be completed
-		appStoppedWg.Wait()
-	})
-}
-
-func generateSingleNodeSetup(t *testing.T) (string, string) {
-	t.Helper()
-	rootHomeDir := t.TempDir()
-	logF := observability.NewFactory(t)
-	// init money node
-	moneyHomeDir := writeShardConf(t, defaultMoneyShardConf)
-	cmd := New(logF)
-	args := "shard-node init -g --home " + moneyHomeDir
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.Execute(context.Background()))
-
-	// init root node
-	cmd = New(logF)
-	args = "root-node init -g --home " + rootHomeDir
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.Execute(context.Background())
-	require.NoError(t, err)
-
-	// generate trust base
-	cmd = New(logF)
-	args = "trust-base generate --home " + rootHomeDir +
-		" --node-info=" + filepath.Join(rootHomeDir, nodeInfoFileName)
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.NoError(t, cmd.Execute(context.Background()))
-	return rootHomeDir, moneyHomeDir
+var defaultPDR = &types.PartitionDescriptionRecord{
+	Version:         1,
+	NetworkID:       types.NetworkLocal,
+	PartitionID:     1,
+	PartitionTypeID: 1,
+	TypeIDLen:       8,
+	UnitIDLen:       256,
+	T2Timeout:       2500 * time.Millisecond,
 }
 
 func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
@@ -168,18 +67,6 @@ func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
 	})
 }
 
-func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
-	rootHome, _ := generateSingleNodeSetup(t)
-
-	cmd := New(observability.NewFactory(t))
-	invalidStore := "/foobar/doesnotexist3454/"
-	cmd.baseCmd.SetArgs([]string{"root-node", "run", "--home", rootHome, "--root-db", invalidStore})
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
-	defer cancel()
-	require.EqualError(t, cmd.Execute(ctx), fmt.Sprintf("open database: open %s: no such file or directory", invalidStore))
-}
-
 func Test_cfgHandler(t *testing.T) {
 	// helper to set up handler for the case where we expect that the addConfig
 	// callback is not called (ie handler fails before there is a reason to call it)
@@ -212,7 +99,7 @@ func Test_cfgHandler(t *testing.T) {
 		require.Equal(t, `parsing request body: decoding shard conf json: invalid character 'o' in literal null (expecting 'u')`, string(body))
 	})
 
-	shardConfJson, err := json.Marshal(defaultMoneyShardConf)
+	shardConfJson, err := json.Marshal(defaultPDR)
 	require.NoError(t, err)
 
 	t.Run("config registration fails", func(t *testing.T) {
@@ -232,7 +119,7 @@ func Test_cfgHandler(t *testing.T) {
 		cbCall := false
 		hf := putShardConfigHandler(func(shardConf *types.PartitionDescriptionRecord) error {
 			cbCall = true
-			require.Equal(t, shardConf, defaultMoneyShardConf)
+			require.Equal(t, shardConf, defaultPDR)
 			return nil
 		})
 		w := httptest.NewRecorder()
@@ -292,6 +179,80 @@ func Test_roundInfoHandler(t *testing.T) {
 			},
 		}
 		require.Equal(t, expected, actual)
+	})
+}
+
+func Test_GetTrustBases(t *testing.T) {
+	s1, v1 := testsig.CreateSignerAndVerifier(t)
+	trustBase1, err := types.NewTrustBase(types.NetworkLocal, []*types.NodeInfo{testtb.NewNodeInfoFromVerifier(t, "1", v1)},
+		types.WithEpoch(1),
+		types.WithEpochStart(1),
+		types.WithQuorumThreshold(1),
+	)
+	require.NoError(t, err)
+	require.NoError(t, trustBase1.Sign("1", s1))
+
+	_, v2 := testsig.CreateSignerAndVerifier(t)
+	trustBase1Hash, err := trustBase1.Hash(crypto.SHA256)
+	require.NoError(t, err)
+	trustBase2, err := types.NewTrustBase(types.NetworkLocal, []*types.NodeInfo{testtb.NewNodeInfoFromVerifier(t, "2", v2)},
+		types.WithEpoch(2),
+		types.WithEpochStart(2),
+		types.WithQuorumThreshold(1),
+		types.WithPreviousTrustBaseHash(trustBase1Hash),
+	)
+	require.NoError(t, err)
+	require.NoError(t, trustBase2.Sign("1", s1)) // sign by previous validator
+
+	tbs, err := trustbase.NewTrustBaseStore(memorydb.New(), logger.New(t))
+	require.NoError(t, err)
+	require.NoError(t, tbs.Store(trustBase1))
+	require.NoError(t, tbs.Store(trustBase2))
+
+	hf := getTrustBaseHandler(tbs, observability.Default(t))
+
+	t.Run("ok with default values", func(t *testing.T) {
+		res, body := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases")
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "application/cbor", res.Header.Get("Content-Type"))
+
+		var response TrustBasesResponse
+		require.NoError(t, types.Cbor.Unmarshal(body, &response))
+		require.Len(t, response.TrustBases, 1)
+
+		require.EqualValues(t, 2, response.TrustBases[0].Epoch)
+	})
+
+	t.Run("ok with multiple trust bases", func(t *testing.T) {
+		res, body := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=1&to=2")
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var response TrustBasesResponse
+		require.NoError(t, types.Cbor.Unmarshal(body, &response))
+		require.Len(t, response.TrustBases, 2)
+
+		require.EqualValues(t, 1, response.TrustBases[0].Epoch)
+		require.EqualValues(t, 2, response.TrustBases[1].Epoch)
+	})
+
+	t.Run("ok with explicit params", func(t *testing.T) {
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=2&to=2")
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("bad_request_invalid_epoch", func(t *testing.T) {
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=0")
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("bad_request_from_gt_to", func(t *testing.T) {
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?from=5&to=3")
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("bad_request_epoch_gt_latest", func(t *testing.T) {
+		res, _ := doRequest(t, hf, http.MethodGet, "/api/v1/trustbases?to=999")
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 }
 

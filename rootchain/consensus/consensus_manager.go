@@ -867,7 +867,7 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 			for _, uc := range nm {
 				certs[types.PartitionShardID{PartitionID: uc.Partition, ShardID: uc.Shard.Key()}] = uc
 			}
-			feedCtx, cancel := context.WithCancel(ctx)
+			feedCtx, cancel := context.WithCancel(ctx) // #nosec G118 cancel is called via stopFeed closure
 			stopped := feedValidator(feedCtx)
 			stopFeed = func() {
 				cancel()

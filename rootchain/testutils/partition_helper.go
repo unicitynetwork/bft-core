@@ -12,7 +12,6 @@ import (
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
 	"github.com/unicitynetwork/bft-core/network"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
-	"github.com/unicitynetwork/bft-core/partition"
 	"github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 )
@@ -37,21 +36,6 @@ func (n *TestNode) NodeInfo(t *testing.T) *types.NodeInfo {
 		NodeID: n.PeerConf.ID.String(),
 		SigKey: sigKey,
 		Stake:  1,
-	}
-}
-
-func (n *TestNode) KeyConf(t *testing.T) *partition.KeyConf {
-	sigPrivKeyBytes, err := n.Signer.MarshalPrivateKey()
-	require.NoError(t, err)
-	return &partition.KeyConf{
-		SigKey: partition.Key{
-			Algorithm:  "secp256k1",
-			PrivateKey: sigPrivKeyBytes,
-		},
-		AuthKey: partition.Key{
-			Algorithm:  "secp256k1",
-			PrivateKey: n.PeerConf.KeyPair.PrivateKey,
-		},
 	}
 }
 

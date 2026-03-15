@@ -55,7 +55,7 @@ type (
 	// PeerKeyPair contains node's public and private key.
 	PeerKeyPair struct {
 		PublicKey  []byte
-		PrivateKey []byte
+		PrivateKey []byte // #nosec G117
 	}
 
 	// Peer represents a single node in p2p network. It is a wrapper around the libp2p host.Host.
