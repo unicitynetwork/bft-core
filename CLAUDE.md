@@ -274,6 +274,7 @@ DOCKER_GO_DEPENDENCY=../bft-go-base make build-docker
 
 ## Common Pitfalls
 
+
 1. **Round Synchronization**: Partitions must use `TechnicalRecord.Round` for next certification request, not block number or self-incremented counter
 
 2. **CBOR Serialization**: Use `cbor:",toarray"` for struct tags and ensure nil values serialize as CBOR null (0xf6), not empty byte strings
@@ -284,11 +285,11 @@ DOCKER_GO_DEPENDENCY=../bft-go-base make build-docker
 
 5. **Timestamp Source**: Use UnicitySeal.timestamp from last UC, not system time
 
-6. **Previous Hash**: For certification requests, use UC.InputRecord.Hash (the certified state), not block.parent_state_root
+6. **Previous Hash**: For certification requests, use previous round's state root hash as the PreviousHash. It MUST match the previous UC's luc.InputRecord.Hash to be successful. That is, rounds' root hashes must form a continuous chain certified by InputRecords.
 
 7. **First Block**: Send previous_hash=nil to let BFT Core use genesis state
 
-8. **Database Cleanup**: When testing, clean both partition AND root chain databases for fresh state
+8. **Database Cleanup**: When testing, clean both partition AND root chain databases for fresh state. Otherwise, the BFT Core and partition can not produce a synchronized chain of root hashes, following the ledger rules.
 
 ## Related Repositories
 
