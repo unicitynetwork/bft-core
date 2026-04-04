@@ -22,7 +22,7 @@ type BlockCertificationRequest struct {
 	ShardID     types.ShardID      `json:"shardId"`
 	NodeID      string             `json:"nodeId"`
 	InputRecord *types.InputRecord `json:"inputRecord"`
-	ZkProof     []byte             `json:"zkProof"` // ZK proof for state transition validation
+	ZkProof     []byte             `json:"zkProof"` // (ZK) proof for state transition validation
 	BlockSize   uint64             `json:"blockSize"`
 	StateSize   uint64             `json:"stateSize"`
 	Signature   hex.Bytes          `json:"signature"`
@@ -91,6 +91,7 @@ func (x BlockCertificationRequest) Bytes() ([]byte, error) {
 }
 
 // UnmarshalCBOR provides backward compatibility for old database format (before ZkProof field was added)
+// TODO: remove eventually
 func (x *BlockCertificationRequest) UnmarshalCBOR(data []byte) error {
 	// Try new format first (8 elements with ZkProof)
 	type newFormat BlockCertificationRequest

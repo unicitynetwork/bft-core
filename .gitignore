@@ -16,6 +16,7 @@ test-coverage.html
 gosec_report.json
 .trivycache/
 /test-nodes/
+rootchain/consensus/zkverifier/rsmt/testdata/
 
 *.log
 

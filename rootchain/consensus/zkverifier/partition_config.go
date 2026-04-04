@@ -6,7 +6,7 @@ import "strconv"
 // These are stored in PartitionDescriptionRecord.PartitionParams.
 const (
 	// ParamProofType specifies the proof type for the partition.
-	// Valid values: "sp1", "light_client", "exec"
+	// Valid values: "sp1", "light_client", "aggregator_rsmt_v1", "exec"
 	// If empty or not set, m-of-n signature verification only (no ZK proof required).
 	ParamProofType = "proof_type"
 

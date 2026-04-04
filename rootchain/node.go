@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/attribute"
@@ -337,7 +338,7 @@ func (v *Node) verifyZKProof(ctx context.Context, req *certification.BlockCertif
 
 	// Skip verification for sync UCs and genesis blocks:
 	// 1. Sync UCs: both hashes are null/empty (handshake/subscription requests)
-	// 2. Genesis block: previousHash is null/empty (first block with no parent)
+	// 2. Genesis block: previousHash is null/empty (first genesis block is sent from heaven)
 	if len(previousStateRoot) == 0 && len(newStateRoot) == 0 {
 		v.log.DebugContext(ctx, "Skipping ZK proof verification for sync UC",
 			logger.Shard(req.PartitionID, req.ShardID))
@@ -349,21 +350,39 @@ func (v *Node) verifyZKProof(ctx context.Context, req *certification.BlockCertif
 		return nil
 	}
 
+	proofType := string(verifier.ProofType())
+	proofSize := len(req.ZkProof)
+
 	v.log.DebugContext(ctx, "Verifying ZK proof",
 		logger.Shard(req.PartitionID, req.ShardID),
-		logger.Data(slog.Int("proof_size", len(req.ZkProof))),
-		logger.Data(slog.String("proof_type", string(verifier.ProofType()))),
-		logger.Data(slog.Uint64("round", ir.RoundNumber)))
+		slog.String("verifier_type", proofType),
+		slog.Int("proof_size", proofSize),
+		slog.Uint64("round", ir.RoundNumber))
 
 	// Verify proof: previousStateRoot -> newStateRoot transition with block hash
 	blockHash := ir.BlockHash
-	if err := verifier.VerifyProof(req.ZkProof, previousStateRoot, newStateRoot, blockHash); err != nil {
-		return fmt.Errorf("ZK proof verification failed: %w", err)
+	start := time.Now()
+	verifyErr := verifier.VerifyProof(req.ZkProof, previousStateRoot, newStateRoot, blockHash)
+	elapsed := time.Since(start)
+
+	if verifyErr != nil {
+		v.log.WarnContext(ctx, "ZK proof verification failed",
+			logger.Shard(req.PartitionID, req.ShardID),
+			slog.String("verifier_type", proofType),
+			slog.Int("proof_size", proofSize),
+			slog.Duration("verification_time", elapsed),
+			slog.Uint64("round", ir.RoundNumber),
+			logger.Error(verifyErr))
+		return fmt.Errorf("ZK proof verification failed: %w", verifyErr)
 	}
 
 	v.log.InfoContext(ctx, "ZK proof verified successfully",
 		logger.Shard(req.PartitionID, req.ShardID),
-		logger.Data(slog.Uint64("round", ir.RoundNumber)))
+		slog.String("verifier_type", proofType),
+		slog.Int("proof_size", proofSize),
+		slog.Uint64("num_leaves", req.BlockSize),
+		slog.Duration("verification_time", elapsed),
+		slog.Uint64("round", ir.RoundNumber))
 
 	return nil
 }

@@ -26,6 +26,10 @@ const (
 	ProofTypeExec ProofType = "exec"
 	// ProofTypeLightClient indicates light client mode (full witness validation)
 	ProofTypeLightClient ProofType = "light_client"
+	// ProofTypeAggregatorRSMTv1 indicates aggregator Radix SMT consistency proof
+	// (flat opcode stream with batch of new leaves). Verified in-process in pure
+	// Go; see rootchain/consensus/zkverifier/rsmt for the wire format.
+	ProofTypeAggregatorRSMTv1 ProofType = "aggregator_rsmt_v1"
 	// ProofTypeNone indicates no proof verification (disabled)
 	ProofTypeNone ProofType = "none"
 )
@@ -93,6 +97,8 @@ func NewVerifier(cfg *Config) (ZKVerifier, error) {
 		return NewSP1Verifier(cfg.VerificationKeyPath, cfg.ChainID)
 	case ProofTypeLightClient:
 		return NewLightClientVerifier(cfg.ChainID)
+	case ProofTypeAggregatorRSMTv1:
+		return NewAggregatorRSMTVerifier(), nil
 	case ProofTypeRISC0:
 		return nil, fmt.Errorf("RISC0 verifier not implemented")
 	case ProofTypeExec, ProofTypeNone:

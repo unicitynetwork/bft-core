@@ -4,11 +4,64 @@ This directory contains optional Rust FFI components for ZK proof verification. 
 
 ## Architecture
 
-The ZK verifier supports multiple proof types through a common interface:
+The ZK verifier supports multiple proof types through a common interface.
+Verifiers fall into two families:
 
-- **SP1 Verifier**: Verifies SP1 zkVM proofs using Rust FFI (optional)
-- **Light Client Verifier**: Executes full witness validation using Rust FFI (optional)
-- **No-Op Verifier**: Disabled verification for testing (always available)
+**Pure-Go, always compiled in (no build tag):**
+- **No-Op Verifier** (`proof_type` unset or `none`): Disabled verification for testing.
+- **Aggregator RSMT Verifier** (`proof_type=aggregator_rsmt_v1`): Verifies a
+  Radix Sparse Merkle Tree consistency proof produced by the Rust aggregator
+  (`crates/rsmt/src/consistency.rs`). Recomputes the `prev → new` root
+  transition for a batch of newly inserted leaves. Implementation lives in
+  the `rsmt/` sub-package.
+
+**FFI-gated (`-tags zkverifier_ffi`):**
+- **SP1 Verifier** (`proof_type=sp1`): Verifies SP1 zkVM proofs.
+- **Light Client Verifier** (`proof_type=light_client`): Executes full witness validation.
+
+### Aggregator RSMT verifier
+
+Enable it on a partition by setting `proof_type=aggregator_rsmt_v1` in the
+partition's `PartitionParams` when generating the shard config, e.g.:
+
+```bash
+ubft shard-conf generate \
+  ... \
+  --partition-params "proof_type=aggregator_rsmt_v1"
+```
+
+Once set, `node.verifyZKProof()` rejects any `BlockCertificationRequest` whose
+`ZkProof` envelope does not recompute `InputRecord.PreviousHash →
+InputRecord.Hash` for the carried batch — no UC is issued.
+
+**Wire format of `ZkProof`** (no version tag; the format is selected by
+`proof_type`):
+
+```
+offset  size           field
+0       4              leaf_count (big-endian u32)
+4       ...            leaves: leaf_count × { key[32] || value_len (u16 BE) || value[value_len] }
+...     to end-of-buf  consistency-proof opcode stream (flat bytes)
+```
+
+Opcodes (post-order stack machine):
+- `0x00 || h[32]`  — `S`: unchanged subtree hash
+- `0x01`           — `L`: pop next leaf from the wire batch
+- `0x02 || depth`  — `N`: inner node at `depth ∈ 0..=255`, pops 2 children
+
+Invariants enforced by the verifier:
+- Leaves MUST be pre-sorted by `SortKey` (per-byte bit-reversal, LSB-first
+  lexicographic order). Unsorted or duplicate leaves → `ErrLeavesUnsorted`.
+- Empty batch ⇒ empty proof and `prev == new`; otherwise `ErrEmptyBatchNonEmptyProof` /
+  `ErrEmptyBatchRootChange`.
+- After stream consumption: stack size 1, leaves fully consumed, bytes fully
+  consumed, and `stack[0] == (prev, new)`.
+- Leaf count is capped at `MaxLeafCount = 1<<20` to prevent OOM from malicious
+  inputs. Value length is naturally capped at 65 535 by `u16`.
+
+Hash functions (SHA-256, matching `crates/rsmt/src/hash.rs`):
+- `HashLeaf(key, value) = SHA256(0x00 || key[32] || value)`
+- `HashNode(left, right, depth) = SHA256(0x01 || depth || left[32] || right[32])`
 
 ## Build Configurations
 

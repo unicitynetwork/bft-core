@@ -100,6 +100,11 @@ func (r *Registry) createVerifier(params map[string]string) (ZKVerifier, error) 
 		}
 		return NewLightClientVerifier(chainID)
 
+	case ProofTypeAggregatorRSMTv1:
+		// Pure-Go verifier: no vkey, no chain_id. Consistency proof is
+		// self-contained and recomputes roots from the envelope.
+		return NewAggregatorRSMTVerifier(), nil
+
 	default:
 		return nil, fmt.Errorf("unknown proof type: %s", proofType)
 	}
