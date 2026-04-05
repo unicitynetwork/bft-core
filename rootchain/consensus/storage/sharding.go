@@ -150,6 +150,7 @@ func (ss ShardStates) certificationResponses(algo crypto.Hash) ([]*certification
 				UnicityTreeCertificate: utCert,
 				ShardTreeCertificate:   stCert,
 			},
+			Status: certification.CertStatusOK,
 		})
 	}
 

@@ -191,6 +191,27 @@ func (v *Node) sendResponse(ctx context.Context, nodeID string, cr *certificatio
 	return v.net.Send(ctx, cr, peerID)
 }
 
+// sendRejection attaches a status code and diagnostic message to a copy of the
+// last-good CertificationResponse (so the submitter can still resync from the
+// wrapped UC) and sends it. The shared `last` pointer is NOT mutated — we only
+// ever write to a shallow copy.
+func (v *Node) sendRejection(ctx context.Context, nodeID string, last *certification.CertificationResponse, status uint32, cause error) error {
+	if last == nil {
+		return fmt.Errorf("no last CR available to attach to rejection")
+	}
+	msg := ""
+	if cause != nil {
+		msg = cause.Error()
+		if len(msg) > certification.MaxStatusMessageLen {
+			msg = msg[:certification.MaxStatusMessageLen]
+		}
+	}
+	resp := *last
+	resp.Status = status
+	resp.Message = msg
+	return v.sendResponse(ctx, nodeID, &resp)
+}
+
 func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error {
 	ctx, span := v.tracer.Start(ctx, "node.onHandshake")
 	defer span.End()
@@ -238,7 +259,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	// we got the shard info thus it's a valid partition/shard
 	if err := si.ValidRequest(req); err != nil {
 		err = fmt.Errorf("invalid block certification request: %w", err)
-		if se := v.sendResponse(ctx, req.NodeID, si.LastCR); se != nil {
+		if se := v.sendRejection(ctx, req.NodeID, si.LastCR, certification.CertStatusRequestInvalid, err); se != nil {
 			err = errors.Join(err, fmt.Errorf("sending latest cert: %w", se))
 		}
 		return err
@@ -250,9 +271,11 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			logger.Error(err),
 			logger.Shard(req.PartitionID, req.ShardID))
 
-		// Send last valid UC immediately when proof verification fails
-		// This allows the partition to sync back to the last certified state
-		if se := v.sendResponse(ctx, req.NodeID, si.LastCR); se != nil {
+		// Send last valid UC immediately when proof verification fails so the
+		// partition can sync back to the last certified state. The outer
+		// response carries CertStatusProofInvalid + the verifier's error so
+		// the submitter can distinguish this from a timeout repeat UC.
+		if se := v.sendRejection(ctx, req.NodeID, si.LastCR, certification.CertStatusProofInvalid, err); se != nil {
 			err = errors.Join(err, fmt.Errorf("failed to send last valid UC: %w", se))
 		}
 		return fmt.Errorf("ZK proof verification failed: %w", err)

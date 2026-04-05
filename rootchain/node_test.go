@@ -544,10 +544,18 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 
 	t.Run("invalid request", func(t *testing.T) {
 		// in case of invalid request we respond with the latest cert of the shard
+		// wrapped in a rejection envelope (Status=RequestInvalid, Message=why).
 		sendCallCnt := 0
 		partNet := mockPartitionNet{
 			send: func(ctx context.Context, msg any, receivers ...p2peer.ID) error {
-				require.Equal(t, &certResp, msg)
+				resp, ok := msg.(*certification.CertificationResponse)
+				require.True(t, ok, "expected *CertificationResponse, got %T", msg)
+				require.Equal(t, certification.CertStatusRequestInvalid, resp.Status)
+				require.NotEmpty(t, resp.Message)
+				// The wrapped UC/Technical must still be the last-good certificate.
+				require.Equal(t, certResp.Partition, resp.Partition)
+				require.Equal(t, certResp.Technical, resp.Technical)
+				require.Equal(t, certResp.UC.TRHash, resp.UC.TRHash)
 				sendCallCnt++
 				return nil
 			},
