@@ -231,12 +231,16 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 		return fmt.Errorf("node ID is not in active validator set %s - %s - %s", req.PartitionID, req.ShardID, req.NodeID)
 	}
 
-	if si.LastCR == nil || si.LastCR.UC.GetRoundNumber() == 0 {
-		// Make sure shard nodes get CertificationResponses even
-		// before they send the first BlockCertificationRequests
-		if err := v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID); err != nil {
-			return fmt.Errorf("subscribing the sender: %w", err)
-		}
+	// (Re)subscribe on every handshake. Subscriptions have a bounded response
+	// quota (see responsesPerSubscription in subscription.go) which is only
+	// refilled by Subscribe; repeat UCs sent to an idle partition consume quota
+	// without refilling it, so after ~responsesPerSubscription T2 timeouts the
+	// partition would otherwise fall off the subscriber map entirely. The
+	// handshake is the partition's only refresh mechanism when it has no
+	// BlockCertificationRequests to send, so it must always re-subscribe —
+	// not just before the first certified block.
+	if err := v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID); err != nil {
+		return fmt.Errorf("subscribing the sender: %w", err)
 	}
 	if err = v.sendResponse(ctx, req.NodeID, si.LastCR); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)

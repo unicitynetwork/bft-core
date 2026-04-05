@@ -281,6 +281,48 @@ func Test_onHandshake(t *testing.T) {
 		}
 		require.NoError(t, node.onHandshake(t.Context(), &msg))
 	})
+
+	// Regression: a partition that has already produced certified blocks must
+	// still be (re)subscribed on handshake. The subscription has a bounded
+	// per-peer response quota (see responsesPerSubscription) which repeat UCs
+	// on T2 timeout drain without refilling; handshake is the only refresh
+	// mechanism for an idle partition. If onHandshake skips Subscribe once
+	// LastCR.UC.GetRoundNumber() > 0, the partition silently falls off the
+	// subscriber map and BFT Core logs "0 receivers" on subsequent repeat UCs.
+	t.Run("post-genesis handshake re-subscribes", func(t *testing.T) {
+		cr := validCertificationResponse(t)
+		cr.UC.InputRecord.RoundNumber = 42 // post-genesis: GetRoundNumber() > 0
+
+		partNet := mockPartitionNet{
+			send: func(ctx context.Context, msg any, receivers ...p2peer.ID) error {
+				return nil
+			},
+		}
+		cm := mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				return newMockShardInfo(t, nodeID.String(), publicKey, cr), nil
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+
+		msg := handshake.Handshake{
+			PartitionID: cr.Partition,
+			ShardID:     cr.Shard,
+			NodeID:      nodeID.String(),
+		}
+		require.NoError(t, node.onHandshake(t.Context(), &msg))
+
+		// Subscribe must have been called — the peer should be registered with
+		// a full response quota, not absent from the subs map.
+		key := partitionShard{cr.Partition, cr.Shard.Key()}
+		node.subscription.mu.RLock()
+		defer node.subscription.mu.RUnlock()
+		peers, ok := node.subscription.subs[key]
+		require.True(t, ok, "partition must be present in subs map after post-genesis handshake")
+		require.Equal(t, responsesPerSubscription, peers[nodeID],
+			"peer quota must be refilled by handshake")
+	})
 }
 
 func Test_handlePartitionMsg(t *testing.T) {
