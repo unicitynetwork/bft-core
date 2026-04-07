@@ -92,6 +92,8 @@ fn verify_proof_internal(
         .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
 
     // Create prover client (used for verification)
+    // TODO: use the sp1-verifier crate instead https://github.com/succinctlabs/sp1/tree/v6.0.2/crates/verifier
+    // or at least cache the client
     let client = ProverClient::from_env();
 
     // Verify the proof

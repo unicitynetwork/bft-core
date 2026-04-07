@@ -2,25 +2,8 @@
 
 package zkverifier
 
-// IsProofTypeAvailable returns whether the given proof type is available
-// in the current build. Without FFI, the pure-Go aggregator RSMT verifier
-// is available alongside the m-of-n "exec" mode.
-func IsProofTypeAvailable(pt ProofType) bool {
-	switch pt {
-	case ProofTypeAggregatorRSMTv1, ProofTypeExec, ProofTypeNone, "":
-		return true
-	default:
-		return false
-	}
-}
+// isSP1Available returns false when the SP1 FFI verifier was not compiled in.
+func isSP1Available() bool { return false }
 
-// AvailableProofTypes returns the list of proof types available in the current build.
-// Without FFI, the pure-Go aggregator RSMT verifier and Exec (m-of-n) are available.
-func AvailableProofTypes() []ProofType {
-	return []ProofType{ProofTypeAggregatorRSMTv1, ProofTypeExec}
-}
-
-// IsFFIAvailable returns whether FFI support is built in.
-func IsFFIAvailable() bool {
-	return false
-}
+// isLightClientAvailable returns false when the LightClient FFI verifier was not compiled in.
+func isLightClientAvailable() bool { return false }

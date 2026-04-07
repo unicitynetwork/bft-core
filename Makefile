@@ -7,21 +7,40 @@ endif
 
 # ZK Verifier FFI configuration
 # Set ZKVERIFIER_FFI=1 to enable Rust FFI components (SP1 and light-client verifiers)
-# Default: disabled (builds without Rust dependencies)
+# Set ZKVERIFIER_AGGREGATOR_ZK_FFI=1 to enable the aggregator ZK verifier FFI (SP1 6.0.2)
+# Default: all disabled (builds without Rust dependencies)
 ZKVERIFIER_FFI ?= 0
+ZKVERIFIER_AGGREGATOR_ZK_FFI ?= 0
 
-# Go build tags based on FFI configuration
+# Accumulate Go build tags
+GO_BUILD_TAGS_LIST =
+GO_TEST_TAGS_LIST  =
+
 ifeq ($(ZKVERIFIER_FFI),1)
-	GO_BUILD_TAGS = -tags zkverifier_ffi
-	GO_TEST_TAGS = -tags zkverifier_ffi
-else
-	GO_BUILD_TAGS =
-	GO_TEST_TAGS =
+	GO_BUILD_TAGS_LIST += zkverifier_ffi
+	GO_TEST_TAGS_LIST  += zkverifier_ffi
 endif
 
+ifeq ($(ZKVERIFIER_AGGREGATOR_ZK_FFI),1)
+	GO_BUILD_TAGS_LIST += zkverifier_aggregator_zk_ffi
+	GO_TEST_TAGS_LIST  += zkverifier_aggregator_zk_ffi
+endif
+
+ifneq ($(strip $(GO_BUILD_TAGS_LIST)),)
+	GO_BUILD_TAGS = -tags $(subst $(space),$(comma),$(strip $(GO_BUILD_TAGS_LIST)))
+	GO_TEST_TAGS  = -tags $(subst $(space),$(comma),$(strip $(GO_TEST_TAGS_LIST)))
+else
+	GO_BUILD_TAGS =
+	GO_TEST_TAGS  =
+endif
+
+comma = ,
+space = $(empty) $(empty)
+
 # FFI library paths
-SP1_VERIFIER_FFI_DIR = rootchain/consensus/zkverifier/sp1-verifier-ffi
-LIGHT_CLIENT_VERIFIER_FFI_DIR = rootchain/consensus/zkverifier/light-client-verifier-ffi
+SP1_VERIFIER_FFI_DIR           = rootchain/consensus/zkverifier/sp1-verifier-ffi
+LIGHT_CLIENT_VERIFIER_FFI_DIR  = rootchain/consensus/zkverifier/light-client-verifier-ffi
+AGGREGATOR_ZK_VERIFIER_FFI_DIR = rootchain/consensus/zkverifier/aggregator-zk-verifier-ffi
 
 all: clean tools test build gosec
 
@@ -36,6 +55,9 @@ clean-ffi:
 	@if [ -d "$(LIGHT_CLIENT_VERIFIER_FFI_DIR)" ]; then \
 		cd $(LIGHT_CLIENT_VERIFIER_FFI_DIR) && cargo clean; \
 	fi
+	@if [ -d "$(AGGREGATOR_ZK_VERIFIER_FFI_DIR)" ]; then \
+		cd $(AGGREGATOR_ZK_VERIFIER_FFI_DIR) && cargo clean; \
+	fi
 
 test:
 	go test $(GO_TEST_TAGS) ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
@@ -45,11 +67,19 @@ build:
     # https://github.com/golang/go/issues/51279
 	cd ./cli/ubft && go build $(GO_BUILD_TAGS) -o ../../build/ubft
 
-# Build with ZK verifier FFI support (requires Rust toolchain)
+# Build with ZK verifier FFI support (SP1 + light-client, requires Rust toolchain)
 build-with-ffi: build-rust-ffi
 	$(MAKE) build ZKVERIFIER_FFI=1
 
-# Build Rust FFI libraries
+# Build with aggregator ZK verifier FFI support only (SP1 6.0.2, requires Rust toolchain)
+build-with-aggregator-zk-ffi: build-aggregator-zk-ffi
+	$(MAKE) build ZKVERIFIER_AGGREGATOR_ZK_FFI=1
+
+# Build with all FFI verifiers enabled
+build-with-all-ffi: build-rust-ffi build-aggregator-zk-ffi
+	$(MAKE) build ZKVERIFIER_FFI=1 ZKVERIFIER_AGGREGATOR_ZK_FFI=1
+
+# Build all Rust FFI libraries (SP1 + light-client)
 build-rust-ffi: check-rust build-sp1-ffi build-light-client-ffi
 
 build-sp1-ffi:
@@ -66,6 +96,14 @@ build-light-client-ffi:
 		cd $(LIGHT_CLIENT_VERIFIER_FFI_DIR) && cargo build --release; \
 	else \
 		echo "Warning: $(LIGHT_CLIENT_VERIFIER_FFI_DIR) not found"; \
+	fi
+
+build-aggregator-zk-ffi: check-rust
+	@echo "Building Aggregator ZK verifier FFI (SP1 6.0.2)..."
+	@if [ -d "$(AGGREGATOR_ZK_VERIFIER_FFI_DIR)" ]; then \
+		cd $(AGGREGATOR_ZK_VERIFIER_FFI_DIR) && cargo build --release; \
+	else \
+		echo "Warning: $(AGGREGATOR_ZK_VERIFIER_FFI_DIR) not found"; \
 	fi
 
 # Check if Rust toolchain is available
@@ -93,9 +131,12 @@ tools:
 	test \
 	build \
 	build-with-ffi \
+	build-with-aggregator-zk-ffi \
+	build-with-all-ffi \
 	build-rust-ffi \
 	build-sp1-ffi \
 	build-light-client-ffi \
+	build-aggregator-zk-ffi \
 	check-rust \
 	build-docker \
 	gosec

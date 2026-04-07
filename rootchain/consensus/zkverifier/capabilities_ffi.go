@@ -2,25 +2,8 @@
 
 package zkverifier
 
-// IsProofTypeAvailable returns whether the given proof type is available
-// in the current build. With FFI, SP1 and LightClient are available.
-func IsProofTypeAvailable(pt ProofType) bool {
-	switch pt {
-	case ProofTypeSP1, ProofTypeLightClient, ProofTypeAggregatorRSMTv1, ProofTypeExec, ProofTypeNone, "":
-		return true
-	default:
-		return false
-	}
-}
+// isSP1Available returns true when the SP1 FFI verifier was compiled in.
+func isSP1Available() bool { return true }
 
-// AvailableProofTypes returns the list of proof types available in the current build.
-// With FFI, SP1 and LightClient are available (besides m-of-n signature mode
-// and the pure-Go aggregator RSMT verifier).
-func AvailableProofTypes() []ProofType {
-	return []ProofType{ProofTypeSP1, ProofTypeLightClient, ProofTypeAggregatorRSMTv1, ProofTypeExec}
-}
-
-// IsFFIAvailable returns whether FFI support is built in.
-func IsFFIAvailable() bool {
-	return true
-}
+// isLightClientAvailable returns true when the LightClient FFI verifier was compiled in.
+func isLightClientAvailable() bool { return true }

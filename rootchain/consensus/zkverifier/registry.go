@@ -105,6 +105,13 @@ func (r *Registry) createVerifier(params map[string]string) (ZKVerifier, error) 
 		// self-contained and recomputes roots from the envelope.
 		return NewAggregatorRSMTVerifier(), nil
 
+	case ProofTypeAggregatorZKv1:
+		vkeyPath := ParseVKeyPathFromParams(params)
+		if vkeyPath == "" {
+			return nil, fmt.Errorf("vkey_path required for aggregator_zk_v1 proof type")
+		}
+		return NewAggregatorZKVerifier(vkeyPath)
+
 	default:
 		return nil, fmt.Errorf("unknown proof type: %s", proofType)
 	}

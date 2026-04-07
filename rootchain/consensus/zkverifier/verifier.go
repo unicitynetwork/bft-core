@@ -30,6 +30,11 @@ const (
 	// (flat opcode stream with batch of new leaves). Verified in-process in pure
 	// Go; see rootchain/consensus/zkverifier/rsmt for the wire format.
 	ProofTypeAggregatorRSMTv1 ProofType = "aggregator_rsmt_v1"
+	// ProofTypeAggregatorZKv1 indicates an SP1 ZK proof of aggregator SMT
+	// consistency produced by rugregator's zk-host crate (SP1 6.0.2).
+	// Public values: prev_root[32] || new_root[32] (64 bytes).
+	// Requires the binary to be built with -tags zkverifier_aggregator_zk_ffi.
+	ProofTypeAggregatorZKv1 ProofType = "aggregator_zk_v1"
 	// ProofTypeNone indicates no proof verification (disabled)
 	ProofTypeNone ProofType = "none"
 )
@@ -99,6 +104,8 @@ func NewVerifier(cfg *Config) (ZKVerifier, error) {
 		return NewLightClientVerifier(cfg.ChainID)
 	case ProofTypeAggregatorRSMTv1:
 		return NewAggregatorRSMTVerifier(), nil
+	case ProofTypeAggregatorZKv1:
+		return NewAggregatorZKVerifier(cfg.VerificationKeyPath)
 	case ProofTypeRISC0:
 		return nil, fmt.Errorf("RISC0 verifier not implemented")
 	case ProofTypeExec, ProofTypeNone:
