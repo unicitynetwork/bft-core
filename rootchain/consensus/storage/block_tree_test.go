@@ -486,7 +486,7 @@ func Test_BlockTree_Add(t *testing.T) {
 		require.NoError(t, err)
 		k := types.PartitionShardID{PartitionID: 1, ShardID: types.ShardID{}.Key()}
 		b.ShardState.States[k] = &ShardInfo{PartitionID: 1, IR: &types.InputRecord{}}
-		b.RootHash = hexToBytes("F8C1F929F9E718FE5B19DD72BFD23802FFFE5FAC21711BF425548548262942E5")
+		b.RootHash = hexToBytes("02D6563BFE92C38E0FD37A647F982B49C5B8980A441BCD395E5CC304E2217FCD")
 
 		commitQc := &drctypes.QuorumCert{
 			VoteInfo: &drctypes.RoundInfo{

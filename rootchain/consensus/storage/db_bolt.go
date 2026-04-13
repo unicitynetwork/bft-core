@@ -37,6 +37,8 @@ type BoltDB struct {
 	db *bbolt.DB
 }
 
+const currentDBVersion uint64 = 1
+
 func NewBoltStorage(file string) (db BoltDB, err error) {
 	_, err = os.Stat(file)
 	newDB := err != nil && errors.Is(err, fs.ErrNotExist)
@@ -53,16 +55,48 @@ func NewBoltStorage(file string) (db BoltDB, err error) {
 	}()
 
 	if newDB {
-		if err := db.db.Update(initVersion1Buckets); err != nil {
+		if err := db.db.Update(initBuckets); err != nil {
 			return db, fmt.Errorf("initializing new database: %w", err)
 		}
-	} else {
-		if err := db.migrateTo(1); err != nil {
-			return db, fmt.Errorf("upgrading DB version: %w", err)
-		}
+		return db, nil
 	}
 
+	ver, err := db.getVersion()
+	if err != nil {
+		return db, fmt.Errorf("reading database version: %w", err)
+	}
+	if ver != currentDBVersion {
+		return db, fmt.Errorf("unsupported database version %d, expected %d", ver, currentDBVersion)
+	}
 	return db, nil
+}
+
+// initBuckets creates the bucket layout and writes the current version marker
+// into a fresh bbolt database.
+func initBuckets(tx *bbolt.Tx) error {
+	if _, err := tx.CreateBucket(bucketBlocks); err != nil {
+		return fmt.Errorf("creating bucket for blocks: %w", err)
+	}
+	if _, err := tx.CreateBucket(bucketCertificates); err != nil {
+		return fmt.Errorf("creating bucket for certificates: %w", err)
+	}
+	if _, err := tx.CreateBucket(bucketVotes); err != nil {
+		return fmt.Errorf("creating bucket for votes: %w", err)
+	}
+	b, err := tx.CreateBucket(bucketSafety)
+	if err != nil {
+		return fmt.Errorf("creating bucket for safety: %w", err)
+	}
+	if err := writeUint64(b, keyHighestQc, rctypes.GenesisRootRound); err != nil {
+		return fmt.Errorf("storing highest QC round: %w", err)
+	}
+	if err := writeUint64(b, keyHighestVoted, rctypes.GenesisRootRound); err != nil {
+		return fmt.Errorf("storing highest voted round: %w", err)
+	}
+	if _, err := tx.CreateBucket(bucketMetadata); err != nil {
+		return fmt.Errorf("creating bucket for metadata: %w", err)
+	}
+	return setVersion(tx, currentDBVersion)
 }
 
 func (db BoltDB) Close() error { return db.db.Close() }
@@ -321,39 +355,11 @@ func (db BoltDB) SetHighestQcRound(qcRound, votedRound uint64) error {
 	})
 }
 
-/*
-migrateTo upgrades database to version "ver" if the current version is older.
-*/
-func (db BoltDB) migrateTo(ver uint64) error {
-	curVer, err := db.getVersion()
-	if err != nil {
-		return fmt.Errorf("determining current version of the database: %w", err)
-	}
-	if curVer > ver {
-		return fmt.Errorf("downgrading database version not supported, current is %d, asking for %d", curVer, ver)
-	}
-
-	for ; curVer < ver; curVer++ {
-		switch curVer {
-		case 0:
-			err = db.migrate_0_to_1()
-		default:
-			return fmt.Errorf("migration from version %d to the next version not implemented", curVer)
-		}
-
-		if err != nil {
-			return fmt.Errorf("migrating from version %d: %w", curVer, err)
-		}
-	}
-	return nil
-}
-
 func (db BoltDB) getVersion() (ver uint64, _ error) {
 	return ver, db.db.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket(bucketMetadata)
 		if b == nil {
-			// no bucket, must be version 0 database
-			return nil
+			return errors.New("metadata bucket not found")
 		}
 		ver, err = readUint64(b, keyDbVersion)
 		return err
