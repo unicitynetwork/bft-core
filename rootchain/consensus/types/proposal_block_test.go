@@ -167,6 +167,7 @@ func TestPayload_IsValid(t *testing.T) {
 	type fields struct {
 		Requests []*IRChangeReq
 	}
+	s0, s1 := types.ShardID{}.Split()
 	tests := []struct {
 		name       string
 		fields     fields
@@ -188,6 +189,22 @@ func TestPayload_IsValid(t *testing.T) {
 				{Partition: 1, CertReason: T2Timeout},
 			}},
 			wantErrStr: "",
+		},
+		{
+			name: "duplicate partition different shard",
+			fields: fields{Requests: []*IRChangeReq{
+				{Partition: 1, Shard: s0, CertReason: T2Timeout},
+				{Partition: 1, Shard: s1, CertReason: T2Timeout},
+			}},
+			wantErrStr: "",
+		},
+		{
+			name: "duplicate partition same shard",
+			fields: fields{Requests: []*IRChangeReq{
+				{Partition: 1, Shard: s0, CertReason: T2Timeout},
+				{Partition: 1, Shard: s0, CertReason: T2Timeout},
+			}},
+			wantErrStr: "duplicate requests for partition 00000001 shard 0",
 		},
 	}
 	for _, tt := range tests {

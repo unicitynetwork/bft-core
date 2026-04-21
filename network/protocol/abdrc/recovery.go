@@ -7,9 +7,10 @@ import (
 	"slices"
 	"time"
 
+	"github.com/unicitynetwork/bft-go-base/types"
+
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-go-base/types"
 )
 
 type StateRequestMsg struct {
@@ -174,7 +175,7 @@ func (si *ShardInfo) IsValid() error {
 	}
 
 	if si.UC != nil {
-		if err := si.UC.IsValid(si.Partition, si.ShardConfHash); err != nil {
+		if err := si.UC.IsValid(si.Partition, si.Shard, si.ShardConfHash); err != nil {
 			return fmt.Errorf("invalid UC: %w", err)
 		}
 		if err := si.TR.IsValid(); err != nil {

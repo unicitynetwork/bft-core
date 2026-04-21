@@ -35,8 +35,8 @@ type Payload struct {
 }
 
 func (x *Payload) IsValid() error {
-	// there can only be one request per partition identifier in a block
-	sysIdSet := map[types.PartitionID]struct{}{}
+	// there can only be one request per partition shard in a block
+	sysIdSet := map[types.PartitionShardID]struct{}{}
 
 	for _, req := range x.Requests {
 		if err := req.IsValid(); err != nil {
@@ -46,10 +46,11 @@ func (x *Payload) IsValid() error {
 		if req.CertReason == T2Timeout && len(req.Requests) > 0 {
 			return fmt.Errorf("partition %s timeout proof contains requests", req.Partition)
 		}
-		if _, found := sysIdSet[req.Partition]; found {
-			return fmt.Errorf("duplicate requests for partition %s", req.Partition)
+		key := types.PartitionShardID{PartitionID: req.Partition, ShardID: req.Shard.Key()}
+		if _, found := sysIdSet[key]; found {
+			return fmt.Errorf("duplicate requests for partition %s shard %s", req.Partition, req.Shard)
 		}
-		sysIdSet[req.Partition] = struct{}{}
+		sysIdSet[key] = struct{}{}
 	}
 	return nil
 }
