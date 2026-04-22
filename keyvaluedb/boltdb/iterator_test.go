@@ -19,6 +19,7 @@ func initDB(t *testing.T, defaults []string) *BoltDB {
 	boltDB, err := New(filepath.Join(dir, "bolt.db"))
 	require.NoError(t, err)
 	require.NotNil(t, boltDB)
+	t.Cleanup(func() { boltDB.Close() })
 	if defaults == nil {
 		return boltDB
 	}

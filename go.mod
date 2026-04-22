@@ -15,7 +15,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
-	github.com/unicitynetwork/bft-go-base v1.1.0
+	github.com/unicitynetwork/bft-go-base v1.1.1-0.20260421100318-01ab63a83bf5
 	go.etcd.io/bbolt v1.4.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.32.0

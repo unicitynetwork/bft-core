@@ -406,7 +406,7 @@ func Test_LibP2PNetwork_sendMsg(t *testing.T) {
 		defer cancel()
 		err = sendMsg(ctx, nw1.self, "test/p", msg, peer2.ID())
 		require.ErrorContains(t, err, fmt.Sprintf("open p2p stream: failed to dial: failed to dial %s: all dials failed", peer2.ID()))
-		require.ErrorContains(t, err, `connection refused`)
+		require.Regexp(t, "(connection refused|actively refused it)", err.Error())
 	})
 
 	t.Run("context cancelled", func(t *testing.T) {

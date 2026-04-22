@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/unicitynetwork/bft-core/keyvaluedb"
 )
 
@@ -40,10 +41,11 @@ func initBoltDB(t *testing.T) *BoltDB {
 	boltDB, err := New(filepath.Join(dbDir, "bolt.db"))
 	require.NoError(t, err)
 	require.NotNil(t, boltDB)
+	t.Cleanup(func() { boltDB.Close() })
 	return boltDB
 }
 
-func TestMemDB_TestIsEmpty(t *testing.T) {
+func TestBoltDB_TestIsEmpty(t *testing.T) {
 	db := initBoltDB(t)
 	require.NotNil(t, db)
 	empty, err := keyvaluedb.IsEmpty(db)

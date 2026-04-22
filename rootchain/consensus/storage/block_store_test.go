@@ -329,6 +329,7 @@ func Test_BlockStore_persistence(t *testing.T) {
 	require.NoError(t, db.Close())
 	db, err = NewBoltStorage(dbPath)
 	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
 
 	// to make sure we load the state from db send in empty genesis record
 	storeB, err := New(crypto.SHA256, db, orchestration, log)

@@ -344,6 +344,7 @@ func Test_BoltDB_SafetyModule_API(t *testing.T) {
 	require.NoError(t, db.Close())
 	db, err = NewBoltStorage(dbName)
 	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
 	require.EqualValues(t, 21, db.GetHighestQcRound())
 	require.EqualValues(t, 22, db.GetHighestVotedRound())
 
