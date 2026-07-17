@@ -251,7 +251,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	const partitionID1 types.PartitionID = 1
 	const partitionID2 types.PartitionID = 2
-	rh, err := hex.DecodeString("51592107828763663BE3378AD1F4BAE7D9C1A921DEEC1A6B28247770A8B4F526")
+	rh, err := hex.DecodeString("CC44C256E1AC47E941FCA307FABFE7BF27F318175A865D6891D31988AE90DDF7")
 	require.NoError(t, err)
 
 	validBlock := func() *ExecutedBlock {
@@ -454,7 +454,8 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 					Leader: "ldr",
 				},
 				UC: types.UnicityCertificate{
-					Version: 1,
+					Version:              1,
+					ShardTreeCertificate: types.NewShardTreeCertificate(),
 				},
 			},
 		}
