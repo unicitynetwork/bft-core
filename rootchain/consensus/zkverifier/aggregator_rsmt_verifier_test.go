@@ -55,14 +55,15 @@ func TestAggregatorRSMTVerifier_SingleLeafIntoEmptyTree(t *testing.T) {
 
 func TestAggregatorRSMTVerifier_TwoLeaves(t *testing.T) {
 	var k0, k1 [32]byte
-	k0[0] = 0x00 // bit 0 = 0 → left under depth-0 split
-	k1[0] = 0x01 // bit 0 = 1 → right
+	k0[0] = 0x00 // bit 0 (MSB) = 0 → left under depth-0 split
+	k1[0] = 0x80 // bit 0 (MSB) = 1 → right
 	v0 := []byte("v0")
 	v1 := []byte("v1")
 
 	h0 := rsmt.HashLeaf(k0, v0)
 	h1 := rsmt.HashLeaf(k1, v1)
-	newRoot := rsmt.HashNode(h0, h1, 0)
+	region := rsmt.PrefixRegion(k0, 0)
+	newRoot := rsmt.HashNode(h0, h1, 0, region)
 
 	var proof bytes.Buffer
 	proof.WriteByte(0x01) // L (k0)

@@ -23,7 +23,7 @@ type Leaf struct {
 // Envelope is the decoded contents of a zk_proof field for the
 // `aggregator_rsmt_v1` proof type.
 //
-// Leaves are in wire order (caller-sorted by SortKey); Proof is the flat
+// Leaves are in wire order (caller-sorted by plain key order); Proof is the flat
 // opcode stream. See package doc for the full wire format.
 type Envelope struct {
 	Leaves []Leaf
