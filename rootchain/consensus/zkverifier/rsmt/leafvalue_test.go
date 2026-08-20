@@ -50,3 +50,22 @@ func TestCborUintUsesShortestForm(t *testing.T) {
 		}
 	}
 }
+
+func TestCborByteStringHeaderUsesShortestForm(t *testing.T) {
+	for _, tc := range []struct {
+		length int
+		want   string
+	}{
+		{0, "40"},
+		{23, "57"},
+		{24, "5818"},
+		{255, "58ff"},
+		{256, "590100"},
+		{65535, "59ffff"},
+		{65536, "5a00010000"},
+	} {
+		if got := hex.EncodeToString(cborByteStringHeader(make([]byte, tc.length))); got != tc.want {
+			t.Errorf("cborByteStringHeader(length %d) = %s, want %s", tc.length, got, tc.want)
+		}
+	}
+}

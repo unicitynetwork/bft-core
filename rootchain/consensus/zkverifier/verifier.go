@@ -32,7 +32,7 @@ const (
 	ProofTypeAggregatorRSMTv1 ProofType = "aggregator_rsmt_v1"
 	// ProofTypeAggregatorZKv1 indicates an SP1 ZK proof of aggregator SMT
 	// consistency produced by rugregator's zk-host crate (SP1 6.0.2).
-	// Public values: prev_root[32] || new_root[32] (64 bytes).
+	// Public values: prev_root[32] || new_root[32] || reference_time (72 bytes).
 	// Requires the binary to be built with -tags zkverifier_aggregator_zk_ffi.
 	ProofTypeAggregatorZKv1 ProofType = "aggregator_zk_v1"
 	// ProofTypeNone indicates no proof verification (disabled)

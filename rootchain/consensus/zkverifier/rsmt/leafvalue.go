@@ -1,6 +1,9 @@
 package rsmt
 
-import "crypto/sha256"
+import (
+	"crypto/sha256"
+	"encoding/binary"
+)
 
 // LeafValue derives the stored SMT leaf value from a declared transaction hash
 // and the round's reference time:
@@ -20,7 +23,7 @@ import "crypto/sha256"
 func LeafValue(transactionHash []byte, referenceTime uint64) [32]byte {
 	h := sha256.New()
 	h.Write([]byte{0x82}) // array(2)
-	h.Write(cborByteStringHeader(len(transactionHash)))
+	h.Write(cborByteStringHeader(transactionHash))
 	h.Write(transactionHash)
 	h.Write(cborUint(referenceTime))
 	var out [32]byte
@@ -28,10 +31,15 @@ func LeafValue(transactionHash []byte, referenceTime uint64) [32]byte {
 	return out
 }
 
-// cborByteStringHeader returns the shortest-form CBOR header for a byte string
-// of n bytes.
-func cborByteStringHeader(n int) []byte {
-	return cborHead(2, uint64(n))
+// cborByteStringHeader returns the shortest-form CBOR header for a byte
+// string. Count directly into uint64 so no potentially narrowing or
+// sign-changing integer conversion is involved.
+func cborByteStringHeader(value []byte) []byte {
+	var size uint64
+	for range value {
+		size++
+	}
+	return cborHead(2, size)
 }
 
 // cborUint returns the shortest-form CBOR encoding of an unsigned integer.
@@ -42,20 +50,27 @@ func cborUint(v uint64) []byte {
 // cborHead encodes a CBOR head for major type t and argument n, in the
 // shortest form deterministic CBOR requires.
 func cborHead(t byte, n uint64) []byte {
+	var encoded [9]byte
+	binary.BigEndian.PutUint64(encoded[1:], n)
+
 	switch {
 	case n <= 23:
-		return []byte{t<<5 | byte(n)}
+		encoded[0] = t<<5 | encoded[8]
+		return encoded[:1]
 	case n <= 0xff:
-		return []byte{t<<5 | 24, byte(n)}
+		encoded[0] = t<<5 | 24
+		encoded[1] = encoded[8]
+		return encoded[:2]
 	case n <= 0xffff:
-		return []byte{t<<5 | 25, byte(n >> 8), byte(n)}
+		encoded[0] = t<<5 | 25
+		copy(encoded[1:3], encoded[7:9])
+		return encoded[:3]
 	case n <= 0xffffffff:
-		return []byte{t<<5 | 26, byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
+		encoded[0] = t<<5 | 26
+		copy(encoded[1:5], encoded[5:9])
+		return encoded[:5]
 	default:
-		return []byte{
-			t<<5 | 27,
-			byte(n >> 56), byte(n >> 48), byte(n >> 40), byte(n >> 32),
-			byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
-		}
+		encoded[0] = t<<5 | 27
+		return encoded[:]
 	}
 }

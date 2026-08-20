@@ -15,7 +15,7 @@ func NewAggregatorZKVerifierFFI(_ string) (*AggregatorZKVerifierFFI, error) {
 }
 
 // VerifyProof always returns an error in the stub.
-func (v *AggregatorZKVerifierFFI) VerifyProof(_ []byte, _ []byte, _ []byte) error {
+func (v *AggregatorZKVerifierFFI) VerifyProof(_ []byte, _ []byte, _ []byte, _ uint64) error {
 	return fmt.Errorf("aggregator ZK FFI verifier not available")
 }
 

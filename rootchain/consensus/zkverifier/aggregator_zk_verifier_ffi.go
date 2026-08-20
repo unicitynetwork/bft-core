@@ -50,7 +50,11 @@ func NewAggregatorZKVerifierFFI(vkeyPath string) (*AggregatorZKVerifierFFI, erro
 
 // VerifyProof verifies an aggregator ZK proof via the Rust FFI library.
 // blockHash is unused by aggregator ZK proofs and not passed to the FFI.
-func (v *AggregatorZKVerifierFFI) VerifyProof(proof []byte, prevRoot []byte, newRoot []byte) error {
+//
+// referenceTime is CR.IR.t. The circuit derives the round's leaf values from
+// it and commits it as the third public value, so the check below is what ties
+// the ZK instantiation to the same reference time the hash-based one enforces.
+func (v *AggregatorZKVerifierFFI) VerifyProof(proof []byte, prevRoot []byte, newRoot []byte, referenceTime uint64) error {
 	if len(proof) == 0 {
 		return fmt.Errorf("%w: proof is empty", ErrInvalidProofFormat)
 	}
@@ -75,6 +79,7 @@ func (v *AggregatorZKVerifierFFI) VerifyProof(proof []byte, prevRoot []byte, new
 		C.size_t(len(proof)),
 		(*C.uint8_t)(unsafe.Pointer(&prevRoot[0])),
 		(*C.uint8_t)(unsafe.Pointer(&newRoot[0])),
+		C.uint64_t(referenceTime),
 		&errorOut,
 	)
 

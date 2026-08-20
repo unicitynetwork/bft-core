@@ -370,6 +370,12 @@ export DYLD_LIBRARY_PATH="/path/to/lib:$DYLD_LIBRARY_PATH"
 - Verify prover outputs correct public values
 - Check byte ordering (big-endian vs little-endian)
 
+**"Reference time mismatch"** (aggregator ZK proofs)
+- Public values bytes 64-71 carry the round reference time as a big-endian
+  u64, and must equal `CR.IR.t`
+- The circuit derives the round's leaf values from this value, so a round
+  proved under any other reference time is rejected
+
 ---
 
 ## Security Considerations

@@ -34,7 +34,9 @@ typedef enum {
  * Verify an aggregator SP1 ZK consistency proof.
  *
  * The proof was produced by rugregator's zk-host crate (SP1 6.0.2).
- * Public values layout: prev_root[32] || new_root[32] (64 bytes total).
+ * Public values layout:
+ *   prev_root[32] || new_root[32] || reference_time (big-endian u64)
+ * 72 bytes total.
  *
  * @param vkey_bytes  Bincode-serialized SP1VerifyingKey
  * @param vkey_len    Length of vkey_bytes
@@ -42,6 +44,7 @@ typedef enum {
  * @param proof_len   Length of proof_bytes
  * @param prev_root   Pointer to 32-byte previous SMT root
  * @param new_root    Pointer to 32-byte new SMT root
+ * @param reference_time Round reference time (CR.IR.t) the circuit derived its leaf values from
  * @param error_out   On error, set to a malloc'd C string (free with aggzk_free_string)
  * @return AggZkVerifyResult status code
  */
@@ -52,6 +55,7 @@ AggZkVerifyResult aggzk_verify_proof(
     size_t         proof_len,
     const uint8_t* prev_root,
     const uint8_t* new_root,
+    uint64_t       reference_time,
     char**         error_out
 );
 

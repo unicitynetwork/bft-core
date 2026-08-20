@@ -46,6 +46,8 @@ pub enum AggZkVerifyResult {
 /// * `proof_bytes` / `proof_len` — bincode-serialized `SP1ProofWithPublicValues`
 /// * `prev_root`                 — pointer to 32-byte previous state root
 /// * `new_root`                  — pointer to 32-byte new state root
+/// * `reference_time`            — round reference time (CR.IR.t) the circuit
+///   derived its leaf values from, committed as the third public value
 /// * `error_out`                 — on error, set to a malloc'd C string (caller frees with `aggzk_free_string`)
 ///
 /// # Returns
@@ -58,6 +60,7 @@ pub extern "C" fn aggzk_verify_proof(
     proof_len:   usize,
     prev_root:   *const u8,
     new_root:    *const u8,
+    reference_time: u64,
     error_out:   *mut *mut c_char,
 ) -> AggZkVerifyResult {
     if vkey_bytes.is_null() || proof_bytes.is_null() {
@@ -74,7 +77,7 @@ pub extern "C" fn aggzk_verify_proof(
     let prev       = unsafe { std::slice::from_raw_parts(prev_root, 32) };
     let new        = unsafe { std::slice::from_raw_parts(new_root,  32) };
 
-    match verify_internal(vkey_data, proof_data, prev, new) {
+    match verify_internal(vkey_data, proof_data, prev, new, reference_time) {
         Ok(()) => AggZkVerifyResult::Success,
         Err(e) => {
             set_error(error_out, &e.to_string());
@@ -88,6 +91,7 @@ fn verify_internal(
     proof_data: &[u8],
     prev_root:  &[u8],
     new_root:   &[u8],
+    reference_time: u64,
 ) -> anyhow::Result<()> {
     let vkey: sp1_sdk::SP1VerifyingKey = bincode::deserialize(vkey_data)
         .map_err(|e| anyhow::anyhow!("failed to deserialize vkey: {e}"))?;
@@ -95,11 +99,16 @@ fn verify_internal(
     let proof: SP1ProofWithPublicValues = bincode::deserialize(proof_data)
         .map_err(|e| anyhow::anyhow!("failed to deserialize proof: {e}"))?;
 
-    // Public values layout: prev_root[32] || new_root[32] — exactly 64 bytes.
+    // Public values layout:
+    //   prev_root[32] || new_root[32] || reference_time (big-endian u64)
+    // exactly 72 bytes. The reference time is public because the batch is not:
+    // the circuit derives the leaf values internally and exposes the time it
+    // used, so the Core can check it against CR.IR.t. Both instantiations of
+    // the consistency proof therefore enforce it identically.
     let pv = proof.public_values.as_slice();
-    if pv.len() != 64 {
+    if pv.len() != 72 {
         anyhow::bail!(
-            "public values length mismatch: expected 64 bytes, got {}",
+            "public values length mismatch: expected 72 bytes, got {}",
             pv.len()
         );
     }
@@ -108,6 +117,9 @@ fn verify_internal(
     }
     if &pv[32..64] != new_root {
         anyhow::bail!("new state root mismatch in public values");
+    }
+    if pv[64..72] != reference_time.to_be_bytes() {
+        anyhow::bail!("reference time mismatch in public values");
     }
 
     let pv_bytes = proof.public_values.to_vec();

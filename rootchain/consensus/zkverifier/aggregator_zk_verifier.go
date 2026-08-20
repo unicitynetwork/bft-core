@@ -9,10 +9,17 @@ import (
 // AggregatorZKVerifier verifies SP1 ZK consistency proofs produced by the
 // rugregator aggregator (SP1 6.0.2).
 //
-// The proof commits exactly 64 public-value bytes:
+// The proof commits exactly 72 public-value bytes:
 //
 //	bytes  0–31: previous SMT root (must match previousStateRoot arg)
 //	bytes 32–63: new SMT root      (must match newStateRoot arg)
+//	bytes 64–71: reference time, big-endian u64 (must match CR.IR.t)
+//
+// The reference time is public because the batch is not. In the hash-based
+// instantiation the Core derives each leaf value as H(txhash, tau) from the
+// batch it receives; here it receives no batch, so the circuit performs that
+// derivation internally and exposes tau for the Core to check. Changing the
+// proof instantiation therefore does not change the certified relation.
 //
 // blockHash is accepted by the ZKVerifier interface but ignored — aggregator
 // ZK proofs do not commit a block hash.
@@ -53,9 +60,10 @@ func (v *AggregatorZKVerifier) VerifyProof(proof []byte, previousStateRoot []byt
 	slog.Debug("Verifying aggregator ZK proof",
 		"proof_size", len(proof),
 		"prev_root", hex.EncodeToString(previousStateRoot[:8]),
-		"new_root", hex.EncodeToString(newStateRoot[:8]))
+		"new_root", hex.EncodeToString(newStateRoot[:8]),
+		"reference_time", referenceTime)
 
-	return v.ffiVerifier.VerifyProof(proof, previousStateRoot, newStateRoot)
+	return v.ffiVerifier.VerifyProof(proof, previousStateRoot, newStateRoot, referenceTime)
 }
 
 // ProofType returns ProofTypeAggregatorZKv1.

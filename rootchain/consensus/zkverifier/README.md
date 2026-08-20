@@ -44,6 +44,16 @@ offset  size           field
 ...     to end-of-buf  consistency-proof opcode stream (flat bytes)
 ```
 
+A leaf's `value` is the declared transaction hash, not the value the tree
+stores. Before verifying, the Core derives each stored leaf value as
+`SHA256(CBOR([transactionHash, referenceTime]))`, where `referenceTime` is
+`InputRecord.Timestamp` — the value it already requires to equal the previous
+seal's timestamp. Deriving rather than accepting a supplied leaf value is what
+makes a wrong reference time unrepresentable: a shard that built its tree under
+any other reference time produces a root the Core does not reproduce. `O_L`
+opcodes open a leaf preserved from an earlier round and keep carrying that
+leaf's stored value verbatim; only the current batch is derived.
+
 Opcodes (post-order stack machine):
 - `0x00 || h[32]`  — `S`: unchanged subtree hash
 - `0x01`           — `L`: pop next leaf from the wire batch
