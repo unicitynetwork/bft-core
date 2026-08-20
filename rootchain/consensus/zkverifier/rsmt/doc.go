@@ -15,6 +15,17 @@
 //	4       ...   leaves:          leaf_count × { key[32] || value_len (u16 BE) || value[value_len] }
 //	...     ...   opcode stream    (flat bytes, runs to end of buffer)
 //
+// A leaf's `value` is the declared transaction hash, not the value the tree
+// stores. The verifier derives the stored value as
+//
+//	LeafValue(transactionHash, referenceTime) = SHA256(CBOR([transactionHash, referenceTime]))
+//
+// where referenceTime is CR.IR.t, the round reference time the Core already
+// checks against the previous seal. Deriving rather than accepting a supplied
+// leaf value is what makes a wrong reference time unrepresentable: a shard
+// that built its tree under any other reference time produces a root the Core
+// does not reproduce.
+//
 // Leaves must be pre-sorted by plain key order (RSMT v6a: rsmt_sort_key(k)
 // = k, since keys are read as big-endian bit strings), this package does
 // not reorder them.
@@ -25,7 +36,7 @@
 //	L                  0x01                                          - new leaf; next batch entry
 //	N(d)               0x02 || d                                     - junction at depth d, pops two children
 //	O(d,p,hL,hR)       0x03 || d || p[32] || hL[32] || hR[32]         - preserved junction, opened one level
-//	O_L(k,v)           0x04 || k[32] || len(v) (u16 BE) || v          - preserved leaf, opened
+//	O_L(k,v)           0x04 || k[32] || len(v) (u16 BE) || v          - preserved leaf, opened (v is that leaf's stored value, carried verbatim)
 //
 // O and O_L are required whenever a preserved subtree becomes the child of
 // a junction created this round (an edge split, including the leaf-merge

@@ -389,7 +389,12 @@ func (v *Node) verifyZKProof(ctx context.Context, req *certification.BlockCertif
 	// Verify proof: previousStateRoot -> newStateRoot transition with block hash
 	blockHash := ir.BlockHash
 	start := time.Now()
-	verifyErr := verifier.VerifyProof(req.ZkProof, previousStateRoot, newStateRoot, blockHash)
+	// ir.Timestamp is the round's reference time, which the shard-info check
+	// requires to equal the previous seal's timestamp. Aggregator proofs derive
+	// the round's leaf values from it, so passing the enforced value is what
+	// makes a wrong reference time unrepresentable rather than merely
+	// attributable afterwards.
+	verifyErr := verifier.VerifyProof(req.ZkProof, previousStateRoot, newStateRoot, blockHash, ir.Timestamp)
 	elapsed := time.Since(start)
 
 	if verifyErr != nil {

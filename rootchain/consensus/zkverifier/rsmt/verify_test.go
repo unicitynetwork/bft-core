@@ -84,46 +84,58 @@ func TestVerify_EmptyBatch(t *testing.T) {
 		h[i] = 0xab
 	}
 	r := Root{Hash: h, Set: true}
-	if err := Verify(env, r, r); err != nil {
+	if err := Verify(env, r, r, testReferenceTime); err != nil {
 		t.Fatalf("empty batch, equal roots: %v", err)
 	}
 
 	// Empty envelope with different roots must fail.
 	var h2 [32]byte
 	h2[0] = 0xff
-	if err := Verify(env, r, Root{Hash: h2, Set: true}); !errors.Is(err, ErrEmptyBatchRootChange) {
+	if err := Verify(env, r, Root{Hash: h2, Set: true}, testReferenceTime); !errors.Is(err, ErrEmptyBatchRootChange) {
 		t.Fatalf("empty batch, different roots: got %v, want ErrEmptyBatchRootChange", err)
 	}
 
 	// Empty batch but non-empty proof must fail.
 	env2 := &Envelope{Proof: []byte{0x00}}
-	if err := Verify(env2, r, r); !errors.Is(err, ErrEmptyBatchNonEmptyProof) {
+	if err := Verify(env2, r, r, testReferenceTime); !errors.Is(err, ErrEmptyBatchNonEmptyProof) {
 		t.Fatalf("empty batch, non-empty proof: got %v, want ErrEmptyBatchNonEmptyProof", err)
 	}
 }
 
 // TestVerify_SingleLeafIntoEmptyTree inserts a single leaf into an empty tree.
 // The proof stream is just [L]; after running, stack top is (None, HashLeaf(k,v)).
+// testReferenceTime is the round reference time every fixture in this file
+// builds its new leaves under.
+const testReferenceTime uint64 = 1755000000
+
+// newLeafValue derives the value the tree stores for a leaf inserted this
+// round. Leaves preserved from earlier rounds keep their stored value verbatim
+// and are not derived.
+func newLeafValue(declared []byte) []byte {
+	v := LeafValue(declared, testReferenceTime)
+	return v[:]
+}
+
 func TestVerify_SingleLeafIntoEmptyTree(t *testing.T) {
 	k := key(0x05)
 	v := []byte("hello")
-	expected := HashLeaf(k, v)
+	expected := HashLeaf(k, newLeafValue(v))
 
 	env := &Envelope{
 		Leaves: []Leaf{{Key: k, Value: v}},
 		Proof:  opL(),
 	}
-	if err := Verify(env, Root{}, Root{Hash: expected, Set: true}); err != nil {
+	if err := Verify(env, Root{}, Root{Hash: expected, Set: true}, testReferenceTime); err != nil {
 		t.Fatalf("single leaf: %v", err)
 	}
 
 	// Wrong new root → ErrRootMismatch.
 	var bad [32]byte
-	if err := Verify(env, Root{}, Root{Hash: bad, Set: true}); !errors.Is(err, ErrRootMismatch) {
+	if err := Verify(env, Root{}, Root{Hash: bad, Set: true}, testReferenceTime); !errors.Is(err, ErrRootMismatch) {
 		t.Fatalf("wrong new root: got %v, want ErrRootMismatch", err)
 	}
 	// Wrong old root (claims tree non-empty) → ErrRootMismatch.
-	if err := Verify(env, Root{Hash: bad, Set: true}, Root{Hash: expected, Set: true}); !errors.Is(err, ErrRootMismatch) {
+	if err := Verify(env, Root{Hash: bad, Set: true}, Root{Hash: expected, Set: true}, testReferenceTime); !errors.Is(err, ErrRootMismatch) {
 		t.Fatalf("wrong old root: got %v, want ErrRootMismatch", err)
 	}
 }
@@ -139,8 +151,8 @@ func TestVerify_TwoLeavesIntoEmptyTree(t *testing.T) {
 	// Leaves must be in plain key order. k0 < k1 lexicographically.
 	leaves := []Leaf{{Key: k0, Value: v0}, {Key: k1, Value: v1}}
 
-	l0 := HashLeaf(k0, v0)
-	l1 := HashLeaf(k1, v1)
+	l0 := HashLeaf(k0, newLeafValue(v0))
+	l1 := HashLeaf(k1, newLeafValue(v1))
 	region := PrefixRegion(k0, 0) // empty region at depth 0
 	root := HashNode(l0, l1, 0, region)
 
@@ -151,7 +163,7 @@ func TestVerify_TwoLeavesIntoEmptyTree(t *testing.T) {
 	proof.Write(opN(0))
 
 	env := &Envelope{Leaves: leaves, Proof: proof.Bytes()}
-	if err := Verify(env, Root{}, Root{Hash: root, Set: true}); err != nil {
+	if err := Verify(env, Root{}, Root{Hash: root, Set: true}, testReferenceTime); err != nil {
 		t.Fatalf("two leaves: %v", err)
 	}
 }
@@ -169,7 +181,7 @@ func TestVerify_UnsortedLeavesRejected(t *testing.T) {
 	proof.Write(opL())
 	proof.Write(opN(0))
 	env := &Envelope{Leaves: leaves, Proof: proof.Bytes()}
-	if err := Verify(env, Root{}, Root{Set: true}); !errors.Is(err, ErrLeavesUnsorted) {
+	if err := Verify(env, Root{}, Root{Set: true}, testReferenceTime); !errors.Is(err, ErrLeavesUnsorted) {
 		t.Fatalf("unsorted: got %v, want ErrLeavesUnsorted", err)
 	}
 }
@@ -184,7 +196,7 @@ func TestVerify_DuplicateLeavesRejected(t *testing.T) {
 		},
 		Proof: append(append(opL(), opL()...), opN(0)...),
 	}
-	if err := Verify(env, Root{}, Root{Set: true}); !errors.Is(err, ErrLeavesUnsorted) {
+	if err := Verify(env, Root{}, Root{Set: true}, testReferenceTime); !errors.Is(err, ErrLeavesUnsorted) {
 		t.Fatalf("duplicate key: got %v, want ErrLeavesUnsorted", err)
 	}
 }
@@ -200,7 +212,7 @@ func TestVerify_InsertIntoExistingTree(t *testing.T) {
 	vNew := []byte("new")
 
 	hOld := HashLeaf(kOld, vOld)
-	hNew := HashLeaf(kNew, vNew)
+	hNew := HashLeaf(kNew, newLeafValue(vNew))
 	oldRoot := hOld // single-leaf tree
 	region := PrefixRegion(kOld, 0)
 	newRoot := HashNode(hOld, hNew, 0, region)
@@ -216,7 +228,7 @@ func TestVerify_InsertIntoExistingTree(t *testing.T) {
 	proof.Write(opN(0))
 
 	env := &Envelope{Leaves: leaves, Proof: proof.Bytes()}
-	if err := Verify(env, Root{Hash: oldRoot, Set: true}, Root{Hash: newRoot, Set: true}); err != nil {
+	if err := Verify(env, Root{Hash: oldRoot, Set: true}, Root{Hash: newRoot, Set: true}, testReferenceTime); err != nil {
 		t.Fatalf("insert into existing tree: %v", err)
 	}
 
@@ -227,7 +239,7 @@ func TestVerify_InsertIntoExistingTree(t *testing.T) {
 	badProof.Write(opL())
 	badProof.Write(opN(0))
 	badEnv := &Envelope{Leaves: leaves, Proof: badProof.Bytes()}
-	if err := Verify(badEnv, Root{Hash: oldRoot, Set: true}, Root{Hash: newRoot, Set: true}); !errors.Is(err, ErrOpaqueOnNewEdge) {
+	if err := Verify(badEnv, Root{Hash: oldRoot, Set: true}, Root{Hash: newRoot, Set: true}, testReferenceTime); !errors.Is(err, ErrOpaqueOnNewEdge) {
 		t.Fatalf("opaque S on new edge: got %v, want ErrOpaqueOnNewEdge", err)
 	}
 }
@@ -250,7 +262,7 @@ func TestVerify_DeepSplitWithO(t *testing.T) {
 	var keyC [32]byte
 	keyC[0] = 0b0010_0000 // bits 0..1 = 00, bit 2 = 1: diverges before depth 4
 	vC := []byte("c")
-	hC := HashLeaf(keyC, vC)
+	hC := HashLeaf(keyC, newLeafValue(vC))
 
 	outerRegion := PrefixRegion(keyA, 2)
 	newRoot := HashNode(oldRoot, hC, 2, outerRegion)
@@ -265,7 +277,7 @@ func TestVerify_DeepSplitWithO(t *testing.T) {
 	proof.Write(opN(2))
 
 	env := &Envelope{Leaves: leaves, Proof: proof.Bytes()}
-	if err := Verify(env, Root{Hash: oldRoot, Set: true}, Root{Hash: newRoot, Set: true}); err != nil {
+	if err := Verify(env, Root{Hash: oldRoot, Set: true}, Root{Hash: newRoot, Set: true}, testReferenceTime); err != nil {
 		t.Fatalf("deep split with O: %v", err)
 	}
 }
@@ -276,7 +288,7 @@ func TestVerify_MalformedRegionRejected(t *testing.T) {
 	var badRegion [32]byte
 	badRegion[0] = 0xFF // depth=3 region should have only the top 3 bits set
 	env := singleLeafEnvelope(opO(3, badRegion, key(0x01), key(0x02)))
-	if err := Verify(env, Root{}, Root{Set: true}); !errors.Is(err, ErrMalformedRegion) {
+	if err := Verify(env, Root{}, Root{Set: true}, testReferenceTime); !errors.Is(err, ErrMalformedRegion) {
 		t.Fatalf("got %v, want ErrMalformedRegion", err)
 	}
 }
@@ -287,7 +299,7 @@ func TestVerify_BatchUnderrun(t *testing.T) {
 		Leaves: []Leaf{{Key: key(0x01), Value: []byte("v")}},
 		Proof:  append(opL(), opL()...),
 	}
-	if err := Verify(env, Root{}, Root{Set: true}); !errors.Is(err, ErrBatchUnderrun) {
+	if err := Verify(env, Root{}, Root{Set: true}, testReferenceTime); !errors.Is(err, ErrBatchUnderrun) {
 		t.Fatalf("got %v, want ErrBatchUnderrun", err)
 	}
 }
@@ -301,7 +313,7 @@ func TestVerify_BatchUnused(t *testing.T) {
 		},
 		Proof: opL(),
 	}
-	if err := Verify(env, Root{}, Root{Set: true}); !errors.Is(err, ErrBatchUnused) {
+	if err := Verify(env, Root{}, Root{Set: true}, testReferenceTime); !errors.Is(err, ErrBatchUnused) {
 		t.Fatalf("got %v, want ErrBatchUnused", err)
 	}
 }
@@ -318,7 +330,7 @@ func singleLeafEnvelope(proof []byte) *Envelope {
 // TestVerify_TruncatedOpcodeStream: S without its 32-byte payload.
 func TestVerify_TruncatedOpcodeStream(t *testing.T) {
 	env := singleLeafEnvelope([]byte{0x00, 0x01, 0x02}) // S, truncated
-	if err := Verify(env, Root{}, Root{Set: true}); !errors.Is(err, ErrOpcodeTruncated) {
+	if err := Verify(env, Root{}, Root{Set: true}, testReferenceTime); !errors.Is(err, ErrOpcodeTruncated) {
 		t.Fatalf("got %v, want ErrOpcodeTruncated", err)
 	}
 }
@@ -326,7 +338,7 @@ func TestVerify_TruncatedOpcodeStream(t *testing.T) {
 // TestVerify_BadOpcode.
 func TestVerify_BadOpcode(t *testing.T) {
 	env := singleLeafEnvelope([]byte{0x7f})
-	if err := Verify(env, Root{}, Root{Set: true}); !errors.Is(err, ErrBadOpcode) {
+	if err := Verify(env, Root{}, Root{Set: true}, testReferenceTime); !errors.Is(err, ErrBadOpcode) {
 		t.Fatalf("got %v, want ErrBadOpcode", err)
 	}
 }
@@ -334,7 +346,7 @@ func TestVerify_BadOpcode(t *testing.T) {
 // TestVerify_StackUnderflow: N without two children.
 func TestVerify_StackUnderflow(t *testing.T) {
 	env := singleLeafEnvelope(opN(0))
-	if err := Verify(env, Root{}, Root{Set: true}); !errors.Is(err, ErrStackUnderflow) {
+	if err := Verify(env, Root{}, Root{Set: true}, testReferenceTime); !errors.Is(err, ErrStackUnderflow) {
 		t.Fatalf("got %v, want ErrStackUnderflow", err)
 	}
 }

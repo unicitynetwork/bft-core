@@ -38,7 +38,7 @@ func TestNewVerifier_NoOpForExec(t *testing.T) {
 	require.False(t, verifier.IsEnabled())
 
 	// Should accept any proof
-	err = verifier.VerifyProof([]byte("not a real proof"), make([]byte, 32), make([]byte, 32), make([]byte, 32))
+	err = verifier.VerifyProof([]byte("not a real proof"), make([]byte, 32), make([]byte, 32), make([]byte, 32), verifierTestReferenceTime)
 	require.NoError(t, err)
 }
 
@@ -61,9 +61,9 @@ func TestNoOpVerifier(t *testing.T) {
 	require.Equal(t, ProofTypeNone, v.ProofType())
 
 	// Should accept any input
-	err := v.VerifyProof(nil, nil, nil, nil)
+	err := v.VerifyProof(nil, nil, nil, nil, verifierTestReferenceTime)
 	require.NoError(t, err)
 
-	err = v.VerifyProof([]byte("test"), []byte("prev"), []byte("new"), []byte("block"))
+	err = v.VerifyProof([]byte("test"), []byte("prev"), []byte("new"), []byte("block"), verifierTestReferenceTime)
 	require.NoError(t, err)
 }

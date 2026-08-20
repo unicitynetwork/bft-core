@@ -46,8 +46,12 @@ type ZKVerifier interface {
 	// previousStateRoot: Hash of the previous state
 	// newStateRoot: Hash of the new state (claimed)
 	// blockHash: Hash of the block header (for light client mode)
+	// referenceTime: CR.IR.t, the round reference time already checked against
+	//   the previous seal. Aggregator proofs derive the round's leaf values
+	//   from it, so a shard that built its tree under any other reference time
+	//   is rejected. Verifiers that do not certify aggregator leaves ignore it.
 	// Returns nil if proof is valid, error otherwise
-	VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte) error
+	VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte, referenceTime uint64) error
 
 	// ProofType returns the type of proofs this verifier handles
 	ProofType() ProofType
@@ -118,7 +122,7 @@ func NewVerifier(cfg *Config) (ZKVerifier, error) {
 // NoOpVerifier is a verifier that always returns success (for testing/disabled mode)
 type NoOpVerifier struct{}
 
-func (v *NoOpVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte) error {
+func (v *NoOpVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte, referenceTime uint64) error {
 	// No verification performed
 	return nil
 }

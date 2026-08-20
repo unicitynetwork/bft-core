@@ -78,7 +78,15 @@ type stackEntry struct {
 // Leaves in env.Leaves MUST already be sorted by plain key order (RSMT v6a:
 // rsmt_sort_key(k) = k), with no duplicates. The verifier performs a single
 // linear pre-check to enforce this invariant.
-func Verify(env *Envelope, oldRoot, newRoot Root) error {
+//
+// The envelope declares transaction hashes; the tree stores leaf values that
+// bind the round's reference time. referenceTime is CR.IR.t, the value already
+// checked against the previous seal, and the verifier derives
+// B* = <(sid, LeafValue(txhash, referenceTime))> from the declared batch rather
+// than accepting supplied leaf values. O_L opcodes open a leaf preserved from
+// an earlier round and keep carrying its stored value verbatim; only the
+// current batch is derived.
+func Verify(env *Envelope, oldRoot, newRoot Root, referenceTime uint64) error {
 	if env == nil {
 		return errors.New("rsmt: nil envelope")
 	}
@@ -125,7 +133,8 @@ func Verify(env *Envelope, oldRoot, newRoot Root) error {
 			}
 			leaf := &env.Leaves[bi]
 			bi++
-			lh := HashLeaf(leaf.Key, leaf.Value)
+			leafValue := LeafValue(leaf.Value, referenceTime)
+			lh := HashLeaf(leaf.Key, leafValue[:])
 			stack = append(stack, stackEntry{
 				post: lh, postSet: true,
 				adv: advice{set: true, depth: 256, region: leaf.Key},

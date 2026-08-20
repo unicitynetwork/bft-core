@@ -28,10 +28,18 @@ func NewAggregatorRSMTVerifier() *AggregatorRSMTVerifier {
 // unused: the aggregator's state transition is validated independently of
 // the block header hash, which is covered by the normal InputRecord rules.
 //
+// referenceTime is the certification request's InputRecord.Timestamp, which
+// the Core already requires to equal the previous seal's timestamp. The
+// verifier derives every leaf value of the round from the declared batch and
+// this value before checking the proof, so a shard that built its tree under
+// any other reference time is rejected rather than merely attributable
+// afterwards. No predicate is evaluated and no transaction is parsed: this
+// applies one hash to a field already present in the certification request.
+//
 // An empty previousStateRoot (len == 0) is reserved for genesis / sync UCs
 // and is filtered out earlier in Node.verifyZKProof, so both roots are
 // expected to be 32 bytes here in practice.
-func (v *AggregatorRSMTVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, _ []byte) error {
+func (v *AggregatorRSMTVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, _ []byte, referenceTime uint64) error {
 	env, err := rsmt.DecodeEnvelope(proof)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidProofFormat, err)
@@ -44,7 +52,7 @@ func (v *AggregatorRSMTVerifier) VerifyProof(proof []byte, previousStateRoot []b
 	if err != nil {
 		return fmt.Errorf("%w: new state root: %v", ErrInvalidProofFormat, err)
 	}
-	if err := rsmt.Verify(env, oldRoot, newRoot); err != nil {
+	if err := rsmt.Verify(env, oldRoot, newRoot, referenceTime); err != nil {
 		return fmt.Errorf("%w: %v", ErrProofVerificationFailed, err)
 	}
 	return nil

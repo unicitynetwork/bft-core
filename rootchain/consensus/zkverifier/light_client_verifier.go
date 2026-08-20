@@ -38,7 +38,7 @@ func NewLightClientVerifier(chainID uint64) (*LightClientVerifier, error) {
 // 2. Deserializes the ProgramInput
 // 3. Executes stateless_validation_l1()
 // 4. Verifies the state roots and block hash match
-func (v *LightClientVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte) error {
+func (v *LightClientVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte, referenceTime uint64) error {
 	if !v.enabled {
 		return ErrVerifierNotConfigured
 	}

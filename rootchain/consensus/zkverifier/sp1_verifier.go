@@ -72,7 +72,7 @@ func readFile(path string) ([]byte, error) {
 //
 // This function verifies that executing the program produces the expected
 // state roots and block hash as public outputs.
-func (v *SP1Verifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte) error {
+func (v *SP1Verifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte, referenceTime uint64) error {
 	if !v.enabled {
 		return ErrVerifierNotConfigured
 	}

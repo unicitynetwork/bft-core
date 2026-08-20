@@ -9,11 +9,23 @@ import (
 	"github.com/unicitynetwork/bft-go-base/types"
 )
 
+// verifierTestReferenceTime is the round reference time these tests certify
+// under; only aggregator proofs derive leaf values from it.
+const verifierTestReferenceTime uint64 = 1755000000
+
+// newLeafValue derives the value the tree stores for a leaf inserted this
+// round. The envelope declares the transaction hash and the verifier derives
+// this from it, so the expected root has to be built the same way.
+func newLeafValue(declared []byte) []byte {
+	v := rsmt.LeafValue(declared, verifierTestReferenceTime)
+	return v[:]
+}
+
 func TestAggregatorRSMTVerifier_SingleLeafIntoEmptyTree(t *testing.T) {
 	var k [32]byte
 	k[0] = 0x05
 	v := []byte("hello")
-	leafHash := rsmt.HashLeaf(k, v)
+	leafHash := rsmt.HashLeaf(k, newLeafValue(v))
 
 	env, err := rsmt.EncodeEnvelope(
 		[]rsmt.Leaf{{Key: k, Value: v}},
@@ -32,24 +44,50 @@ func TestAggregatorRSMTVerifier_SingleLeafIntoEmptyTree(t *testing.T) {
 	}
 
 	// Genesis-to-first-leaf: prev nil, new = hashLeaf.
-	if err := ver.VerifyProof(env, nil, leafHash[:], nil); err != nil {
+	if err := ver.VerifyProof(env, nil, leafHash[:], nil, verifierTestReferenceTime); err != nil {
 		t.Fatalf("VerifyProof: %v", err)
 	}
 
 	// Wrong new root.
 	bad := make([]byte, 32)
-	if err := ver.VerifyProof(env, nil, bad, nil); !errors.Is(err, ErrProofVerificationFailed) {
+	if err := ver.VerifyProof(env, nil, bad, nil, verifierTestReferenceTime); !errors.Is(err, ErrProofVerificationFailed) {
 		t.Fatalf("wrong root: got %v, want ErrProofVerificationFailed", err)
 	}
 
 	// Malformed envelope.
-	if err := ver.VerifyProof([]byte{0x00}, nil, leafHash[:], nil); !errors.Is(err, ErrInvalidProofFormat) {
+	if err := ver.VerifyProof([]byte{0x00}, nil, leafHash[:], nil, verifierTestReferenceTime); !errors.Is(err, ErrInvalidProofFormat) {
 		t.Fatalf("malformed envelope: got %v, want ErrInvalidProofFormat", err)
 	}
 
 	// Wrong-length previous root.
-	if err := ver.VerifyProof(env, []byte{1, 2, 3}, leafHash[:], nil); !errors.Is(err, ErrInvalidProofFormat) {
+	if err := ver.VerifyProof(env, []byte{1, 2, 3}, leafHash[:], nil, verifierTestReferenceTime); !errors.Is(err, ErrInvalidProofFormat) {
 		t.Fatalf("bad prev root length: got %v, want ErrInvalidProofFormat", err)
+	}
+}
+
+// A round built under a reference time other than CR.IR.t produces a root the
+// Core does not reproduce. This is what makes a wrong reference time
+// unrepresentable rather than merely attributable afterwards.
+func TestAggregatorRSMTVerifier_RejectsWrongReferenceTime(t *testing.T) {
+	var k [32]byte
+	k[0] = 0x05
+	v := []byte("hello")
+	leafHash := rsmt.HashLeaf(k, newLeafValue(v))
+
+	env, err := rsmt.EncodeEnvelope(
+		[]rsmt.Leaf{{Key: k, Value: v}},
+		[]byte{0x01},
+	)
+	if err != nil {
+		t.Fatalf("EncodeEnvelope: %v", err)
+	}
+
+	ver := NewAggregatorRSMTVerifier()
+	if err := ver.VerifyProof(env, nil, leafHash[:], nil, verifierTestReferenceTime); err != nil {
+		t.Fatalf("baseline VerifyProof: %v", err)
+	}
+	if err := ver.VerifyProof(env, nil, leafHash[:], nil, verifierTestReferenceTime+1); err == nil {
+		t.Fatal("VerifyProof accepted a round built under a different reference time")
 	}
 }
 
@@ -60,8 +98,8 @@ func TestAggregatorRSMTVerifier_TwoLeaves(t *testing.T) {
 	v0 := []byte("v0")
 	v1 := []byte("v1")
 
-	h0 := rsmt.HashLeaf(k0, v0)
-	h1 := rsmt.HashLeaf(k1, v1)
+	h0 := rsmt.HashLeaf(k0, newLeafValue(v0))
+	h1 := rsmt.HashLeaf(k1, newLeafValue(v1))
 	region := rsmt.PrefixRegion(k0, 0)
 	newRoot := rsmt.HashNode(h0, h1, 0, region)
 
@@ -80,7 +118,7 @@ func TestAggregatorRSMTVerifier_TwoLeaves(t *testing.T) {
 	}
 
 	ver := NewAggregatorRSMTVerifier()
-	if err := ver.VerifyProof(env, nil, newRoot[:], nil); err != nil {
+	if err := ver.VerifyProof(env, nil, newRoot[:], nil, verifierTestReferenceTime); err != nil {
 		t.Fatalf("VerifyProof: %v", err)
 	}
 }

@@ -25,7 +25,11 @@ func TestCrossLanguageFixtures(t *testing.T) {
 	}
 
 	var doc struct {
-		Fixtures []struct {
+		// ReferenceTime is the round reference time the fixtures build their
+		// new leaves under; the verifier derives each stored leaf value from
+		// the declared transaction hash and this value.
+		ReferenceTime uint64 `json:"reference_time"`
+		Fixtures      []struct {
 			Name     string `json:"name"`
 			PrevRoot string `json:"prev_root"`
 			NewRoot  string `json:"new_root"`
@@ -37,6 +41,9 @@ func TestCrossLanguageFixtures(t *testing.T) {
 	}
 	if len(doc.Fixtures) == 0 {
 		t.Fatal("no fixtures loaded")
+	}
+	if doc.ReferenceTime == 0 {
+		t.Fatal("fixtures carry no reference time")
 	}
 
 	decodeRoot := func(s string) (Root, error) {
@@ -68,8 +75,17 @@ func TestCrossLanguageFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatalf("new_root: %v", err)
 			}
-			if err := Verify(env, prev, newR); err != nil {
+			if err := Verify(env, prev, newR, doc.ReferenceTime); err != nil {
 				t.Fatalf("Verify(%s): %v", f.Name, err)
+			}
+
+			// A different reference time derives different leaf values, so the
+			// same envelope must no longer reproduce the claimed root. This is
+			// what makes a wrong reference time unrepresentable.
+			if len(env.Leaves) > 0 {
+				if err := Verify(env, prev, newR, doc.ReferenceTime+1); err == nil {
+					t.Fatalf("Verify(%s): accepted a wrong reference time", f.Name)
+				}
 			}
 
 			// Round-trip: re-encode the decoded envelope and confirm it

@@ -106,7 +106,7 @@ func TestSP1Verifier_InvalidInputs_WithFFI(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := verifier.VerifyProof(tc.proof, tc.previousStateRoot, tc.newStateRoot, tc.blockHash)
+			err := verifier.VerifyProof(tc.proof, tc.previousStateRoot, tc.newStateRoot, tc.blockHash, verifierTestReferenceTime)
 			if tc.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.errContains)

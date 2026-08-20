@@ -36,7 +36,7 @@ func NewAggregatorZKVerifier(vkeyPath string) (*AggregatorZKVerifier, error) {
 }
 
 // VerifyProof verifies an aggregator SP1 ZK consistency proof.
-func (v *AggregatorZKVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte) error {
+func (v *AggregatorZKVerifier) VerifyProof(proof []byte, previousStateRoot []byte, newStateRoot []byte, blockHash []byte, referenceTime uint64) error {
 	if !v.enabled {
 		return ErrVerifierNotConfigured
 	}
