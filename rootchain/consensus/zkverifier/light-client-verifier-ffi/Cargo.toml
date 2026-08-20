@@ -1,0 +1,26 @@
+[package]
+name = "light-client-verifier-ffi"
+version = "0.1.0"
+edition = "2021"
+
+# Make this package independent of parent workspace
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+# Core dependencies for witness deserialization and validation
+# Pin rkyv to same version as uni-evm workspace to ensure compatible serialization
+rkyv = { version = "=0.8.10", features = ["std", "unaligned"] }
+anyhow = "1.0"
+
+# TODO: use github fork instead of local
+ethrex-core = { path = "../../../../../ethrex/crates/common", package = "ethrex-common" }
+# The l2 feature adds blob_commitment and blob_proof fields to ProgramInput
+guest_program = { path = "../../../../../ethrex/crates/l2/prover/src/guest_program", features = ["l2"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

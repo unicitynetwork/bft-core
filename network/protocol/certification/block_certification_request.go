@@ -22,6 +22,7 @@ type BlockCertificationRequest struct {
 	ShardID     types.ShardID      `json:"shardId"`
 	NodeID      string             `json:"nodeId"`
 	InputRecord *types.InputRecord `json:"inputRecord"`
+	ZkProof     []byte             `json:"zkProof"` // (ZK) proof for state transition validation
 	BlockSize   uint64             `json:"blockSize"`
 	StateSize   uint64             `json:"stateSize"`
 	Signature   hex.Bytes          `json:"signature"`
@@ -84,6 +85,48 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 }
 
 func (x BlockCertificationRequest) Bytes() ([]byte, error) {
+	// Exclude signature from signed data
 	x.Signature = nil
 	return types.Cbor.Marshal(x)
+}
+
+// UnmarshalCBOR provides backward compatibility for old database format (before ZkProof field was added)
+// TODO: remove eventually
+func (x *BlockCertificationRequest) UnmarshalCBOR(data []byte) error {
+	// Try new format first (8 elements with ZkProof)
+	type newFormat BlockCertificationRequest
+	var nf newFormat
+	if err := types.Cbor.Unmarshal(data, &nf); err == nil {
+		*x = BlockCertificationRequest(nf)
+		return nil
+	}
+
+	// Try old format (7 elements without ZkProof)
+	type oldFormat struct {
+		_           struct{}           `cbor:",toarray"`
+		PartitionID types.PartitionID  `json:"partitionId"`
+		ShardID     types.ShardID      `json:"shardId"`
+		NodeID      string             `json:"nodeId"`
+		InputRecord *types.InputRecord `json:"inputRecord"`
+		BlockSize   uint64             `json:"blockSize"`
+		StateSize   uint64             `json:"stateSize"`
+		Signature   hex.Bytes          `json:"signature"`
+	}
+	var of oldFormat
+	if err := types.Cbor.Unmarshal(data, &of); err != nil {
+		return err // Return error from old format attempt
+	}
+
+	// Convert old format to new format
+	*x = BlockCertificationRequest{
+		PartitionID: of.PartitionID,
+		ShardID:     of.ShardID,
+		NodeID:      of.NodeID,
+		InputRecord: of.InputRecord,
+		ZkProof:     nil, // Old format didn't have ZkProof
+		BlockSize:   of.BlockSize,
+		StateSize:   of.StateSize,
+		Signature:   of.Signature,
+	}
+	return nil
 }

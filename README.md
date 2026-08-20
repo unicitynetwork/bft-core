@@ -1,11 +1,27 @@
 # Build
 
-Run `make build` to build the application. Executable will be built to `build/ubft`. 
+Run `make build` to build the application. Executable will be built to `build/ubft`.
 
 ### Build dependencies
 
 * [`Go`](https://go.dev/doc/install) version 1.24.
 * `C` compiler, recent versions of [GCC](https://gcc.gnu.org/) are recommended. In Debian and Ubuntu repositories, GCC is part of the build-essential package. On macOS, GCC can be installed with [Homebrew](https://formulae.brew.sh/formula/gcc).
+
+### Build targets
+
+| Target | Description |
+|--------|-------------|
+| `make build` | Build without FFI (default, no Rust required) |
+| `make build-with-ffi` | Build with SP1 + Light Client FFI verifiers |
+| `make build-with-aggregator-zk-ffi` | Build with aggregator ZK verifier FFI (SP1 6.0.2) |
+| `make build-with-all-ffi` | Build with all FFI verifiers enabled |
+| `make build-rust-ffi` | Build SP1 + Light Client Rust FFI libraries only |
+| `make build-aggregator-zk-ffi` | Build aggregator ZK verifier Rust FFI library only |
+| `make build-sp1-ffi` | Build SP1 verifier FFI library only |
+| `make build-light-client-ffi` | Build Light Client verifier FFI library only |
+| `make clean-ffi` | Clean all Rust FFI build artifacts |
+| `make check-rust` | Verify Rust toolchain is available |
+
 
 # Configuration
 
