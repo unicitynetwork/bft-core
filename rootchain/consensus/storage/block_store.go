@@ -92,10 +92,11 @@ func (x *BlockStore) ProcessTc(tc *rctypes.TimeoutCert) (rErr error) {
 		// store DB error and continue
 		rErr = fmt.Errorf("TC write failed: %w", err)
 	}
-	// Remove proposal/block for TC round if it exists, since quorum voted for timeout.
-	// It will never be committed, hence it can be removed immediately.
+	// Remove proposal/block for TC round from the tree if it exists, since quorum voted for timeout.
+	// Most likely it will never be committed, but the round might still get QC too (of the votes sent
+	// before the timeout) so the block is set aside rather than discarded.
 	// It is fine if the block is not found, it does not matter anyway
-	if err := x.blockTree.RemoveLeaf(tc.GetRound()); err != nil {
+	if err := x.blockTree.SetAside(tc.GetRound()); err != nil {
 		return errors.Join(rErr, fmt.Errorf("removing timeout block %v: %w", tc.GetRound(), err))
 	}
 	return rErr
@@ -169,6 +170,10 @@ func (x *BlockStore) Add(block *rctypes.BlockData, verifier IRChangeReqVerifier)
 	}
 	// block was not present, check parent block (QC round) is stored (if not node needs to recover)
 	parentBlock, err := x.blockTree.FindBlock(block.GetParentRound())
+	if err != nil && block.Qc != nil {
+		// the parent round might have got TC too in which case it has been set aside
+		parentBlock, err = x.blockTree.Restore(block.Qc)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("add block failed: parent round %v not found, recover", block.Qc.VoteInfo.RoundNumber)
 	}
@@ -235,9 +240,15 @@ func (x *BlockStore) GetState() (*abdrc.StateMsg, error) {
 /*
 Block returns block for given round.
 When store doesn't have block for the round it returns error.
+
+The block of a round which got TC is returned too (until it gets pruned) although it is not
+part of the block tree - the round might still get QC, making the block part of the chain again.
 */
 func (x *BlockStore) Block(round uint64) (*ExecutedBlock, error) {
-	return x.blockTree.FindBlock(round)
+	if b, err := x.blockTree.FindBlock(round); err == nil {
+		return b, nil
+	}
+	return x.blockTree.FindSetAside(round)
 }
 
 // StoreLastVote stores last sent vote message by this node

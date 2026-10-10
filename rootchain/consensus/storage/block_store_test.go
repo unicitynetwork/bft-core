@@ -91,6 +91,131 @@ func TestHandleTcError(t *testing.T) {
 	require.NoError(t, bStore.ProcessTc(tc))
 }
 
+/*
+Round can get both TC and QC - validators vote for the proposal and then time out, the QC
+can be formed of the votes sent before the timeout. The block of the round must be still
+usable after the TC has been processed.
+*/
+func Test_BlockStore_lateQcAfterTc(t *testing.T) {
+	irVer := mockIRVerifier{verify: func(uint64, *rctypes.IRChangeReq) (*types.InputRecord, error) {
+		return nil, errors.New("no IR changes in this test")
+	}}
+	// QC for "round", when commitRound != 0 the QC commits the (parent) round
+	qcFor := func(round, parent uint64, rootHash []byte, commitRound uint64) *rctypes.QuorumCert {
+		return &rctypes.QuorumCert{
+			VoteInfo:         &rctypes.RoundInfo{RoundNumber: round, ParentRoundNumber: parent, CurrentRootHash: rootHash},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, RootChainRoundNumber: commitRound},
+		}
+	}
+	tc3 := &rctypes.TimeoutCert{Timeout: &rctypes.Timeout{Round: 3}}
+	persistedRounds := func(t *testing.T, bs *BlockStore) (rounds []uint64) {
+		blocks, err := bs.GetDB().LoadBlocks()
+		require.NoError(t, err)
+		for _, b := range blocks {
+			rounds = append(rounds, b.GetRound())
+		}
+		return rounds
+	}
+	// creates chain B1--> B2--> B3 where round 3 has got TC, returns the store, QC
+	// for the round 2 (current high QC) and (unprocessed) QC for the round 3
+	setup := func(t *testing.T) (bs *BlockStore, qc2, qc3 *rctypes.QuorumCert) {
+		bs = initBlockStoreFromGenesis(t, nil)
+		rh2, err := bs.Add(&rctypes.BlockData{Round: 2, Payload: &rctypes.Payload{}, Qc: bs.GetHighQc()}, irVer)
+		require.NoError(t, err)
+		qc2 = qcFor(2, 1, rh2, 0)
+		_, err = bs.ProcessQc(qc2)
+		require.NoError(t, err)
+		rh3, err := bs.Add(&rctypes.BlockData{Round: 3, Payload: &rctypes.Payload{}, Qc: qc2}, irVer)
+		require.NoError(t, err)
+		require.Equal(t, []uint64{3, 2, 1}, persistedRounds(t, bs))
+
+		require.NoError(t, bs.ProcessTc(tc3))
+		// block is not part of the tree anymore...
+		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 1)
+		require.Equal(t, []uint64{2, 1}, persistedRounds(t, bs))
+		// ...but can be still loaded as the QC for the round needs to be checked against it
+		b, err := bs.Block(3)
+		require.NoError(t, err)
+		require.EqualValues(t, 3, b.GetRound())
+		return bs, qc2, qcFor(3, 2, rh3, 0)
+	}
+
+	t.Run("late QC is processed and proposal extending it is accepted", func(t *testing.T) {
+		bs, _, qc3 := setup(t)
+		_, err := bs.ProcessQc(qc3)
+		require.NoError(t, err)
+		require.Equal(t, qc3, bs.GetHighQc())
+		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 2)
+		require.Equal(t, []uint64{3, 2, 1}, persistedRounds(t, bs))
+
+		_, err = bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
+		require.NoError(t, err)
+		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs))
+		// state sent to recovering nodes contains the block
+		state, err := bs.GetState()
+		require.NoError(t, err)
+		require.Len(t, state.Pending, 3)
+	})
+
+	t.Run("proposal extending the late QC is accepted", func(t *testing.T) {
+		// the QC itself is not processed, ie it is considered to be stale
+		bs, _, qc3 := setup(t)
+		_, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
+		require.NoError(t, err)
+		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 3)
+		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs))
+	})
+
+	t.Run("proposal with QC for different state is not accepted", func(t *testing.T) {
+		bs, _, _ := setup(t)
+		_, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qcFor(3, 2, []byte{6, 6, 6}, 0)}, irVer)
+		require.EqualError(t, err, "add block failed: parent round 3 not found, recover")
+		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 1)
+	})
+
+	t.Run("repeated TC is harmless", func(t *testing.T) {
+		bs, _, qc3 := setup(t)
+		require.NoError(t, bs.ProcessTc(tc3))
+		require.NoError(t, bs.ProcessTc(tc3))
+		_, err := bs.ProcessQc(qc3)
+		require.NoError(t, err)
+		// TC after the QC - block is set aside again but proposal extending the QC restores it
+		require.NoError(t, bs.ProcessTc(tc3))
+		require.Equal(t, []uint64{2, 1}, persistedRounds(t, bs))
+		_, err = bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
+		require.NoError(t, err)
+		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs))
+		// TC when the block already has a child - the block stays in the tree and in the DB
+		require.ErrorContains(t, bs.ProcessTc(tc3), "error round 3 is not leaf node")
+		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 3)
+		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs))
+	})
+
+	t.Run("commit past the round prunes the block", func(t *testing.T) {
+		bs, qc2, qc3 := setup(t)
+		// chain continues from round 2: B2--> B4--> B5
+		rh4, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc2}, irVer)
+		require.NoError(t, err)
+		qc4 := qcFor(4, 2, rh4, 0)
+		_, err = bs.ProcessQc(qc4)
+		require.NoError(t, err)
+		_, err = bs.Add(&rctypes.BlockData{Round: 5, Payload: &rctypes.Payload{}, Qc: qc4}, irVer)
+		require.NoError(t, err)
+		// block is still there
+		_, err = bs.Block(3)
+		require.NoError(t, err)
+		// QC for round 5 commits round 4
+		_, err = bs.ProcessQc(qcFor(5, 4, nil, 4))
+		require.NoError(t, err)
+		require.EqualValues(t, 4, bs.blockTree.Root().GetRound())
+
+		_, err = bs.Block(3)
+		require.EqualError(t, err, "block for round 3 not found")
+		_, err = bs.Add(&rctypes.BlockData{Round: 6, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
+		require.EqualError(t, err, "add block failed: parent round 3 not found, recover")
+	})
+}
+
 func TestHandleQcError(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t, nil)
 	ucs, err := bStore.ProcessQc(nil)

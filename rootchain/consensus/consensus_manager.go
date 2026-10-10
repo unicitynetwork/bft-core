@@ -818,9 +818,9 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 		return
 	}
 	if err := x.blockStore.ProcessTc(tc); err != nil {
-		// method deletes the block that got TC - it will never be part of the chain.
-		// however, this node might not have even seen the block, in which case error is returned, but this is ok - just log
-		x.log.DebugContext(ctx, "could not remove the timeout block, node has not received it", logger.Error(err))
+		// method sets aside the block that got TC - it won't be part of the chain unless the round got QC too.
+		// however, the block might already have descendants, in which case error is returned, but this is ok - just log
+		x.log.DebugContext(ctx, "could not remove the timeout block", logger.Error(err))
 	}
 	if x.pacemaker.AdvanceRoundTC(ctx, tc) {
 		// Round was advanced, we could have a new trust base.

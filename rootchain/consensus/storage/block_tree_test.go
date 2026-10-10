@@ -104,30 +104,202 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 	return &BlockTree{
 		root:        rootNode,
 		roundToNode: treeNodes,
+		timedOut:    map[uint64]*node{},
 		blocksDB:    db,
 	}
 }
 
-func TestBlockTree_RemoveLeaf(t *testing.T) {
+func TestBlockTree_SetAside(t *testing.T) {
 	tree := createTestBlockTree(t)
 	// remove leaf that has children
-	require.ErrorContains(t, tree.RemoveLeaf(9), "error round 9 is not leaf node")
-	require.ErrorContains(t, tree.RemoveLeaf(5), "root block cannot be removed")
-	require.ErrorContains(t, tree.RemoveLeaf(11), "error round 11 is not leaf node")
-	require.NoError(t, tree.RemoveLeaf(8))
+	require.ErrorContains(t, tree.SetAside(9), "error round 9 is not leaf node")
+	require.ErrorContains(t, tree.SetAside(5), "root block cannot be removed")
+	require.ErrorContains(t, tree.SetAside(11), "error round 11 is not leaf node")
+	require.NoError(t, tree.SetAside(8))
 	b, err := tree.FindBlock(8)
 	require.ErrorContains(t, err, "block for round 8 not found")
 	require.Nil(t, b)
+	// the block is not discarded
+	b, err = tree.FindSetAside(8)
+	require.NoError(t, err)
+	require.Equal(t, "B8", b.BlockData.Author)
 	b, err = tree.FindBlock(7)
 	require.NoError(t, err)
 	require.NotNil(t, b)
 	require.Equal(t, "B7", b.BlockData.Author)
+	b, err = tree.FindSetAside(7)
+	require.ErrorContains(t, err, "block for round 7 not found")
+	require.Nil(t, b)
 	// make sure node 7 child "8" was removed
 	n, found := tree.roundToNode[7]
 	require.True(t, found)
 	require.Empty(t, n.child)
 	// not and error if leaf does not exist, consider removed
-	require.NoError(t, tree.RemoveLeaf(2))
+	require.NoError(t, tree.SetAside(2))
+	// repeated call is harmless
+	require.NoError(t, tree.SetAside(8))
+	require.Len(t, tree.timedOut, 1)
+}
+
+func TestBlockTree_SetAside_persistence(t *testing.T) {
+	// storing TC deletes the block of the round from DB, when the block stays
+	// in the tree it must stay in the DB too or the tree can't be loaded
+	rounds := func(t *testing.T, tree *BlockTree) (rounds []uint64) {
+		blocks, err := tree.blocksDB.LoadBlocks()
+		require.NoError(t, err)
+		for _, b := range blocks {
+			rounds = append(rounds, b.GetRound())
+		}
+		return rounds
+	}
+	tc := func(round uint64) *drctypes.TimeoutCert {
+		return &drctypes.TimeoutCert{Timeout: &drctypes.Timeout{Round: round}}
+	}
+
+	tree := createTestBlockTree(t)
+	// not a leaf
+	require.NoError(t, tree.blocksDB.WriteTC(tc(9)))
+	require.NotContains(t, rounds(t, tree), uint64(9))
+	require.Error(t, tree.SetAside(9))
+	require.Contains(t, rounds(t, tree), uint64(9))
+	// root
+	require.NoError(t, tree.blocksDB.WriteTC(tc(5)))
+	require.NotContains(t, rounds(t, tree), uint64(5))
+	require.Error(t, tree.SetAside(5))
+	require.Contains(t, rounds(t, tree), uint64(5))
+	// leaf is set aside and stays deleted...
+	require.NoError(t, tree.blocksDB.WriteTC(tc(8)))
+	require.NoError(t, tree.SetAside(8))
+	require.NotContains(t, rounds(t, tree), uint64(8))
+	// ...until it is attached back to the tree
+	b, err := tree.Restore(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}})
+	require.NoError(t, err)
+	require.Equal(t, "B8", b.BlockData.Author)
+	require.Contains(t, rounds(t, tree), uint64(8))
+}
+
+func TestBlockTree_restoreSetAside(t *testing.T) {
+	qcFor := func(round uint64, rootHash []byte) *drctypes.QuorumCert {
+		return &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: round, CurrentRootHash: rootHash}}
+	}
+
+	t.Run("QC attaches the block back", func(t *testing.T) {
+		tree := createTestBlockTree(t)
+		require.NoError(t, tree.SetAside(8))
+		require.Len(t, tree.GetAllUncommittedNodes(), 6)
+		// QC for a different state doesn't restore the block
+		require.EqualError(t, tree.InsertQc(qcFor(8, []byte{1})), "qc state hash is different from local computed state hash")
+		require.Len(t, tree.timedOut, 1)
+
+		qc := qcFor(8, nil)
+		require.NoError(t, tree.InsertQc(qc))
+		require.Empty(t, tree.timedOut)
+		require.Len(t, tree.GetAllUncommittedNodes(), 7)
+		b, err := tree.FindBlock(8)
+		require.NoError(t, err)
+		require.Equal(t, "B8", b.BlockData.Author)
+		require.Equal(t, qc, b.Qc)
+		require.Equal(t, qc, tree.HighQc())
+		require.Len(t, tree.roundToNode[7].child, 1)
+		require.Equal(t, []*ExecutedBlock{b}, tree.findPathToRoot(8)[:1])
+	})
+
+	t.Run("Restore", func(t *testing.T) {
+		tree := createTestBlockTree(t)
+		// block which is in the tree is not "restored"
+		b, err := tree.Restore(qcFor(8, nil))
+		require.EqualError(t, err, "block for round 8 not found")
+		require.Nil(t, b)
+
+		require.NoError(t, tree.SetAside(8))
+		b, err = tree.Restore(qcFor(8, []byte{1}))
+		require.EqualError(t, err, "qc state hash is different from local computed state hash")
+		require.Nil(t, b)
+
+		b, err = tree.Restore(qcFor(8, nil))
+		require.NoError(t, err)
+		require.Equal(t, "B8", b.BlockData.Author)
+		require.Empty(t, tree.timedOut)
+		require.Len(t, tree.roundToNode[7].child, 1)
+		// QC is not attached to the block by Restore
+		require.Nil(t, b.Qc)
+	})
+
+	t.Run("block is not attached when parent is gone", func(t *testing.T) {
+		tree := createTestBlockTree(t)
+		require.NoError(t, tree.SetAside(8))
+		delete(tree.roundToNode, 7)
+
+		require.EqualError(t, tree.InsertQc(qcFor(8, nil)), "find block: block for round 8 not found")
+		require.Empty(t, tree.timedOut)
+		require.NotContains(t, tree.roundToNode, uint64(8))
+	})
+
+	t.Run("adding the block again supersedes the one set aside", func(t *testing.T) {
+		tree := createTestBlockTree(t)
+		require.NoError(t, tree.SetAside(8))
+		require.NoError(t, tree.Add(&ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B8v2", Round: 8, Qc: qcFor(7, nil)}}))
+		require.Empty(t, tree.timedOut)
+		b, err := tree.FindBlock(8)
+		require.NoError(t, err)
+		require.Equal(t, "B8v2", b.BlockData.Author)
+	})
+}
+
+func TestBlockTree_Commit_prunesSetAside(t *testing.T) {
+	commitQc := func(round uint64) *drctypes.QuorumCert {
+		return &drctypes.QuorumCert{
+			VoteInfo:         &drctypes.RoundInfo{RoundNumber: round + 1, ParentRoundNumber: round},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: []byte{1, 2, 3}},
+		}
+	}
+	/*
+		 ╭--> B6--> B7--> (B8)
+		B5--> B9--> (B10)
+		       ╰--> B11--> (B12)
+	*/
+	setup := func(t *testing.T) *BlockTree {
+		tree := createTestBlockTree(t)
+		require.NoError(t, tree.SetAside(8))
+		require.NoError(t, tree.SetAside(10))
+		require.NoError(t, tree.SetAside(12))
+		require.Len(t, tree.timedOut, 3)
+		return tree
+	}
+
+	t.Run("parent is pruned", func(t *testing.T) {
+		tree := setup(t)
+		// B7 becomes root, parents of B10 and B12 are pruned
+		_, err := tree.Commit(commitQc(7))
+		require.NoError(t, err)
+		require.Len(t, tree.timedOut, 1)
+		require.Contains(t, tree.timedOut, uint64(8))
+		// B8 can still be restored
+		require.NoError(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}))
+		require.Len(t, tree.GetAllUncommittedNodes(), 1)
+	})
+
+	t.Run("commit passes the round", func(t *testing.T) {
+		tree := setup(t)
+		// B11 becomes root: B8 parent is pruned, B10 round has been passed (and parent pruned)
+		_, err := tree.Commit(commitQc(11))
+		require.NoError(t, err)
+		require.Len(t, tree.timedOut, 1)
+		require.Contains(t, tree.timedOut, uint64(12))
+	})
+
+	t.Run("commit passes the round, parent stays", func(t *testing.T) {
+		tree := setup(t)
+		// set aside block whose parent is the root (but the round is older than the new root)
+		n4 := newNode(&ExecutedBlock{BlockData: &drctypes.BlockData{Round: 4, Qc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}}})
+		tree.timedOut[4] = n4
+		_, err := tree.Commit(commitQc(9))
+		require.NoError(t, err)
+		// B10 is the child of the new root, B12 parent is in the tree
+		require.Len(t, tree.timedOut, 2)
+		require.Contains(t, tree.timedOut, uint64(10))
+		require.Contains(t, tree.timedOut, uint64(12))
+	})
 }
 
 func TestBlockTree_FindPathToRoot(t *testing.T) {
@@ -160,8 +332,8 @@ func TestBlockTree_GetAllUncommittedNodes(t *testing.T) {
 	require.Len(t, tree.roundToNode, 8)
 	blocks := tree.GetAllUncommittedNodes()
 	require.Len(t, blocks, 7)
-	require.NoError(t, tree.RemoveLeaf(8))
-	require.NoError(t, tree.RemoveLeaf(7))
+	require.NoError(t, tree.SetAside(8))
+	require.NoError(t, tree.SetAside(7))
 	blocks = tree.GetAllUncommittedNodes()
 	require.Len(t, blocks, 5)
 }
