@@ -100,22 +100,7 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 	irVer := mockIRVerifier{verify: func(uint64, *rctypes.IRChangeReq) (*types.InputRecord, error) {
 		return nil, errors.New("no IR changes in this test")
 	}}
-	// QC for "round", when commitRound != 0 the QC commits the (parent) round
-	qcFor := func(round, parent uint64, rootHash []byte, commitRound uint64) *rctypes.QuorumCert {
-		return &rctypes.QuorumCert{
-			VoteInfo:         &rctypes.RoundInfo{RoundNumber: round, ParentRoundNumber: parent, CurrentRootHash: rootHash},
-			LedgerCommitInfo: &types.UnicitySeal{Version: 1, RootChainRoundNumber: commitRound},
-		}
-	}
 	tc3 := &rctypes.TimeoutCert{Timeout: &rctypes.Timeout{Round: 3}}
-	persistedRounds := func(t *testing.T, bs *BlockStore) (rounds []uint64) {
-		blocks, err := bs.GetDB().LoadBlocks()
-		require.NoError(t, err)
-		for _, b := range blocks {
-			rounds = append(rounds, b.GetRound())
-		}
-		return rounds
-	}
 	// creates chain B1--> B2--> B3 where round 3 has got TC, returns the store, QC
 	// for the round 2 (current high QC) and (unprocessed) QC for the round 3
 	setup := func(t *testing.T) (bs *BlockStore, qc2, qc3 *rctypes.QuorumCert) {
@@ -127,12 +112,12 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		require.NoError(t, err)
 		rh3, err := bs.Add(&rctypes.BlockData{Round: 3, Payload: &rctypes.Payload{}, Qc: qc2}, irVer)
 		require.NoError(t, err)
-		require.Equal(t, []uint64{3, 2, 1}, persistedRounds(t, bs))
+		require.Equal(t, []uint64{3, 2, 1}, persistedRounds(t, bs.GetDB()))
 
 		require.NoError(t, bs.ProcessTc(tc3))
 		// block is not part of the tree anymore...
 		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 1)
-		require.Equal(t, []uint64{2, 1}, persistedRounds(t, bs))
+		require.Equal(t, []uint64{2, 1}, persistedRounds(t, bs.GetDB()))
 		// ...but can be still loaded as the QC for the round needs to be checked against it
 		b, err := bs.Block(3)
 		require.NoError(t, err)
@@ -146,11 +131,11 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, qc3, bs.GetHighQc())
 		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 2)
-		require.Equal(t, []uint64{3, 2, 1}, persistedRounds(t, bs))
+		require.Equal(t, []uint64{3, 2, 1}, persistedRounds(t, bs.GetDB()))
 
 		_, err = bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
 		require.NoError(t, err)
-		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs))
+		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs.GetDB()))
 		// state sent to recovering nodes contains the block
 		state, err := bs.GetState()
 		require.NoError(t, err)
@@ -163,14 +148,20 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		_, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
 		require.NoError(t, err)
 		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 3)
-		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs))
+		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs.GetDB()))
 	})
 
 	t.Run("proposal with QC for different state is not accepted", func(t *testing.T) {
 		bs, _, _ := setup(t)
 		_, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qcFor(3, 2, []byte{6, 6, 6}, 0)}, irVer)
-		require.EqualError(t, err, "add block failed: parent round 3 not found, recover")
+		require.EqualError(t, err, "add block failed: parent round 3 not found, recover: qc state hash is different from local computed state hash")
 		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 1)
+	})
+
+	t.Run("proposal without QC is not accepted", func(t *testing.T) {
+		bs, _, _ := setup(t)
+		_, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}}, irVer)
+		require.EqualError(t, err, "add block failed: parent round 0 not found, recover: block for round 0 not found")
 	})
 
 	t.Run("repeated TC is harmless", func(t *testing.T) {
@@ -179,16 +170,77 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		require.NoError(t, bs.ProcessTc(tc3))
 		_, err := bs.ProcessQc(qc3)
 		require.NoError(t, err)
-		// TC after the QC - block is set aside again but proposal extending the QC restores it
+		// TC after the QC - the block is certified and stays in the tree and in the DB
 		require.NoError(t, bs.ProcessTc(tc3))
-		require.Equal(t, []uint64{2, 1}, persistedRounds(t, bs))
+		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 2)
+		require.Equal(t, []uint64{3, 2, 1}, persistedRounds(t, bs.GetDB()))
 		_, err = bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
 		require.NoError(t, err)
-		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs))
-		// TC when the block already has a child - the block stays in the tree and in the DB
-		require.ErrorContains(t, bs.ProcessTc(tc3), "error round 3 is not leaf node")
+		// TC when the block already has a child
+		require.NoError(t, bs.ProcessTc(tc3))
 		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 3)
-		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs))
+		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs.GetDB()))
+	})
+
+	t.Run("TC for a block which has a child but no QC", func(t *testing.T) {
+		// the QC is not processed (stale), proposal extending it restores the block
+		bs, _, qc3 := setup(t)
+		_, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
+		require.NoError(t, err)
+		require.NoError(t, bs.ProcessTc(tc3))
+		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 3)
+		require.Equal(t, []uint64{4, 3, 2, 1}, persistedRounds(t, bs.GetDB()))
+	})
+
+	t.Run("failure to persist the block", func(t *testing.T) {
+		// the block must not be attached back to the tree unless it is in the DB too,
+		// otherwise the descendants of it are stored and the DB can't be loaded
+		newStore := func(t *testing.T) (*BlockStore, *failingWrites, *rctypes.QuorumCert) {
+			bs, _, qc3 := setup(t)
+			db := &failingWrites{PersistentStore: bs.storage}
+			bs.blockTree.blocksDB = db
+			return bs, db, qc3
+		}
+		expErr := errors.New("disk full")
+		reload := func(t *testing.T, bs *BlockStore) {
+			_, err := NewBlockTree(bs.storage, bs.orchestration)
+			require.NoError(t, err)
+		}
+
+		t.Run("proposal extending the late QC", func(t *testing.T) {
+			bs, db, qc3 := newStore(t)
+			db.failRound, db.err = 3, expErr
+			_, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
+			require.ErrorIs(t, err, expErr)
+			require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 1)
+			_, err = bs.blockTree.FindSetAside(3)
+			require.NoError(t, err)
+			require.Equal(t, []uint64{2, 1}, persistedRounds(t, bs.GetDB()))
+			reload(t, bs)
+			// next attempt succeeds
+			db.err = nil
+			_, err = bs.Add(&rctypes.BlockData{Round: 5, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
+			require.NoError(t, err)
+			require.Equal(t, []uint64{5, 3, 2, 1}, persistedRounds(t, bs.GetDB()))
+			reload(t, bs)
+		})
+
+		t.Run("late QC", func(t *testing.T) {
+			bs, db, qc3 := newStore(t)
+			db.failRound, db.err = 3, expErr
+			_, err := bs.ProcessQc(qc3)
+			require.ErrorIs(t, err, expErr)
+			require.EqualValues(t, 2, bs.GetHighQc().GetRound())
+			b, err := bs.blockTree.FindSetAside(3)
+			require.NoError(t, err)
+			require.Nil(t, b.Qc)
+			require.Equal(t, []uint64{2, 1}, persistedRounds(t, bs.GetDB()))
+			// proposal extending the QC also fails to restore the block
+			_, err = bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
+			require.ErrorIs(t, err, expErr)
+			require.Equal(t, []uint64{2, 1}, persistedRounds(t, bs.GetDB()))
+			reload(t, bs)
+		})
 	})
 
 	t.Run("commit past the round prunes the block", func(t *testing.T) {
@@ -212,7 +264,7 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		_, err = bs.Block(3)
 		require.EqualError(t, err, "block for round 3 not found")
 		_, err = bs.Add(&rctypes.BlockData{Round: 6, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
-		require.EqualError(t, err, "add block failed: parent round 3 not found, recover")
+		require.EqualError(t, err, "add block failed: parent round 3 not found, recover: block for round 3 not found")
 	})
 }
 
@@ -535,13 +587,47 @@ func genesisBlockWithShard(t *testing.T, shardConf *types.PartitionDescriptionRe
 	return eb
 }
 
+// qcFor returns QC for the "round", when commitRound != 0 the QC commits the (parent) round
+func qcFor(round, parent uint64, rootHash []byte, commitRound uint64) *rctypes.QuorumCert {
+	return &rctypes.QuorumCert{
+		VoteInfo:         &rctypes.RoundInfo{RoundNumber: round, ParentRoundNumber: parent, CurrentRootHash: rootHash},
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1, RootChainRoundNumber: commitRound},
+	}
+}
+
+// persistedRounds returns the rounds of the blocks in the DB (in descending order)
+func persistedRounds(t *testing.T, db PersistentStore) (rounds []uint64) {
+	t.Helper()
+	blocks, err := db.LoadBlocks()
+	require.NoError(t, err)
+	for _, b := range blocks {
+		rounds = append(rounds, b.GetRound())
+	}
+	return rounds
+}
+
+// failingWrites is a store where writing the block of the failRound fails with err (when not nil)
+type failingWrites struct {
+	PersistentStore
+	failRound uint64
+	err       error
+}
+
+func (f *failingWrites) WriteBlock(block *ExecutedBlock, root bool) error {
+	if f.err != nil && block.GetRound() == f.failRound {
+		return f.err
+	}
+	return f.PersistentStore.WriteBlock(block, root)
+}
+
 type mockPersistentStore struct {
-	loadBlocks func() ([]*ExecutedBlock, error)
-	writeBlock func(block *ExecutedBlock, root bool) error
-	readVote   func() (msg any, err error)
-	writeVote  func(vote any) error
-	writeTC    func(tc *rctypes.TimeoutCert) error
-	readLastTC func() (*rctypes.TimeoutCert, error)
+	loadBlocks  func() ([]*ExecutedBlock, error)
+	writeBlock  func(block *ExecutedBlock, root bool) error
+	deleteBlock func(round uint64) error
+	readVote    func() (msg any, err error)
+	writeVote   func(vote any) error
+	writeTC     func(tc *rctypes.TimeoutCert) error
+	readLastTC  func() (*rctypes.TimeoutCert, error)
 }
 
 func (mps mockPersistentStore) LoadBlocks() ([]*ExecutedBlock, error) {
@@ -550,6 +636,10 @@ func (mps mockPersistentStore) LoadBlocks() ([]*ExecutedBlock, error) {
 
 func (mps mockPersistentStore) WriteBlock(block *ExecutedBlock, root bool) error {
 	return mps.writeBlock(block, root)
+}
+
+func (mps mockPersistentStore) DeleteBlock(round uint64) error {
+	return mps.deleteBlock(round)
 }
 
 func (mps mockPersistentStore) ReadLastVote() (msg any, err error) {

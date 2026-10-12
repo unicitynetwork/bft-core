@@ -283,27 +283,47 @@ func Test_BoltDB_TimeoutCert(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, tc, tc2)
 
-		// when there is a block for the TO round it should be deleted when storing TC
+		// storing TC doesn't touch the blocks (the block of the TO round might stay in the tree)
 		b := ExecutedBlock{BlockData: &rctypes.BlockData{Round: 17}}
 		require.NoError(t, db.WriteBlock(&b, false))
 		b = ExecutedBlock{BlockData: &rctypes.BlockData{Round: 18}}
 		require.NoError(t, db.WriteBlock(&b, false))
-		blocks, err := db.LoadBlocks()
-		require.NoError(t, err)
-		if assert.Len(t, blocks, 2) {
-			require.EqualValues(t, 18, blocks[0].GetRound())
-			require.EqualValues(t, 17, blocks[1].GetRound())
-		}
 		tc.Timeout.Round = b.GetRound()
 		require.NoError(t, db.WriteTC(tc))
 		tc2, err = db.ReadLastTC()
 		require.NoError(t, err)
 		require.Equal(t, tc, tc2)
-		blocks, err = db.LoadBlocks()
+		require.Equal(t, []uint64{18, 17}, persistedRounds(t, db))
+	})
+}
+
+func Test_BoltDB_DeleteBlock(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("invalid database", func(t *testing.T) {
+		db, err := NewBoltStorage(filepath.Join(dir, "invalid.db"))
 		require.NoError(t, err)
-		if assert.Len(t, blocks, 1) {
-			require.EqualValues(t, 17, blocks[0].GetRound())
+		t.Cleanup(func() { db.Close() })
+		err = db.db.Update(func(tx *bbolt.Tx) error { return tx.DeleteBucket(bucketBlocks) })
+		require.NoError(t, err)
+
+		require.ErrorIs(t, db.DeleteBlock(7), errNoBlocksBucket)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		db, err := NewBoltStorage(filepath.Join(dir, "blocks.db"))
+		require.NoError(t, err)
+		t.Cleanup(func() { db.Close() })
+
+		for round := uint64(16); round <= 18; round++ {
+			require.NoError(t, db.WriteBlock(&ExecutedBlock{BlockData: &rctypes.BlockData{Round: round}}, false))
 		}
+		require.NoError(t, db.DeleteBlock(17))
+		require.Equal(t, []uint64{18, 16}, persistedRounds(t, db))
+		// not an error when there is no block for the round
+		require.NoError(t, db.DeleteBlock(17))
+		require.NoError(t, db.DeleteBlock(20))
+		require.Equal(t, []uint64{18, 16}, persistedRounds(t, db))
 	})
 }
 

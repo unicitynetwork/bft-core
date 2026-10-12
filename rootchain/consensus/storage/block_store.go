@@ -27,6 +27,7 @@ type (
 	PersistentStore interface {
 		LoadBlocks() ([]*ExecutedBlock, error)
 		WriteBlock(block *ExecutedBlock, root bool) error
+		DeleteBlock(round uint64) error
 
 		WriteVote(vote any) error
 		ReadLastVote() (msg any, err error)
@@ -95,7 +96,8 @@ func (x *BlockStore) ProcessTc(tc *rctypes.TimeoutCert) (rErr error) {
 	// Remove proposal/block for TC round from the tree if it exists, since quorum voted for timeout.
 	// Most likely it will never be committed, but the round might still get QC too (of the votes sent
 	// before the timeout) so the block is set aside rather than discarded.
-	// It is fine if the block is not found, it does not matter anyway
+	// It is fine if the block is not found or it stays in the tree (ie it already is part of the
+	// chain), error means that storage or the tree is broken.
 	if err := x.blockTree.SetAside(tc.GetRound()); err != nil {
 		return errors.Join(rErr, fmt.Errorf("removing timeout block %v: %w", tc.GetRound(), err))
 	}
@@ -175,7 +177,7 @@ func (x *BlockStore) Add(block *rctypes.BlockData, verifier IRChangeReqVerifier)
 		parentBlock, err = x.blockTree.Restore(block.Qc)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("add block failed: parent round %v not found, recover", block.Qc.VoteInfo.RoundNumber)
+		return nil, fmt.Errorf("add block failed: parent round %v not found, recover: %w", block.GetParentRound(), err)
 	}
 	// Extend state from parent block
 	exeBlock, err := parentBlock.Extend(block, verifier, x.orchestration, x.hash, x.log)

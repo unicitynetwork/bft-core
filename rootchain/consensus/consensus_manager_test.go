@@ -1340,3 +1340,53 @@ func Test_ConsensusManager_RestoreVote(t *testing.T) {
 	require.EqualValues(t, "test", lastTimeoutMsg.Author)
 	require.EqualValues(t, 1, lastTimeoutMsg.LastTC.GetRound())
 }
+
+/*
+Round can get both QC and TC and timeout message can carry both of them (HighQc: QC(N),
+LastTC: TC(N)) - the block certified by the high QC must stay in the block tree when the
+TC is processed after the QC as the next proposal extends that block.
+*/
+func Test_ConsensusManager_tcForCertifiedBlock(t *testing.T) {
+	cm, _, shardNodes := initConsensusManager(t, testnetwork.NewRootMockNetwork())
+	bs := cm.blockStore
+	qcFor := func(round, parent uint64, rootHash []byte) *drctypes.QuorumCert {
+		return &drctypes.QuorumCert{
+			VoteInfo:         &drctypes.RoundInfo{RoundNumber: round, ParentRoundNumber: parent, CurrentRootHash: rootHash},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1},
+		}
+	}
+	req := &drctypes.IRChangeReq{
+		Partition:  partitionID,
+		Shard:      shardID,
+		CertReason: drctypes.Quorum,
+		Requests:   buildBlockCertificationRequest(t, shardNodes[0:2], bs.ShardInfo(partitionID, shardID).LastCR),
+	}
+	// B1 (root) --> B2 --> B3, B3 changes the shard
+	rh2, err := bs.Add(&drctypes.BlockData{Round: 2, Payload: &drctypes.Payload{}, Qc: bs.GetHighQc()}, cm.irReqVerifier)
+	require.NoError(t, err)
+	qc2 := qcFor(2, 1, rh2)
+	_, err = bs.ProcessQc(qc2)
+	require.NoError(t, err)
+	rh3, err := bs.Add(&drctypes.BlockData{Round: 3, Payload: &drctypes.Payload{Requests: []*drctypes.IRChangeReq{req}}, Qc: qc2}, cm.irReqVerifier)
+	require.NoError(t, err)
+	qc3 := qcFor(3, 2, rh3)
+
+	// what onTimeoutMsg does for a round 4 timeout message {HighQc: QC(3), LastTC: TC(3)}
+	_, err = bs.ProcessQc(qc3)
+	require.NoError(t, err)
+	require.NoError(t, bs.ProcessTc(&drctypes.TimeoutCert{Timeout: &drctypes.Timeout{Round: 3, HighQc: qc2}}))
+
+	// B3 is still in the tree, ie the shard has change in progress and peers can recover to the round
+	require.EqualValues(t, 3, bs.GetHighQc().GetRound())
+	require.NotNil(t, bs.IsChangeInProgress(partitionID, shardID))
+	state, err := bs.GetState()
+	require.NoError(t, err)
+	require.NoError(t, state.CanRecoverToRound(3))
+
+	// as leader the node does not propose the change again and the proposal is accepted
+	require.ErrorIs(t, cm.irReqBuffer.Add(4, req, cm.irReqVerifier), ErrDuplicateChangeReq)
+	payload := cm.irReqBuffer.GeneratePayload(5, nil, bs.IsChangeInProgress)
+	require.Empty(t, payload.Requests)
+	_, err = bs.Add(&drctypes.BlockData{Round: 5, Payload: payload, Qc: qc3}, cm.irReqVerifier)
+	require.NoError(t, err)
+}

@@ -819,8 +819,9 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 	}
 	if err := x.blockStore.ProcessTc(tc); err != nil {
 		// method sets aside the block that got TC - it won't be part of the chain unless the round got QC too.
-		// however, the block might already have descendants, in which case error is returned, but this is ok - just log
-		x.log.DebugContext(ctx, "could not remove the timeout block", logger.Error(err))
+		// It is not an error when the node doesn't have the block or the block stays in the chain, so the
+		// error means that storing the TC or updating the block storage failed.
+		x.log.WarnContext(ctx, "processing timeout certificate", logger.Error(err))
 	}
 	if x.pacemaker.AdvanceRoundTC(ctx, tc) {
 		// Round was advanced, we could have a new trust base.

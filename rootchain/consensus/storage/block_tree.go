@@ -158,12 +158,14 @@ func (bt *BlockTree) InsertQc(qc *abdrc.QuorumCert) error {
 	if err != nil {
 		return err
 	}
-	b := n.data
-	b.Qc = qc
+	prevQc := n.data.Qc
+	n.data.Qc = qc
 	// persist changes
-	if err = bt.blocksDB.WriteBlock(b, false); err != nil {
-		return fmt.Errorf("failed to persist block for round %d: %w", b.BlockData.Round, err)
+	if err = bt.persist(n); err != nil {
+		n.data.Qc = prevQc
+		return err
 	}
+	bt.attach(n)
 	bt.highQc = qc
 	return nil
 }
@@ -199,31 +201,35 @@ func (bt *BlockTree) Add(block *ExecutedBlock) error {
 }
 
 /*
-SetAside removes leaf node of the round (which got TC) from the tree, unless it is the root node.
+SetAside removes the block of the round (which got TC) from the tree.
 
 The block is not discarded as it is possible that the round got QC too (formed of the votes
 sent before the timeout) and the chain continues from that block. When QC or child block for
 the round arrives the block is attached back to the tree, otherwise it is dropped by the
-commit of some later round (or when it's parent is pruned).
+commit of some later round (ie when it's parent is pruned).
+
+The block which is part of the chain despite the TC stays in the tree: the root, a block which
+has descendants and a block which is certified by QC (the next proposal extends that QC).
 */
 func (bt *BlockTree) SetAside(round uint64) error {
 	bt.m.Lock()
 	defer bt.m.Unlock()
-	// root cannot be removed
-	if bt.root.data.GetRound() == round {
-		return errors.Join(errors.New("root block cannot be removed"), bt.persist(bt.root))
-	}
+
 	n, found := bt.roundToNode[round]
 	if !found {
 		// this is ok if we do not have the node, on TC remove might be triggered twice
 		return nil
 	}
-	if len(n.child) > 0 {
-		return errors.Join(fmt.Errorf("error round %v is not leaf node", round), bt.persist(n))
+	if n == bt.root || len(n.child) > 0 || n.data.Qc != nil || bt.highQc.GetRound() == round {
+		return nil
 	}
 	parent, found := bt.roundToNode[n.data.GetParentRound()]
 	if !found {
 		return fmt.Errorf("error parent block %v not found", n.data.GetParentRound())
+	}
+	// only the blocks in the tree are kept in the DB, otherwise the tree couldn't be loaded from it
+	if err := bt.blocksDB.DeleteBlock(round); err != nil {
+		return fmt.Errorf("failed to delete block for round %d: %w", round, err)
 	}
 	delete(bt.roundToNode, round)
 	parent.removeChild(n)
@@ -231,8 +237,7 @@ func (bt *BlockTree) SetAside(round uint64) error {
 	return nil
 }
 
-// persist stores the block of the node which stays in the tree despite the TC for the round - storing
-// the TC deletes the block of the round from the DB and the tree couldn't be loaded from DB without it.
+// persist stores the block of the node.
 func (bt *BlockTree) persist(n *node) error {
 	if err := bt.blocksDB.WriteBlock(n.data, n == bt.root); err != nil {
 		return fmt.Errorf("failed to persist block for round %d: %w", n.data.GetRound(), err)
@@ -241,8 +246,9 @@ func (bt *BlockTree) persist(n *node) error {
 }
 
 /*
-certifiedNode returns tree node of the block certified by the QC. If the block has been set
-aside because of TC (see SetAside) it is attached back to the tree (but not persisted).
+certifiedNode returns node of the block certified by the QC. The block might have been set
+aside because of TC (see SetAside), it is not attached back to the tree here - the caller
+must persist the block first and then call "attach".
 The caller must hold the lock.
 */
 func (bt *BlockTree) certifiedNode(qc *abdrc.QuorumCert) (*node, error) {
@@ -256,19 +262,27 @@ func (bt *BlockTree) certifiedNode(qc *abdrc.QuorumCert) (*node, error) {
 	if !bytes.Equal(n.data.RootHash, qc.VoteInfo.CurrentRootHash) {
 		return nil, errors.New("qc state hash is different from local computed state hash")
 	}
-	if attached {
-		return n, nil
+	if !attached {
+		if _, found := bt.roundToNode[n.data.GetParentRound()]; !found {
+			// parent has been pruned, the block can't be part of the chain anymore
+			delete(bt.timedOut, round)
+			return nil, fmt.Errorf("find block: block for round %v not found", round)
+		}
 	}
-
-	delete(bt.timedOut, round)
-	parent, found := bt.roundToNode[n.data.GetParentRound()]
-	if !found {
-		// parent has been pruned, the block can't be part of the chain anymore
-		return nil, fmt.Errorf("find block: block for round %v not found", round)
-	}
-	parent.addChild(n)
-	bt.roundToNode[round] = n
 	return n, nil
+}
+
+// attach adds the node returned by certifiedNode back to the tree if it has been set aside.
+// The block must be persisted before, so that a block in the tree is always in the DB too.
+// The caller must hold the lock.
+func (bt *BlockTree) attach(n *node) {
+	round := n.data.GetRound()
+	if _, found := bt.timedOut[round]; !found {
+		return
+	}
+	delete(bt.timedOut, round)
+	bt.roundToNode[n.data.GetParentRound()].addChild(n)
+	bt.roundToNode[round] = n
 }
 
 /*
@@ -286,10 +300,11 @@ func (bt *BlockTree) Restore(qc *abdrc.QuorumCert) (*ExecutedBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	// storing the TC removed the block from DB
+	// set aside block is not in the DB
 	if err := bt.persist(n); err != nil {
 		return nil, err
 	}
+	bt.attach(n)
 	return n.data, nil
 }
 
@@ -453,10 +468,9 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) ([]*certification.Certif
 	for _, round := range blocksToPrune {
 		delete(bt.roundToNode, round)
 	}
-	// blocks set aside on TC can't become part of the chain when the commit has passed
-	// the round or the parent block was pruned
+	// blocks set aside on TC can't become part of the chain when the parent block was pruned
 	for round, n := range bt.timedOut {
-		if _, found := bt.roundToNode[n.data.GetParentRound()]; !found || round <= commitRound {
+		if _, found := bt.roundToNode[n.data.GetParentRound()]; !found {
 			delete(bt.timedOut, round)
 		}
 	}

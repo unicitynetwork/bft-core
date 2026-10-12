@@ -167,6 +167,19 @@ func (db BoltDB) WriteBlock(block *ExecutedBlock, root bool) error {
 	})
 }
 
+// DeleteBlock deletes the block of the round from database, it is not an error when there is no such block.
+func (db BoltDB) DeleteBlock(round uint64) error {
+	key := binary.BigEndian.AppendUint64(make([]byte, 0, 8), round)
+
+	return db.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketBlocks)
+		if b == nil {
+			return errNoBlocksBucket
+		}
+		return b.Delete(key)
+	})
+}
+
 var errNoCertificatesBucket = errors.New("certificates bucket not found")
 
 func (db BoltDB) WriteTC(tc *rctypes.TimeoutCert) error {
@@ -174,21 +187,13 @@ func (db BoltDB) WriteTC(tc *rctypes.TimeoutCert) error {
 	if err != nil {
 		return fmt.Errorf("serializing TimeoutCert: %w", err)
 	}
-	blockKey := binary.BigEndian.AppendUint64(make([]byte, 0, 8), tc.GetRound())
 
 	return db.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketCertificates)
 		if b == nil {
 			return errNoCertificatesBucket
 		}
-		if err := b.Put(keyTimeoutCert, data); err != nil {
-			return err
-		}
-		// if there is block for the round deleted it
-		if b = tx.Bucket(bucketBlocks); b == nil {
-			return errNoBlocksBucket
-		}
-		return b.Delete(blockKey)
+		return b.Put(keyTimeoutCert, data)
 	})
 }
 
