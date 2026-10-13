@@ -1542,6 +1542,69 @@ func Test_ConsensusManager_changeInCertifiedBlockOfOtherBranch(t *testing.T) {
 	require.ElementsMatch(t, []uint64{2, 3, 4, 5, 6}, pendingRounds(state))
 }
 
+/*
+The change request of a shard arrives again to the next leader during the round whose QC commits
+the block with the change of the shard:
+
+	B3 (changes the shard) --> B4, QC(4) commits B3
+
+The request is buffered (the change is not committed yet) but it is stale by the time the proposal
+is made and there is no change in progress anymore. The leader must not propose it as the block
+would be rejected by all the validators and the round would time out.
+*/
+func Test_ConsensusManager_staleRequestAfterCommit(t *testing.T) {
+	mockNet := testnetwork.NewRootMockNetwork()
+	cm, rootNode, shardNodes := initConsensusManager(t, mockNet)
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
+	si, err := cm.ShardInfo(partitionID, shardID)
+	require.NoError(t, err)
+	irChReqMsg := &abdrc.IrChangeReqMsg{
+		Author: rootNode.PeerConf.ID.String(),
+		IrChangeReq: &drctypes.IRChangeReq{
+			Partition:  partitionID,
+			CertReason: drctypes.Quorum,
+			Requests:   buildBlockCertificationRequest(t, shardNodes[0:2], si.LastCR),
+		},
+	}
+	require.NoError(t, irChReqMsg.Sign(rootNode.Signer))
+
+	// round 2, request is buffered -> proposal 3 changes the shard
+	prop := testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	mockNet.WaitReceive(t, prop)
+	mockNet.WaitReceive(t, irChReqMsg)
+	vote := testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	mockNet.WaitReceive(t, vote)
+	prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	require.EqualValues(t, 3, prop.Block.Round)
+	require.Len(t, prop.Block.Payload.Requests, 1)
+
+	// round 3 -> proposal 4
+	mockNet.WaitReceive(t, prop)
+	vote = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	mockNet.WaitReceive(t, vote)
+	prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	require.EqualValues(t, 4, prop.Block.Round)
+
+	// round 4: the block 3 is not committed yet, the same request arrives again
+	mockNet.WaitReceive(t, prop)
+	vote = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	mockNet.WaitReceive(t, irChReqMsg)
+	// QC(4) commits the block 3
+	mockNet.WaitReceive(t, vote)
+	prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	require.EqualValues(t, 5, prop.Block.Round)
+	require.EqualValues(t, 3, cm.blockStore.GetHighQc().GetCommitRound())
+	require.Empty(t, prop.Block.Payload.Requests, "stale request must not be proposed")
+
+	// the proposal is valid, the node votes for it
+	mockNet.WaitReceive(t, prop)
+	vote = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	require.EqualValues(t, 5, vote.VoteInfo.RoundNumber)
+}
+
 func testQC(round, parent uint64, rootHash []byte) *drctypes.QuorumCert {
 	return &drctypes.QuorumCert{
 		VoteInfo:         &drctypes.RoundInfo{RoundNumber: round, ParentRoundNumber: parent, CurrentRootHash: rootHash},

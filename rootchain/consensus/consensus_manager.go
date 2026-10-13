@@ -938,6 +938,16 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		// requests for partitions this node failed to query
 		x.log.WarnContext(ctx, "failed to check timeouts for some partitions", logger.Error(err))
 	}
+	payload := x.irReqBuffer.GeneratePayload(round, timedOutShards, inProgress)
+	// buffered requests were verified against the state at the time they arrived, a commit since then
+	// can have made them stale - leave out the requests the validators (this node included) would reject
+	payload.Requests = slices.DeleteFunc(payload.Requests, func(r *drctypes.IRChangeReq) bool {
+		if _, err := x.irReqVerifier.VerifyIRChangeReq(round, highQc.GetRound(), r); err != nil {
+			x.log.WarnContext(ctx, "change request left out of the proposal", logger.Shard(r.Partition, r.Shard), logger.Error(err))
+			return true
+		}
+		return false
+	})
 	proposalMsg := &abdrc.ProposalMsg{
 		Block: &drctypes.BlockData{
 			Version:   1,
@@ -945,7 +955,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 			Round:     round,
 			Epoch:     x.trustBase.Load().Epoch,
 			Timestamp: types.NewTimestamp(),
-			Payload:   x.irReqBuffer.GeneratePayload(round, timedOutShards, inProgress),
+			Payload:   payload,
 			Qc:        highQc,
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),

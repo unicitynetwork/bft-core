@@ -56,14 +56,29 @@ Rules:
 ### Rollback
 
 Same procedure with the old binary: stop all root nodes, start all of them with the old binary.
-The databases can be used by both versions.
+
+The databases can be used by both versions, with one exception. After a commit which leaves a
+branch out, a block of that branch can stay in `rootchain.db` for a few rounds (until the
+committed round passes the round of the block). The new version skips such block on startup, the
+old version fails with `cannot add block for round N, parent block M not found`. All the nodes
+are stopped at about the same round, so this can happen on several nodes at once.
+
+When a node does not start with the old binary:
+
+1. Stop all root nodes and start all of them with the new binary again.
+2. Wait until the round number in `new round start` is past `N + 10` and rounds do not time out:
+   the block of round `N` is deleted from the database by then.
+3. Repeat the rollback.
+
+Do not move `rootchain.db` away for this (next section) unless only that one node is affected
+and it must stay on the old version.
 
 ### Node does not start
 
-`cannot add block for round N, parent block M not found` on startup means the node's
-`rootchain.db` was left inconsistent by a bug of the old version (the block of a timed-out round
-was deleted from the database while it had a child block). The new version does not create such
-database but it can't load one either.
+`cannot add block for round N, parent block M not found` on startup with the new binary means the
+node's `rootchain.db` was left inconsistent by a bug of the old version (the block of a timed-out
+round was deleted from the database while it had a child block). The new version does not create
+such database but it can't load one either.
 
 1. Start the other root nodes and check that the network makes progress.
 2. On the failing node move `rootchain.db` away (keep the other files) and start the node. It
