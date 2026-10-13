@@ -153,11 +153,11 @@ func TestBlockTree_FindPathToRoot(t *testing.T) {
 	require.Nil(t, tree.findPathToRoot(2))
 }
 
-func TestBlockTree_GetAllUncommittedNodes(t *testing.T) {
+func TestBlockTree_allUncommittedNodes(t *testing.T) {
 	tree := createTestBlockTree(t)
 	// tree has 8 nodes, only root is not committed
 	require.Len(t, tree.roundToNode, 8)
-	blocks := tree.GetAllUncommittedNodes()
+	blocks := tree.allUncommittedNodes()
 	require.Len(t, blocks, 7)
 }
 
@@ -292,7 +292,7 @@ func Test_NewBlockTree(t *testing.T) {
 		bt, err := NewBlockTree(db, orchestration)
 		require.NoError(t, err)
 		require.Len(t, bt.roundToNode, 3)
-		require.Len(t, bt.GetAllUncommittedNodes(), 2)
+		require.Len(t, bt.allUncommittedNodes(), 2)
 		for _, round := range []uint64{7, 8} {
 			_, err = bt.FindBlock(round)
 			require.Error(t, err)
@@ -363,7 +363,7 @@ func Test_NewBlockTree(t *testing.T) {
 		b, err = bt.FindBlock(block2.GetRound())
 		require.NoError(t, err)
 		require.Equal(t, &block2, b)
-		blocks := bt.GetAllUncommittedNodes()
+		blocks := bt.allUncommittedNodes()
 		if assert.Len(t, blocks, 2) {
 			require.Contains(t, blocks, &block1)
 			require.Contains(t, blocks, &block2)
@@ -386,7 +386,7 @@ func Test_NewBlockTree(t *testing.T) {
 		rootB := bt.Root()
 		require.NotNil(t, rootB)
 		require.Equal(t, drctypes.GenesisRootRound, rootB.GetRound())
-		require.Len(t, bt.GetAllUncommittedNodes(), 0)
+		require.Len(t, bt.allUncommittedNodes(), 0)
 		require.NotNil(t, bt.HighQc())
 	})
 }
@@ -483,16 +483,16 @@ func Test_BlockTree_Add(t *testing.T) {
 		}
 		bt, err := NewBlockTree(db, orchestration)
 		require.NoError(t, err)
-		require.Len(t, bt.GetAllUncommittedNodes(), 0)
+		require.Len(t, bt.allUncommittedNodes(), 0)
 
 		require.NoError(t, bt.Add(&block1))
-		require.Len(t, bt.GetAllUncommittedNodes(), 1)
+		require.Len(t, bt.allUncommittedNodes(), 1)
 
 		require.NoError(t, bt.Add(&block2))
 		b, err := bt.FindBlock(block2.GetRound())
 		require.NoError(t, err)
 		require.Equal(t, &block2, b)
-		require.Len(t, bt.GetAllUncommittedNodes(), 2)
+		require.Len(t, bt.allUncommittedNodes(), 2)
 
 		require.Equal(t, &blockRoot, bt.Root(), "root should not have changed")
 
@@ -522,6 +522,6 @@ func Test_BlockTree_Add(t *testing.T) {
 		newRoot := bt.Root()
 		require.Equal(t, newRoot, b)
 		require.Len(t, bt.roundToNode, 2)
-		require.Len(t, bt.GetAllUncommittedNodes(), 1)
+		require.Len(t, bt.allUncommittedNodes(), 1)
 	})
 }

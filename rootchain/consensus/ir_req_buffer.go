@@ -12,7 +12,7 @@ import (
 
 type (
 	IRChangeVerifier interface {
-		VerifyIRChangeReq(round, parentRound uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error)
+		VerifyRequest(round uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error)
 	}
 	PartitionTimeout interface {
 		GetT2Timeouts(currenRound uint64) ([]types.PartitionID, error)
@@ -39,8 +39,9 @@ func NewIrReqBuffer(log *slog.Logger) *IrReqBuffer {
 
 // Add validates incoming IR change request and buffers valid requests. If for any reason the IR request is found not
 // valid, reason is logged, error is returned and request is ignored.
-// The "parentRound" is the round the next proposal is expected to extend (ie the round of the high QC).
-func (x *IrReqBuffer) Add(round, parentRound uint64, irChReq *drctypes.IRChangeReq, ver IRChangeVerifier) error {
+// Whether the shard has a change in progress is not checked here as it is not known yet which block
+// the next proposal extends, GeneratePayload leaves out the requests of such shards.
+func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRChangeVerifier) error {
 	if irChReq == nil {
 		return errors.New("ir change request is nil")
 	}
@@ -48,7 +49,7 @@ func (x *IrReqBuffer) Add(round, parentRound uint64, irChReq *drctypes.IRChangeR
 	if irChReq.CertReason == drctypes.T2Timeout {
 		return errors.New("invalid ir change request, timeout can only be proposed by leader issuing a new block")
 	}
-	ir, err := ver.VerifyIRChangeReq(round, parentRound, irChReq)
+	ir, err := ver.VerifyRequest(round, irChReq)
 	if err != nil {
 		return fmt.Errorf("ir change request verification: %w", err)
 	}

@@ -249,13 +249,6 @@ func (bt *BlockTree) Branch(round uint64) []*ExecutedBlock {
 	return bt.findPathToRoot(round)
 }
 
-func (bt *BlockTree) GetAllUncommittedNodes() []*ExecutedBlock {
-	bt.m.Lock()
-	defer bt.m.Unlock()
-
-	return bt.allUncommittedNodes()
-}
-
 func (bt *BlockTree) allUncommittedNodes() []*ExecutedBlock {
 	blocks := make([]*ExecutedBlock, 0, 2)
 	// start from root children

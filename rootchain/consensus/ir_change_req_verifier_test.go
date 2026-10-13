@@ -208,6 +208,10 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		data, err := ver.VerifyIRChangeReq(1, 0, irChReq)
 		require.Nil(t, data)
 		require.ErrorIs(t, err, ErrDuplicateChangeReq)
+		// pending changes are not checked when only the request is verified
+		data, err = ver.VerifyRequest(2, irChReq)
+		require.NoError(t, err)
+		require.Equal(t, newIR, data)
 	})
 
 	t.Run("invalid root round, luc round is bigger", func(t *testing.T) {

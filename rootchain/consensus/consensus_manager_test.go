@@ -1382,7 +1382,7 @@ func Test_ConsensusManager_tcForCertifiedBlock(t *testing.T) {
 	require.NoError(t, state.CanRecoverToRound(3))
 
 	// as leader the node does not propose the change again and the proposal is accepted
-	require.ErrorIs(t, cm.irReqBuffer.Add(4, 3, req, cm.irReqVerifier), ErrDuplicateChangeReq)
+	require.NoError(t, cm.irReqBuffer.Add(4, req, cm.irReqVerifier))
 	payload := cm.irReqBuffer.GeneratePayload(5, nil, func(partition types.PartitionID, shard types.ShardID) *types.InputRecord {
 		return bs.IsChangeInProgress(3, partition, shard)
 	})
@@ -1428,7 +1428,7 @@ func Test_ConsensusManager_changeInTimeoutBlock(t *testing.T) {
 	require.Nil(t, bs.IsChangeInProgress(2, partitionID, shardID))
 
 	// leader of the round 4 extends B2 and can propose the change again
-	require.NoError(t, cm.irReqBuffer.Add(4, 2, req, cm.irReqVerifier))
+	require.NoError(t, cm.irReqBuffer.Add(4, req, cm.irReqVerifier))
 	payload := cm.irReqBuffer.GeneratePayload(4, nil, inProgress(2))
 	require.Equal(t, []*drctypes.IRChangeReq{req}, payload.Requests)
 	// block which extends B3 (ie leader has QC for the round 3) can't contain the change...
@@ -1467,8 +1467,11 @@ func Test_ConsensusManager_changeInTimeoutBlock(t *testing.T) {
 	qc4 := testQC(4, 2, rh4)
 	_, err = bs.ProcessQc(qc4)
 	require.NoError(t, err)
-	require.ErrorIs(t, cm.irReqBuffer.Add(5, 4, req, cm.irReqVerifier), ErrDuplicateChangeReq)
-	rh5, err := bs.Add(&drctypes.BlockData{Round: 5, Payload: cm.irReqBuffer.GeneratePayload(5, nil, inProgress(4)), Qc: qc4}, cm.irReqVerifier)
+	// late copy of the request is buffered but not proposed again in this branch
+	require.NoError(t, cm.irReqBuffer.Add(5, req, cm.irReqVerifier))
+	payload = cm.irReqBuffer.GeneratePayload(5, nil, inProgress(4))
+	require.Empty(t, payload.Requests)
+	rh5, err := bs.Add(&drctypes.BlockData{Round: 5, Payload: payload, Qc: qc4}, cm.irReqVerifier)
 	require.NoError(t, err)
 	qc5 := testQC(5, 4, rh5)
 	qc5.LedgerCommitInfo.RootChainRoundNumber = 4
@@ -1479,6 +1482,64 @@ func Test_ConsensusManager_changeInTimeoutBlock(t *testing.T) {
 	require.Equal(t, req.Requests[0].InputRecord, crs[0].UC.InputRecord)
 	_, err = bs.Block(3)
 	require.Error(t, err, "block of the losing branch should be pruned")
+}
+
+/*
+A certified block can end up in a losing branch too: QC(3) is known only to a minority, so
+TC(4) carries high QC of the round 2 and the leader of the round 5 extends B2.
+
+	B2 --> B3 (changes the shard, certified) --> B4 (timed out)
+	 ╰--> B5 --> B6
+
+The change in B3 is not in the way of changing the shard in the branch of B5.
+NB! This is where the validity rule differs from the one where all the uncommitted blocks were
+checked (B6 was not valid), see docs/upgrade.md.
+*/
+func Test_ConsensusManager_changeInCertifiedBlockOfOtherBranch(t *testing.T) {
+	cm, _, shardNodes := initConsensusManager(t, testnetwork.NewRootMockNetwork())
+	bs := cm.blockStore
+	req := &drctypes.IRChangeReq{
+		Partition:  partitionID,
+		Shard:      shardID,
+		CertReason: drctypes.Quorum,
+		Requests:   buildBlockCertificationRequest(t, shardNodes[0:2], bs.ShardInfo(partitionID, shardID).LastCR),
+	}
+	rh2, err := bs.Add(&drctypes.BlockData{Round: 2, Payload: &drctypes.Payload{}, Qc: bs.GetHighQc()}, cm.irReqVerifier)
+	require.NoError(t, err)
+	qc2 := testQC(2, 1, rh2)
+	_, err = bs.ProcessQc(qc2)
+	require.NoError(t, err)
+	rh3, err := bs.Add(&drctypes.BlockData{Round: 3, Payload: &drctypes.Payload{Requests: []*drctypes.IRChangeReq{req}}, Qc: qc2}, cm.irReqVerifier)
+	require.NoError(t, err)
+	qc3 := testQC(3, 2, rh3)
+	_, err = bs.ProcessQc(qc3)
+	require.NoError(t, err)
+	_, err = bs.Add(&drctypes.BlockData{Round: 4, Payload: &drctypes.Payload{}, Qc: qc3}, cm.irReqVerifier)
+	require.NoError(t, err)
+	require.NoError(t, bs.ProcessTc(&drctypes.TimeoutCert{Timeout: &drctypes.Timeout{Round: 4, HighQc: qc2}}))
+
+	// the request arrives (again) while the high QC is still QC(3), ie the change is in progress in the
+	// branch the next proposal is expected to extend - it is buffered anyway
+	require.EqualValues(t, 3, bs.GetHighQc().GetRound())
+	require.NoError(t, cm.irReqBuffer.Add(5, req, cm.irReqVerifier))
+
+	rh5, err := bs.Add(&drctypes.BlockData{Round: 5, Payload: &drctypes.Payload{}, Qc: qc2}, cm.irReqVerifier)
+	require.NoError(t, err)
+	qc5 := testQC(5, 2, rh5)
+	_, err = bs.ProcessQc(qc5)
+	require.NoError(t, err)
+
+	// leader of the round 6 proposes the buffered request on QC(5) and the block is accepted
+	payload := cm.irReqBuffer.GeneratePayload(6, nil, func(p types.PartitionID, s types.ShardID) *types.InputRecord {
+		return bs.IsChangeInProgress(bs.GetHighQc().GetRound(), p, s)
+	})
+	require.Equal(t, []*drctypes.IRChangeReq{req}, payload.Requests)
+	_, err = bs.Add(&drctypes.BlockData{Round: 6, Payload: payload, Qc: qc5}, cm.irReqVerifier)
+	require.NoError(t, err)
+	// state sent to recovering peers carries both branches
+	state, err := bs.GetState()
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uint64{2, 3, 4, 5, 6}, pendingRounds(state))
 }
 
 func testQC(round, parent uint64, rootHash []byte) *drctypes.QuorumCert {

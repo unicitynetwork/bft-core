@@ -503,7 +503,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *IRCh
 		return fmt.Errorf("failed to get next leader to forward IR change request: %w", err)
 	}
 	if nextLeader == x.id {
-		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), x.blockStore.GetHighQc().GetRound(), irReq, x.irReqVerifier); err != nil {
+		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irReq, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request from partition %s into buffer: %w", irReq.Partition, err)
 		}
 		x.log.DebugContext(ctx, "IR change request buffered", logger.Shard(req.Partition, req.Shard))
@@ -539,11 +539,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// if the node will be the next leader then buffer the request to be included in the block proposal
 	// todo: if in recovery then forward to next?
 	if nextLeader == x.id {
-		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), x.blockStore.GetHighQc().GetRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
-			// if duplicate - the same is already in progress, then it is ok; this is just most likely a delayed request
-			if errors.Is(err, ErrDuplicateChangeReq) {
-				return nil
-			}
+		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request from %s into buffer: %w", irChangeMsg.Author, err)
 		}
 		x.log.DebugContext(ctx, fmt.Sprintf("IR change request from node %s buffered", irChangeMsg.Author), logger.Shard(irChangeMsg.IrChangeReq.Partition, irChangeMsg.IrChangeReq.Shard))

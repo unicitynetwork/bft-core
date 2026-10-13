@@ -118,7 +118,7 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		b, err := bs.Block(3)
 		require.NoError(t, err)
 		require.EqualValues(t, 3, b.GetRound())
-		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 2)
+		require.Len(t, bs.blockTree.allUncommittedNodes(), 2)
 		require.Equal(t, []uint64{3, 2, 1}, persistedRounds(t, bs.GetDB()))
 		require.Equal(t, qc2, bs.GetHighQc())
 		return bs, qc2, qcFor(3, 2, rh3, 0)
@@ -150,7 +150,7 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		bs, _, qc3 := setup(t)
 		_, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc3}, irVer)
 		require.NoError(t, err)
-		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 3)
+		require.Len(t, bs.blockTree.allUncommittedNodes(), 3)
 	})
 
 	t.Run("repeated TC is harmless", func(t *testing.T) {
@@ -168,7 +168,7 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 	t.Run("TC for a round the node has no block for", func(t *testing.T) {
 		bs, _, _ := setup(t)
 		require.NoError(t, bs.ProcessTc(&rctypes.TimeoutCert{Timeout: &rctypes.Timeout{Round: 4}}))
-		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 2)
+		require.Len(t, bs.blockTree.allUncommittedNodes(), 2)
 	})
 
 	t.Run("late QC after restart", func(t *testing.T) {
@@ -188,7 +188,7 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		require.NoError(t, err)
 		// node can be restarted while there are multiple branches
 		bs = reload(t, bs)
-		require.Len(t, bs.blockTree.GetAllUncommittedNodes(), 3)
+		require.Len(t, bs.blockTree.allUncommittedNodes(), 3)
 		qc4 := qcFor(4, 2, rh4, 0)
 		_, err = bs.ProcessQc(qc4)
 		require.NoError(t, err)

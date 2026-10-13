@@ -45,25 +45,13 @@ func NewIRChangeReqVerifier(c *Parameters, sMonitor State) (*IRChangeReqVerifier
 
 /*
 VerifyIRChangeReq verifies the change request for the block of the "rootRound" which extends
-the block of the "parentRound".
+the block of the "parentRound": the request must be valid (see VerifyRequest) and the shard
+must not have a pending change in the branch the block extends.
 */
 func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound, parentRound uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
-	if irChReq == nil {
-		return nil, fmt.Errorf("IR change request is nil")
-	}
-	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest.
-	// This gets the shardInfo from committed round (for which there is UC), and irChReq should build on that.
-	si := x.state.ShardInfo(irChReq.Partition, irChReq.Shard)
-	if si == nil {
-		// There shouldn't be an IR change request for a shard with no committed state
-		return nil, fmt.Errorf("missing shard info for partition %d shard %s", irChReq.Partition, irChReq.Shard.String())
-	}
-
-	// verify request
-	luc := si.LastCR.UC
-	inputRecord, err := irChReq.Verify(si, &luc, rootRound, t2TimeoutToRootRounds(si.T2Timeout, x.params.BlockRate/2))
+	inputRecord, luc, err := x.verifyRequest(rootRound, irChReq)
 	if err != nil {
-		return nil, fmt.Errorf("certification request verification failed: %w", err)
+		return nil, err
 	}
 	// verify that there are no pending changes in the pipeline for any of the updated partitions - only the
 	// branch the block extends counts, the changes in the other branches are not committed with this block
@@ -76,11 +64,55 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound, parentRound uint64, i
 		}
 		return nil, fmt.Errorf("shard %s-%s has pending changes in pipeline", irChReq.Partition, irChReq.Shard)
 	}
-	// check - should never happen, somehow the root node round must have been reset
-	if rootRound < luc.UnicitySeal.RootChainRoundNumber {
-		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", rootRound, luc.UnicitySeal.RootChainRoundNumber)
+	if err := checkRound(rootRound, luc); err != nil {
+		return nil, err
 	}
 	return inputRecord, nil
+}
+
+/*
+VerifyRequest verifies the change request against the committed state of the shard. It does not
+check for pending changes of the shard as that depends on which block the change is added to.
+*/
+func (x *IRChangeReqVerifier) VerifyRequest(rootRound uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
+	inputRecord, luc, err := x.verifyRequest(rootRound, irChReq)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkRound(rootRound, luc); err != nil {
+		return nil, err
+	}
+	return inputRecord, nil
+}
+
+// verifyRequest verifies the request against the last UC of the shard, returns the IR requested and the UC.
+func (x *IRChangeReqVerifier) verifyRequest(rootRound uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, *types.UnicityCertificate, error) {
+	if irChReq == nil {
+		return nil, nil, fmt.Errorf("IR change request is nil")
+	}
+	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest.
+	// This gets the shardInfo from committed round (for which there is UC), and irChReq should build on that.
+	si := x.state.ShardInfo(irChReq.Partition, irChReq.Shard)
+	if si == nil {
+		// There shouldn't be an IR change request for a shard with no committed state
+		return nil, nil, fmt.Errorf("missing shard info for partition %d shard %s", irChReq.Partition, irChReq.Shard.String())
+	}
+
+	// verify request
+	luc := si.LastCR.UC
+	inputRecord, err := irChReq.Verify(si, &luc, rootRound, t2TimeoutToRootRounds(si.T2Timeout, x.params.BlockRate/2))
+	if err != nil {
+		return nil, nil, fmt.Errorf("certification request verification failed: %w", err)
+	}
+	return inputRecord, &luc, nil
+}
+
+// check - should never happen, somehow the root node round must have been reset
+func checkRound(rootRound uint64, luc *types.UnicityCertificate) error {
+	if rootRound < luc.UnicitySeal.RootChainRoundNumber {
+		return fmt.Errorf("current round %v is in the past, LUC round %v", rootRound, luc.UnicitySeal.RootChainRoundNumber)
+	}
+	return nil
 }
 
 func NewLucBasedT2TimeoutGenerator(c *Parameters, sMonitor State) (*PartitionTimeoutGenerator, error) {

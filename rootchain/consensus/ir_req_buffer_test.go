@@ -17,7 +17,7 @@ func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 	return &mockIRVerifier{}
 }
 
-func (x *mockIRVerifier) VerifyIRChangeReq(_, _ uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
+func (x *mockIRVerifier) VerifyRequest(_ uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
 	return irChReq.Requests[0].InputRecord, nil
 }
 
@@ -46,7 +46,7 @@ var inputRecord2 = &types.InputRecord{
 func TestIrReqBuffer_AddNil(t *testing.T) {
 	reqBuffer := NewIrReqBuffer(logger.New(t))
 	ver := NewAlwaysTrueIRReqVerifier()
-	require.ErrorContains(t, reqBuffer.Add(3, 2, nil, ver), "ir change request is nil")
+	require.ErrorContains(t, reqBuffer.Add(3, nil, ver), "ir change request is nil")
 }
 
 func TestIrReqBuffer_Add(t *testing.T) {
@@ -72,24 +72,24 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	require.Empty(t, payload.Requests)
 	require.False(t, reqBuffer.IsChangeInBuffer(partitionID1, types.ShardID{}))
 	// add request
-	require.NoError(t, reqBuffer.Add(3, 2, IrChReqMsg, ver))
+	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	// sysID1 change is in buffer
 	require.True(t, reqBuffer.IsChangeInBuffer(partitionID1, types.ShardID{}))
 	// try to add the same again, considered duplicate no error
-	require.NoError(t, reqBuffer.Add(3, 2, IrChReqMsg, ver))
+	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	// change reason and try to add, must be rejected as equivocating, we already have a valid request
 	IrChReqMsg.CertReason = drctypes.T2Timeout
-	require.ErrorContains(t, reqBuffer.Add(3, 2, IrChReqMsg, ver),
+	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
 		"invalid ir change request, timeout can only be proposed by leader issuing a new block")
 	// change IR and try to add, must be rejected as equivocating, we already have a valid request
 	IrChReqMsg.CertReason = drctypes.Quorum
 	IrChReqMsg.Requests[0].InputRecord = inputRecord2
-	require.ErrorContains(t, reqBuffer.Add(3, 2, IrChReqMsg, ver),
+	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
 		"equivocating request for partition 00000001")
 	// try to change reason
 	IrChReqMsg.CertReason = drctypes.QuorumNotPossible
 	IrChReqMsg.Requests[0].InputRecord = inputRecord1
-	require.ErrorContains(t, reqBuffer.Add(3, 2, IrChReqMsg, ver),
+	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
 		"equivocating request for partition 00000001, reason has changed")
 	// Generate proposal payload, one request in buffer
 	payload = reqBuffer.GeneratePayload(3, timeouts, isPending)
@@ -138,7 +138,7 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return nil
 	}
-	require.NoError(t, reqBuffer.Add(3, 2, IrChReqMsg, ver))
+	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Len(t, payload.Requests, 1)
 	// if both then prefer to make progress over timeout
@@ -164,7 +164,7 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return &types.InputRecord{Version: 1}
 	}
-	require.NoError(t, reqBuffer.Add(3, 2, IrChReqMsg, ver))
+	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Len(t, payload.Requests, 0)
 }
