@@ -16,7 +16,7 @@ type (
 	State interface {
 		ShardInfo(partition types.PartitionID, shard types.ShardID) *storage.ShardInfo
 		GetCertificates() []*types.UnicityCertificate
-		IsChangeInProgress(id types.PartitionID, shard types.ShardID) *types.InputRecord
+		IsChangeInProgress(branch uint64, id types.PartitionID, shard types.ShardID) *types.InputRecord
 	}
 
 	IRChangeReqVerifier struct {
@@ -43,7 +43,11 @@ func NewIRChangeReqVerifier(c *Parameters, sMonitor State) (*IRChangeReqVerifier
 	}, nil
 }
 
-func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
+/*
+VerifyIRChangeReq verifies the change request for the block of the "rootRound" which extends
+the block of the "parentRound".
+*/
+func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound, parentRound uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
 	if irChReq == nil {
 		return nil, fmt.Errorf("IR change request is nil")
 	}
@@ -61,8 +65,9 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound uint64, irChReq *drcty
 	if err != nil {
 		return nil, fmt.Errorf("certification request verification failed: %w", err)
 	}
-	// verify that there are no pending changes in the pipeline for any of the updated partitions
-	if ir := x.state.IsChangeInProgress(irChReq.Partition, irChReq.Shard); ir != nil {
+	// verify that there are no pending changes in the pipeline for any of the updated partitions - only the
+	// branch the block extends counts, the changes in the other branches are not committed with this block
+	if ir := x.state.IsChangeInProgress(parentRound, irChReq.Partition, irChReq.Shard); ir != nil {
 		if b, err := types.EqualIR(inputRecord, ir); b || err != nil {
 			if err != nil {
 				return nil, fmt.Errorf("comparing input records: %w", err)
@@ -91,7 +96,9 @@ func NewLucBasedT2TimeoutGenerator(c *Parameters, sMonitor State) (*PartitionTim
 	}, nil
 }
 
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]*types.UnicityCertificate, error) {
+// GetT2Timeouts returns the shards which have timed out for the block of the "currentRound" which
+// extends the block of the "parentRound".
+func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound, parentRound uint64) ([]*types.UnicityCertificate, error) {
 	// Only activated shards with an UC can time out. New shards are activated by adding their ShardInfo and
 	// an empty IR to the ExecutedBlock in the activation root round. Once the block gets committed, they
 	// get their first UC and can start timing out.
@@ -100,7 +107,7 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]*types
 	timedOutShards := make([]*types.UnicityCertificate, 0, len(ucs))
 	for _, uc := range ucs {
 		// do not create T2 timeout requests if shard has a change already in pipeline
-		if x.state.IsChangeInProgress(uc.GetPartitionID(), uc.GetShardID()) != nil {
+		if x.state.IsChangeInProgress(parentRound, uc.GetPartitionID(), uc.GetShardID()) != nil {
 			continue
 		}
 

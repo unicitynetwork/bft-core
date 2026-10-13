@@ -503,7 +503,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *IRCh
 		return fmt.Errorf("failed to get next leader to forward IR change request: %w", err)
 	}
 	if nextLeader == x.id {
-		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irReq, x.irReqVerifier); err != nil {
+		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), x.blockStore.GetHighQc().GetRound(), irReq, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request from partition %s into buffer: %w", irReq.Partition, err)
 		}
 		x.log.DebugContext(ctx, "IR change request buffered", logger.Shard(req.Partition, req.Shard))
@@ -539,7 +539,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// if the node will be the next leader then buffer the request to be included in the block proposal
 	// todo: if in recovery then forward to next?
 	if nextLeader == x.id {
-		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
+		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), x.blockStore.GetHighQc().GetRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
 			// if duplicate - the same is already in progress, then it is ok; this is just most likely a delayed request
 			if errors.Is(err, ErrDuplicateChangeReq) {
 				return nil
@@ -818,9 +818,8 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 		return
 	}
 	if err := x.blockStore.ProcessTc(tc); err != nil {
-		// method deletes the block that got TC - it will never be part of the chain.
-		// however, this node might not have even seen the block, in which case error is returned, but this is ok - just log
-		x.log.DebugContext(ctx, "could not remove the timeout block, node has not received it", logger.Error(err))
+		// the TC is used anyway, only storing it failed
+		x.log.WarnContext(ctx, "processing timeout certificate", logger.Error(err))
 	}
 	if x.pacemaker.AdvanceRoundTC(ctx, tc) {
 		// Round was advanced, we could have a new trust base.
@@ -931,8 +930,13 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 	x.leaderCnt.Add(ctx, 1)
 	x.log.InfoContext(ctx, "new round start, node is leader")
 
+	// the proposal extends the block of the high QC, only changes in that branch are in the way of new ones
+	highQc := x.blockStore.GetHighQc()
+	inProgress := func(partition types.PartitionID, shard types.ShardID) *types.InputRecord {
+		return x.blockStore.IsChangeInProgress(highQc.GetRound(), partition, shard)
+	}
 	// find shards with T2 timeouts
-	timedOutShards, err := x.t2Timeouts.GetT2Timeouts(round)
+	timedOutShards, err := x.t2Timeouts.GetT2Timeouts(round, highQc.GetRound())
 	if err != nil {
 		// error here is not fatal, still make a proposal, hopefully the next node will generate timeout
 		// requests for partitions this node failed to query
@@ -945,8 +949,8 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 			Round:     round,
 			Epoch:     x.trustBase.Load().Epoch,
 			Timestamp: types.NewTimestamp(),
-			Payload:   x.irReqBuffer.GeneratePayload(round, timedOutShards, x.blockStore.IsChangeInProgress),
-			Qc:        x.blockStore.GetHighQc(),
+			Payload:   x.irReqBuffer.GeneratePayload(round, timedOutShards, inProgress),
+			Qc:        highQc,
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
 	}

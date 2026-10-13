@@ -283,27 +283,17 @@ func Test_BoltDB_TimeoutCert(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, tc, tc2)
 
-		// when there is a block for the TO round it should be deleted when storing TC
+		// storing TC doesn't touch the blocks - the block of the TO round stays in the tree
 		b := ExecutedBlock{BlockData: &rctypes.BlockData{Round: 17}}
 		require.NoError(t, db.WriteBlock(&b, false))
 		b = ExecutedBlock{BlockData: &rctypes.BlockData{Round: 18}}
 		require.NoError(t, db.WriteBlock(&b, false))
-		blocks, err := db.LoadBlocks()
-		require.NoError(t, err)
-		if assert.Len(t, blocks, 2) {
-			require.EqualValues(t, 18, blocks[0].GetRound())
-			require.EqualValues(t, 17, blocks[1].GetRound())
-		}
 		tc.Timeout.Round = b.GetRound()
 		require.NoError(t, db.WriteTC(tc))
 		tc2, err = db.ReadLastTC()
 		require.NoError(t, err)
 		require.Equal(t, tc, tc2)
-		blocks, err = db.LoadBlocks()
-		require.NoError(t, err)
-		if assert.Len(t, blocks, 1) {
-			require.EqualValues(t, 17, blocks[0].GetRound())
-		}
+		require.Equal(t, []uint64{18, 17}, persistedRounds(t, db))
 	})
 }
 

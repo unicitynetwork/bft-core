@@ -25,7 +25,9 @@ type (
 	}
 
 	IRChangeReqVerifier interface {
-		VerifyIRChangeReq(round uint64, irChReq *rctypes.IRChangeReq) (*types.InputRecord, error)
+		// VerifyIRChangeReq verifies the change request for the block of the "round" which
+		// extends the block of the "parentRound".
+		VerifyIRChangeReq(round, parentRound uint64, irChReq *rctypes.IRChangeReq) (*types.InputRecord, error)
 	}
 )
 
@@ -114,7 +116,7 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 			continue
 		}
 
-		if si.IR, err = verifier.VerifyIRChangeReq(newBlock.Round, irChReq); err != nil {
+		if si.IR, err = verifier.VerifyIRChangeReq(newBlock.Round, x.GetRound(), irChReq); err != nil {
 			return nil, fmt.Errorf("verifying change request: %w", err)
 		}
 

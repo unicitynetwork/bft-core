@@ -1,6 +1,7 @@
 package consensus
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -216,6 +217,14 @@ func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) 
 	require.Nil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 }
 
+// pendingRounds returns the rounds of the uncommitted blocks in the state message
+func pendingRounds(msg *abdrc.StateMsg) (rounds []uint64) {
+	for _, b := range msg.Pending {
+		rounds = append(rounds, b.Round)
+	}
+	return rounds
+}
+
 func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	mockNet := testnetwork.NewRootMockNetwork()
 	cm, rootNode, shardNodes := initConsensusManager(t, mockNet)
@@ -291,7 +300,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// no changes in round 5, but...
 	require.True(t, lastProposalMsg.Block.Payload.IsEmpty())
 	// changes from round 3 are still in progress (uncommitted), since nothing gets committed with a timeout cert
-	require.Equal(t, irChReqMsg.IrChangeReq.Requests[0].InputRecord, cm.blockStore.IsChangeInProgress(partitionID, shardID))
+	require.Equal(t, irChReqMsg.IrChangeReq.Requests[0].InputRecord, cm.blockStore.IsChangeInProgress(cm.blockStore.GetHighQc().GetRound(), partitionID, shardID))
 
 	// advance round
 	mockNet.WaitReceive(t, lastProposalMsg)
@@ -304,10 +313,9 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	stateMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 	// commit head is still at round 3, as round 5 that would have committed 4 resulted in timeout
 	require.Equal(t, uint64(2), stateMsg.CommittedHead.Block.Round)
-	require.Equal(t, 2, len(stateMsg.Pending))
-	// round 5 has been removed as it resulted in timeout quorum
-	require.Equal(t, uint64(3), stateMsg.Pending[0].Round)
-	require.Equal(t, uint64(5), stateMsg.Pending[1].Round)
+	// block of the round 4 stays in the tree although the round resulted in timeout quorum (the round
+	// might still get QC too), it is pruned when round 5 gets committed
+	require.ElementsMatch(t, []uint64{3, 4, 5}, pendingRounds(stateMsg))
 	// send vote back to validator
 	mockNet.WaitReceive(t, lastVoteMsg)
 	lastProposalMsg = mockNet.WaitRootProposal(t)
@@ -331,11 +339,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// commit head is still at round 2, rounds 3, 5 and 6 are added, 6 will commit 5 when it reaches quorum, but
 	// this happens after vote is routed back, so current expected state is:
 	require.Equal(t, uint64(2), stateMsg.CommittedHead.Block.Round)
-	require.Equal(t, 3, len(stateMsg.Pending))
-	// round 5 has been removed as it resulted in timeout quorum
-	require.Equal(t, uint64(3), stateMsg.Pending[0].Round)
-	require.Equal(t, uint64(5), stateMsg.Pending[1].Round)
-	require.Equal(t, uint64(6), stateMsg.Pending[2].Round)
+	require.ElementsMatch(t, []uint64{3, 4, 5, 6}, pendingRounds(stateMsg))
 	mockNet.WaitReceive(t, lastVoteMsg)
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 
@@ -344,7 +348,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, partitionID, result.UnicityTreeCertificate.Partition)
-	require.Nil(t, cm.blockStore.IsChangeInProgress(partitionID, shardID))
+	require.Nil(t, cm.blockStore.IsChangeInProgress(cm.blockStore.GetHighQc().GetRound(), partitionID, shardID))
 
 	// verify certificates have been updated when recovery query is sent
 	mockNet.WaitReceive(t, getStateMsg)
@@ -1339,4 +1343,147 @@ func Test_ConsensusManager_RestoreVote(t *testing.T) {
 	require.EqualValues(t, 2, lastTimeoutMsg.Timeout.Round)
 	require.EqualValues(t, "test", lastTimeoutMsg.Author)
 	require.EqualValues(t, 1, lastTimeoutMsg.LastTC.GetRound())
+}
+
+/*
+Round can get both QC and TC and timeout message can carry both of them (HighQc: QC(N),
+LastTC: TC(N)) - the block certified by the high QC must stay in the block tree when the
+TC is processed after the QC as the next proposal extends that block.
+*/
+func Test_ConsensusManager_tcForCertifiedBlock(t *testing.T) {
+	cm, _, shardNodes := initConsensusManager(t, testnetwork.NewRootMockNetwork())
+	bs := cm.blockStore
+	req := &drctypes.IRChangeReq{
+		Partition:  partitionID,
+		Shard:      shardID,
+		CertReason: drctypes.Quorum,
+		Requests:   buildBlockCertificationRequest(t, shardNodes[0:2], bs.ShardInfo(partitionID, shardID).LastCR),
+	}
+	// B1 (root) --> B2 --> B3, B3 changes the shard
+	rh2, err := bs.Add(&drctypes.BlockData{Round: 2, Payload: &drctypes.Payload{}, Qc: bs.GetHighQc()}, cm.irReqVerifier)
+	require.NoError(t, err)
+	qc2 := testQC(2, 1, rh2)
+	_, err = bs.ProcessQc(qc2)
+	require.NoError(t, err)
+	rh3, err := bs.Add(&drctypes.BlockData{Round: 3, Payload: &drctypes.Payload{Requests: []*drctypes.IRChangeReq{req}}, Qc: qc2}, cm.irReqVerifier)
+	require.NoError(t, err)
+	qc3 := testQC(3, 2, rh3)
+
+	// what onTimeoutMsg does for a round 4 timeout message {HighQc: QC(3), LastTC: TC(3)}
+	_, err = bs.ProcessQc(qc3)
+	require.NoError(t, err)
+	require.NoError(t, bs.ProcessTc(&drctypes.TimeoutCert{Timeout: &drctypes.Timeout{Round: 3, HighQc: qc2}}))
+
+	// B3 is still in the tree, ie the shard has change in progress and peers can recover to the round
+	require.EqualValues(t, 3, bs.GetHighQc().GetRound())
+	require.NotNil(t, bs.IsChangeInProgress(3, partitionID, shardID))
+	state, err := bs.GetState()
+	require.NoError(t, err)
+	require.NoError(t, state.CanRecoverToRound(3))
+
+	// as leader the node does not propose the change again and the proposal is accepted
+	require.ErrorIs(t, cm.irReqBuffer.Add(4, 3, req, cm.irReqVerifier), ErrDuplicateChangeReq)
+	payload := cm.irReqBuffer.GeneratePayload(5, nil, func(partition types.PartitionID, shard types.ShardID) *types.InputRecord {
+		return bs.IsChangeInProgress(3, partition, shard)
+	})
+	require.Empty(t, payload.Requests)
+	_, err = bs.Add(&drctypes.BlockData{Round: 5, Payload: payload, Qc: qc3}, cm.irReqVerifier)
+	require.NoError(t, err)
+}
+
+/*
+The block of a round which got TC stays in the block tree but the changes in it must not be
+in the way of the chain continuing from the previous round: the same shard can be changed in
+the block which extends the previous round.
+*/
+func Test_ConsensusManager_changeInTimeoutBlock(t *testing.T) {
+	cm, _, shardNodes := initConsensusManager(t, testnetwork.NewRootMockNetwork())
+	bs := cm.blockStore
+	req := &drctypes.IRChangeReq{
+		Partition:  partitionID,
+		Shard:      shardID,
+		CertReason: drctypes.Quorum,
+		Requests:   buildBlockCertificationRequest(t, shardNodes[0:2], bs.ShardInfo(partitionID, shardID).LastCR),
+	}
+	inProgress := func(branch uint64) InProgressFn {
+		return func(partition types.PartitionID, shard types.ShardID) *types.InputRecord {
+			return bs.IsChangeInProgress(branch, partition, shard)
+		}
+	}
+	// B1 (root) --> B2 --> B3, B3 changes the shard and the round gets TC
+	rh2, err := bs.Add(&drctypes.BlockData{Round: 2, Payload: &drctypes.Payload{}, Qc: bs.GetHighQc()}, cm.irReqVerifier)
+	require.NoError(t, err)
+	qc2 := testQC(2, 1, rh2)
+	_, err = bs.ProcessQc(qc2)
+	require.NoError(t, err)
+	rh3, err := bs.Add(&drctypes.BlockData{Round: 3, Payload: &drctypes.Payload{Requests: []*drctypes.IRChangeReq{req}}, Qc: qc2}, cm.irReqVerifier)
+	require.NoError(t, err)
+	require.NoError(t, bs.ProcessTc(&drctypes.TimeoutCert{Timeout: &drctypes.Timeout{Round: 3, HighQc: qc2}}))
+	require.EqualValues(t, 2, bs.GetHighQc().GetRound())
+
+	// the shard has not timed out yet but the change in B3 is not the reason
+	tmo, err := cm.t2Timeouts.GetT2Timeouts(4, 2)
+	require.NoError(t, err)
+	require.Empty(t, tmo)
+	require.Nil(t, bs.IsChangeInProgress(2, partitionID, shardID))
+
+	// leader of the round 4 extends B2 and can propose the change again
+	require.NoError(t, cm.irReqBuffer.Add(4, 2, req, cm.irReqVerifier))
+	payload := cm.irReqBuffer.GeneratePayload(4, nil, inProgress(2))
+	require.Equal(t, []*drctypes.IRChangeReq{req}, payload.Requests)
+	// block which extends B3 (ie leader has QC for the round 3) can't contain the change...
+	qc3 := testQC(3, 2, rh3)
+	_, err = bs.Add(&drctypes.BlockData{Round: 4, Payload: payload, Qc: qc3}, cm.irReqVerifier)
+	require.ErrorIs(t, err, ErrDuplicateChangeReq)
+	// ...but the one which extends B2 can
+	rh4, err := bs.Add(&drctypes.BlockData{Round: 4, Payload: payload, Qc: qc2}, cm.irReqVerifier)
+	require.NoError(t, err)
+	require.NotNil(t, bs.IsChangeInProgress(4, partitionID, shardID))
+
+	// a peer can recover from the state with both branches (what onStateResponse does with the state message)
+	state, err := bs.GetState()
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uint64{2, 3, 4}, pendingRounds(state))
+	slices.SortFunc(state.Pending, func(a, b *drctypes.BlockData) int { return cmp.Compare(a.GetRound(), b.GetRound()) })
+	db, err := storage.NewBoltStorage(filepath.Join(t.TempDir(), "peer.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	peerStore, err := storage.NewFromState(cm.params.HashAlgorithm, state.CommittedHead, db, cm.orchestration, cm.log)
+	require.NoError(t, err)
+	peerVerifier, err := NewIRChangeReqVerifier(cm.params, peerStore)
+	require.NoError(t, err)
+	for _, block := range state.Pending {
+		_, err = peerStore.ProcessQc(block.Qc)
+		require.NoError(t, err)
+		_, err = peerStore.Add(block, peerVerifier)
+		require.NoError(t, err, "adding block of the round %d", block.GetRound())
+	}
+	for _, round := range []uint64{3, 4} {
+		require.NotNil(t, peerStore.IsChangeInProgress(round, partitionID, shardID))
+	}
+
+	// B2 --> B3
+	//  ╰--> B4 --> B5: QC for the round 5 commits B4 and the shard gets certificate
+	qc4 := testQC(4, 2, rh4)
+	_, err = bs.ProcessQc(qc4)
+	require.NoError(t, err)
+	require.ErrorIs(t, cm.irReqBuffer.Add(5, 4, req, cm.irReqVerifier), ErrDuplicateChangeReq)
+	rh5, err := bs.Add(&drctypes.BlockData{Round: 5, Payload: cm.irReqBuffer.GeneratePayload(5, nil, inProgress(4)), Qc: qc4}, cm.irReqVerifier)
+	require.NoError(t, err)
+	qc5 := testQC(5, 4, rh5)
+	qc5.LedgerCommitInfo.RootChainRoundNumber = 4
+	qc5.LedgerCommitInfo.Hash = rh4
+	crs, err := bs.ProcessQc(qc5)
+	require.NoError(t, err)
+	require.Len(t, crs, 1)
+	require.Equal(t, req.Requests[0].InputRecord, crs[0].UC.InputRecord)
+	_, err = bs.Block(3)
+	require.Error(t, err, "block of the losing branch should be pruned")
+}
+
+func testQC(round, parent uint64, rootHash []byte) *drctypes.QuorumCert {
+	return &drctypes.QuorumCert{
+		VoteInfo:         &drctypes.RoundInfo{RoundNumber: round, ParentRoundNumber: parent, CurrentRootHash: rootHash},
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1},
+	}
 }
