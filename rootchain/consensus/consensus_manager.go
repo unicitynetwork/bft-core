@@ -540,10 +540,6 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// todo: if in recovery then forward to next?
 	if nextLeader == x.id {
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
-			// if duplicate - the same is already in progress, then it is ok; this is just most likely a delayed request
-			if errors.Is(err, ErrDuplicateChangeReq) {
-				return nil
-			}
 			return fmt.Errorf("failed to add IR change request from %s into buffer: %w", irChangeMsg.Author, err)
 		}
 		x.log.DebugContext(ctx, fmt.Sprintf("IR change request from node %s buffered", irChangeMsg.Author), logger.Shard(irChangeMsg.IrChangeReq.Partition, irChangeMsg.IrChangeReq.Shard))
@@ -818,9 +814,8 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 		return
 	}
 	if err := x.blockStore.ProcessTc(tc); err != nil {
-		// method deletes the block that got TC - it will never be part of the chain.
-		// however, this node might not have even seen the block, in which case error is returned, but this is ok - just log
-		x.log.DebugContext(ctx, "could not remove the timeout block, node has not received it", logger.Error(err))
+		// the TC is used anyway, only storing it failed
+		x.log.WarnContext(ctx, "processing timeout certificate", logger.Error(err))
 	}
 	if x.pacemaker.AdvanceRoundTC(ctx, tc) {
 		// Round was advanced, we could have a new trust base.
@@ -931,13 +926,28 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 	x.leaderCnt.Add(ctx, 1)
 	x.log.InfoContext(ctx, "new round start, node is leader")
 
+	// the proposal extends the block of the high QC, only changes in that branch are in the way of new ones
+	highQc := x.blockStore.GetHighQc()
+	inProgress := func(partition types.PartitionID, shard types.ShardID) *types.InputRecord {
+		return x.blockStore.IsChangeInProgress(highQc.GetRound(), partition, shard)
+	}
 	// find shards with T2 timeouts
-	timedOutShards, err := x.t2Timeouts.GetT2Timeouts(round)
+	timedOutShards, err := x.t2Timeouts.GetT2Timeouts(round, highQc.GetRound())
 	if err != nil {
 		// error here is not fatal, still make a proposal, hopefully the next node will generate timeout
 		// requests for partitions this node failed to query
 		x.log.WarnContext(ctx, "failed to check timeouts for some partitions", logger.Error(err))
 	}
+	payload := x.irReqBuffer.GeneratePayload(round, timedOutShards, inProgress)
+	// buffered requests were verified against the state at the time they arrived, a commit since then
+	// can have made them stale - leave out the requests the validators (this node included) would reject
+	payload.Requests = slices.DeleteFunc(payload.Requests, func(r *drctypes.IRChangeReq) bool {
+		if _, err := x.irReqVerifier.VerifyIRChangeReq(round, highQc.GetRound(), r); err != nil {
+			x.log.WarnContext(ctx, "change request left out of the proposal", logger.Shard(r.Partition, r.Shard), logger.Error(err))
+			return true
+		}
+		return false
+	})
 	proposalMsg := &abdrc.ProposalMsg{
 		Block: &drctypes.BlockData{
 			Version:   1,
@@ -945,8 +955,8 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 			Round:     round,
 			Epoch:     x.trustBase.Load().Epoch,
 			Timestamp: types.NewTimestamp(),
-			Payload:   x.irReqBuffer.GeneratePayload(round, timedOutShards, x.blockStore.IsChangeInProgress),
-			Qc:        x.blockStore.GetHighQc(),
+			Payload:   payload,
+			Qc:        highQc,
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
 	}
@@ -1097,9 +1107,21 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		}
 	}
 	if tmo, ok := triggerMsg.(*abdrc.TimeoutMsg); ok {
+		// the recovery state carries the blocks but not the QC of a block without a child, the high
+		// QC of the timeout vote might be such QC - process it as onTimeoutMsg does
+		x.processQC(ctx, tmo.Timeout.HighQc)
 		// timeout vote carries last round TC, if not nil, use it to advance pacemaker to correct round
 		// todo: timeout votes are not buffered
 		x.processTC(ctx, tmo.LastTC)
+	}
+	if qc, ok := triggerMsg.(*drctypes.QuorumCert); ok {
+		// the QC which failed to be processed, its block should be there now
+		x.processQC(ctx, qc)
+	}
+	if vote, ok := triggerMsg.(*abdrc.VoteMsg); ok {
+		// same as for timeout vote, without the high QC of the vote the buffered votes would be
+		// replayed as votes for a future round
+		x.processQC(ctx, vote.HighQc)
 	}
 	x.replayVoteBuffer(ctx)
 	return nil

@@ -17,7 +17,7 @@ func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 	return &mockIRVerifier{}
 }
 
-func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
+func (x *mockIRVerifier) VerifyRequest(_ uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
 	return irChReq.Requests[0].InputRecord, nil
 }
 

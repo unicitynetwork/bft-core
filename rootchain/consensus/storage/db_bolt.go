@@ -174,21 +174,12 @@ func (db BoltDB) WriteTC(tc *rctypes.TimeoutCert) error {
 	if err != nil {
 		return fmt.Errorf("serializing TimeoutCert: %w", err)
 	}
-	blockKey := binary.BigEndian.AppendUint64(make([]byte, 0, 8), tc.GetRound())
-
 	return db.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketCertificates)
 		if b == nil {
 			return errNoCertificatesBucket
 		}
-		if err := b.Put(keyTimeoutCert, data); err != nil {
-			return err
-		}
-		// if there is block for the round deleted it
-		if b = tx.Bucket(bucketBlocks); b == nil {
-			return errNoBlocksBucket
-		}
-		return b.Delete(blockKey)
+		return b.Put(keyTimeoutCert, data)
 	})
 }
 

@@ -12,7 +12,7 @@ import (
 
 type (
 	IRChangeVerifier interface {
-		VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error)
+		VerifyRequest(round uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error)
 	}
 	PartitionTimeout interface {
 		GetT2Timeouts(currenRound uint64) ([]types.PartitionID, error)
@@ -39,6 +39,8 @@ func NewIrReqBuffer(log *slog.Logger) *IrReqBuffer {
 
 // Add validates incoming IR change request and buffers valid requests. If for any reason the IR request is found not
 // valid, reason is logged, error is returned and request is ignored.
+// Whether the shard has a change in progress is not checked here as it is not known yet which block
+// the next proposal extends, GeneratePayload leaves out the requests of such shards.
 func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRChangeVerifier) error {
 	if irChReq == nil {
 		return errors.New("ir change request is nil")
@@ -47,7 +49,7 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 	if irChReq.CertReason == drctypes.T2Timeout {
 		return errors.New("invalid ir change request, timeout can only be proposed by leader issuing a new block")
 	}
-	ir, err := ver.VerifyIRChangeReq(round, irChReq)
+	ir, err := ver.VerifyRequest(round, irChReq)
 	if err != nil {
 		return fmt.Errorf("ir change request verification: %w", err)
 	}
@@ -57,7 +59,16 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 	// verify and extract proposed IR, NB! in this case we set the age to 0 as
 	// currently no request can be received to request timeout
 	newIrChReq := &irChange{InputRecord: ir, Reason: irChReq.CertReason, Req: irChReq}
-	if irChangeReq, found := x.irChgReqBuffer[psID]; found {
+	irChangeReq, found := x.irChgReqBuffer[psID]
+	if found {
+		// a change of the shard can have been committed after the request was buffered (the node has not made
+		// a proposal since), then the buffered request is stale and the new one replaces it
+		if _, err := ver.VerifyRequest(round, irChangeReq.Req); err != nil {
+			x.log.Debug("stale IR change request replaced", logger.Shard(irChReq.Partition, irChReq.Shard), logger.Error(err))
+			found = false
+		}
+	}
+	if found {
 		if irChangeReq.Reason != newIrChReq.Reason {
 			return fmt.Errorf("equivocating request for partition %s, reason has changed", psID.PartitionID)
 		}

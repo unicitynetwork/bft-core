@@ -20,8 +20,15 @@ type mockIRVerifier struct {
 	verify func(round uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error)
 }
 
-func (x mockIRVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
+func (x mockIRVerifier) VerifyIRChangeReq(round, _ uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
 	return x.verify(round, irChReq)
+}
+
+// mockIRVerifier2 is IRChangeReqVerifier which gets the round of the parent block too
+type mockIRVerifier2 func(round, parentRound uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error)
+
+func (f mockIRVerifier2) VerifyIRChangeReq(round, parentRound uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
+	return f(round, parentRound, irChReq)
 }
 
 func TestNewGenesisBlock(t *testing.T) {
