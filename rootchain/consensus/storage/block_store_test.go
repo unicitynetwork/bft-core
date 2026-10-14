@@ -199,6 +199,21 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("restart between storing a commit QC and the commit", func(t *testing.T) {
+		// QC(3) commits B2 (B3 extends QC(2)); the node stops after InsertQc has stored the QC with B3
+		// but before Commit has stored the new root
+		bs, _, qc3 := setup(t)
+		commitQc3 := qcFor(3, 2, qc3.VoteInfo.CurrentRootHash, 2)
+		require.NoError(t, bs.blockTree.InsertQc(commitQc3))
+		bs = reload(t, bs)
+		require.EqualValues(t, 1, bs.blockTree.Root().GetRound())
+		// the QC is processed again and the commit is done
+		_, err := bs.ProcessQc(commitQc3)
+		require.NoError(t, err)
+		require.EqualValues(t, 2, bs.blockTree.Root().GetRound())
+		require.EqualValues(t, 3, bs.GetHighQc().GetRound())
+	})
+
 	t.Run("chain continues from the previous round", func(t *testing.T) {
 		bs, qc2, qc3 := setup(t)
 		// B2--> B3

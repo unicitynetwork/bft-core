@@ -140,9 +140,11 @@ func NewBlockTree(bDB PersistentStore, orchestration Orchestration) (*BlockTree,
 		if n.data.BlockData.Qc.GetRound() > hQC.GetRound() {
 			hQC = n.data.BlockData.Qc
 		}
-		// QC of the block itself, the block might not have a child yet
-		if n.data.Qc.GetRound() > hQC.GetRound() {
-			hQC = n.data.Qc
+		// QC of the block itself, the block might not have a child yet. Only a QC which doesn't commit:
+		// a commit QC is restored as the commit QC of the root once the commit is stored, until then
+		// (the node stopped between InsertQc and Commit) it must stay processable to do the commit
+		if qc := n.data.Qc; qc.GetRound() > hQC.GetRound() && qc.LedgerCommitInfo.RootChainRoundNumber == 0 {
+			hQC = qc
 		}
 	}
 
