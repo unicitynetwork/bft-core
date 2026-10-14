@@ -180,17 +180,22 @@ func Test_BlockStore_lateQcAfterTc(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("restart after the late QC", func(t *testing.T) {
-		// B3 has QC but no child, the next round times out too
-		bs, _, qc3 := setup(t)
-		_, err := bs.ProcessQc(qc3)
+	t.Run("restart after a late QC which doesn't commit", func(t *testing.T) {
+		// B2--> B3
+		//  ╰--> B4 (TC(4), late QC(4) commits nothing as B4 doesn't extend QC(3)), round 5 times out too
+		bs, qc2, _ := setup(t)
+		rh4, err := bs.Add(&rctypes.BlockData{Round: 4, Payload: &rctypes.Payload{}, Qc: qc2}, irVer)
 		require.NoError(t, err)
-		require.NoError(t, bs.ProcessTc(&rctypes.TimeoutCert{Timeout: &rctypes.Timeout{Round: 4, HighQc: qc3}}))
-		// the QC of B3 is restored as the high QC, otherwise the next proposal would extend
-		// QC(2) and fail the safety check against TC(4)
+		require.NoError(t, bs.ProcessTc(&rctypes.TimeoutCert{Timeout: &rctypes.Timeout{Round: 4, HighQc: qc2}}))
+		qc4 := qcFor(4, 2, rh4, 0)
+		_, err = bs.ProcessQc(qc4)
+		require.NoError(t, err)
+		require.NoError(t, bs.ProcessTc(&rctypes.TimeoutCert{Timeout: &rctypes.Timeout{Round: 5, HighQc: qc4}}))
+		// QC(4) is not the commit QC of any block, it's restored from B4 itself; otherwise the next
+		// proposal would extend QC(2) and fail the safety check against TC(5)
 		bs = reload(t, bs)
-		require.EqualValues(t, 3, bs.GetHighQc().GetRound())
-		_, err = bs.Add(&rctypes.BlockData{Round: 5, Payload: &rctypes.Payload{}, Qc: bs.GetHighQc()}, irVer)
+		require.EqualValues(t, 4, bs.GetHighQc().GetRound())
+		_, err = bs.Add(&rctypes.BlockData{Round: 6, Payload: &rctypes.Payload{}, Qc: bs.GetHighQc()}, irVer)
 		require.NoError(t, err)
 	})
 
