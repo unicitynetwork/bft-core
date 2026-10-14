@@ -1770,6 +1770,17 @@ func Test_ConsensusManager_recoveryRestoresHighQc(t *testing.T) {
 		require.EqualValues(t, 4, cm.blockStore.GetHighQc().GetRound())
 		require.EqualValues(t, 5, cm.pacemaker.GetCurrentRound())
 	})
+
+	t.Run("triggered by vote", func(t *testing.T) {
+		cm, state, qc4, author := setup(t)
+		recoverFrom(t, cm, state, &abdrc.VoteMsg{
+			Author:   author,
+			VoteInfo: &drctypes.RoundInfo{RoundNumber: 5, ParentRoundNumber: 4, Epoch: qc4.VoteInfo.Epoch},
+			HighQc:   qc4,
+		})
+		require.EqualValues(t, 4, cm.blockStore.GetHighQc().GetRound())
+		require.EqualValues(t, 5, cm.pacemaker.GetCurrentRound())
+	})
 }
 
 func testQC(round, parent uint64, rootHash []byte) *drctypes.QuorumCert {

@@ -1118,6 +1118,11 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		// the QC which failed to be processed, its block should be there now
 		x.processQC(ctx, qc)
 	}
+	if vote, ok := triggerMsg.(*abdrc.VoteMsg); ok {
+		// same as for timeout vote, without the high QC of the vote the buffered votes would be
+		// replayed as votes for a future round
+		x.processQC(ctx, vote.HighQc)
+	}
 	x.replayVoteBuffer(ctx)
 	return nil
 }
