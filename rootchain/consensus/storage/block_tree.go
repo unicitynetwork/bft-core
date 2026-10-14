@@ -140,6 +140,10 @@ func NewBlockTree(bDB PersistentStore, orchestration Orchestration) (*BlockTree,
 		if n.data.BlockData.Qc.GetRound() > hQC.GetRound() {
 			hQC = n.data.BlockData.Qc
 		}
+		// QC of the block itself, the block might not have a child yet
+		if n.data.Qc.GetRound() > hQC.GetRound() {
+			hQC = n.data.Qc
+		}
 	}
 
 	return &BlockTree{
