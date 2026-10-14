@@ -1679,6 +1679,99 @@ func Test_ConsensusManager_staleRequestInBuffer(t *testing.T) {
 	}
 }
 
+/*
+Recovery from a state where the block of the high QC has no child yet and its QC doesn't commit
+anything (the block doesn't extend the QC of the previous round):
+
+	B2 --> (round 3 times out)
+	 ╰--> B4 (extends QC(2) with TC(3)), QC(4)
+
+The state message carries B4 but not QC(4), which is not the commit QC of any block either. The QC
+carried by the message which triggered the recovery must be processed after the recovery,
+otherwise the high QC of the node stays behind.
+*/
+func Test_ConsensusManager_recoveryRestoresHighQc(t *testing.T) {
+	// returns stopped CM with the tree above, its state and QC(4)
+	setup := func(t *testing.T) (*ConsensusManager, *abdrc.StateMsg, *drctypes.QuorumCert, string) {
+		mockNet := testnetwork.NewRootMockNetwork()
+		cm, rootNode, _ := initConsensusManager(t, mockNet)
+		ctx, ctxCancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled); close(done) }()
+
+		prop := testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+		mockNet.WaitReceive(t, prop)
+		vote := testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+		mockNet.WaitReceive(t, vote)
+		// QC(2), proposal 3 is not delivered and the round times out
+		prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+		require.EqualValues(t, 3, prop.Block.Round)
+		// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
+		cm.onLocalTimeout(ctx)
+		tmo := testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
+		mockNet.WaitReceive(t, tmo)
+		// TC(3) -> proposal 4 extends QC(2)
+		prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+		require.EqualValues(t, 4, prop.Block.Round)
+		require.EqualValues(t, 2, prop.Block.Qc.GetRound())
+		mockNet.WaitReceive(t, prop)
+		vote = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+		mockNet.WaitReceive(t, vote)
+		// QC(4), proposal 5 is not delivered so B4 has no child
+		prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+		require.EqualValues(t, 5, prop.Block.Round)
+		ctxCancel()
+		<-done
+
+		qc4 := cm.blockStore.GetHighQc()
+		require.EqualValues(t, 4, qc4.GetRound())
+		require.Zero(t, qc4.LedgerCommitInfo.RootChainRoundNumber, "QC(4) doesn't commit")
+		state, err := cm.blockStore.GetState()
+		require.NoError(t, err)
+		require.Less(t, state.CommittedHead.CommitQc.GetRound(), qc4.GetRound())
+		for _, b := range state.Pending {
+			require.Less(t, b.Qc.GetRound(), qc4.GetRound(), "state doesn't carry QC(4)")
+		}
+		return cm, state, qc4, rootNode.PeerConf.ID.String()
+	}
+	// recover from the state, replaces the block store
+	recoverFrom := func(t *testing.T, cm *ConsensusManager, state *abdrc.StateMsg, trigger any) {
+		ctx, ctxCancel := context.WithCancel(context.Background())
+		defer ctxCancel()
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-cm.ucSink:
+				}
+			}
+		}()
+		cm.recovery = &recoveryState{}
+		_, err := cm.recovery.Set(trigger)
+		require.NoError(t, err)
+		require.NoError(t, cm.onStateResponse(ctx, state))
+		require.False(t, cm.recovery.InRecovery())
+	}
+
+	t.Run("triggered by timeout vote", func(t *testing.T) {
+		cm, state, qc4, author := setup(t)
+		recoverFrom(t, cm, state, &abdrc.TimeoutMsg{
+			Author:  author,
+			Timeout: drctypes.NewTimeout(5, cm.trustBase.Load().Epoch, qc4),
+		})
+		require.EqualValues(t, 4, cm.blockStore.GetHighQc().GetRound())
+		require.EqualValues(t, 5, cm.pacemaker.GetCurrentRound())
+	})
+
+	t.Run("triggered by QC", func(t *testing.T) {
+		cm, state, qc4, _ := setup(t)
+		recoverFrom(t, cm, state, qc4)
+		require.EqualValues(t, 4, cm.blockStore.GetHighQc().GetRound())
+		require.EqualValues(t, 5, cm.pacemaker.GetCurrentRound())
+	})
+}
+
 func testQC(round, parent uint64, rootHash []byte) *drctypes.QuorumCert {
 	return &drctypes.QuorumCert{
 		VoteInfo:         &drctypes.RoundInfo{RoundNumber: round, ParentRoundNumber: parent, CurrentRootHash: rootHash},

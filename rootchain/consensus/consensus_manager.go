@@ -1107,9 +1107,16 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		}
 	}
 	if tmo, ok := triggerMsg.(*abdrc.TimeoutMsg); ok {
+		// the recovery state carries the blocks but not the QC of a block without a child, the high
+		// QC of the timeout vote might be such QC - process it as onTimeoutMsg does
+		x.processQC(ctx, tmo.Timeout.HighQc)
 		// timeout vote carries last round TC, if not nil, use it to advance pacemaker to correct round
 		// todo: timeout votes are not buffered
 		x.processTC(ctx, tmo.LastTC)
+	}
+	if qc, ok := triggerMsg.(*drctypes.QuorumCert); ok {
+		// the QC which failed to be processed, its block should be there now
+		x.processQC(ctx, qc)
 	}
 	x.replayVoteBuffer(ctx)
 	return nil
