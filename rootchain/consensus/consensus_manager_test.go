@@ -1605,6 +1605,80 @@ func Test_ConsensusManager_staleRequestAfterCommit(t *testing.T) {
 	require.EqualValues(t, 5, vote.VoteInfo.RoundNumber)
 }
 
+/*
+The next leader buffers the change request of a shard but doesn't make a proposal (it skipped its
+leader round) before a block of another leader with the same change gets committed:
+
+	B2 (changes the shard) --> B3, QC(3) commits B2
+
+The buffered request is stale and must not block the next request of the shard (it used to be
+rejected as equivocating until the node made a proposal and the buffer was cleared).
+*/
+func Test_ConsensusManager_staleRequestInBuffer(t *testing.T) {
+	for _, pending := range []bool{false, true} {
+		name := "request buffered before the block with the change"
+		if pending {
+			name = "request buffered while the block with the change is pending"
+		}
+		t.Run(name, func(t *testing.T) {
+			cm, _, shardNodes := initConsensusManager(t, testnetwork.NewRootMockNetwork())
+			bs := cm.blockStore
+			req := &drctypes.IRChangeReq{
+				Partition:  partitionID,
+				Shard:      shardID,
+				CertReason: drctypes.Quorum,
+				Requests:   buildBlockCertificationRequest(t, shardNodes[0:2], bs.ShardInfo(partitionID, shardID).LastCR),
+			}
+			if !pending {
+				require.NoError(t, cm.irReqBuffer.Add(2, req, cm.irReqVerifier))
+			}
+			rh2, err := bs.Add(&drctypes.BlockData{Round: 2, Payload: &drctypes.Payload{Requests: []*drctypes.IRChangeReq{req}}, Qc: bs.GetHighQc()}, cm.irReqVerifier)
+			require.NoError(t, err)
+			qc2 := testQC(2, 1, rh2)
+			_, err = bs.ProcessQc(qc2)
+			require.NoError(t, err)
+			rh3, err := bs.Add(&drctypes.BlockData{Round: 3, Payload: &drctypes.Payload{}, Qc: qc2}, cm.irReqVerifier)
+			require.NoError(t, err)
+			if pending {
+				require.NoError(t, cm.irReqBuffer.Add(3, req, cm.irReqVerifier))
+			}
+			qc3 := testQC(3, 2, rh3)
+			qc3.LedgerCommitInfo.RootChainRoundNumber = 2
+			qc3.LedgerCommitInfo.Hash = rh2
+			qc3.LedgerCommitInfo.Timestamp = types.NewTimestamp()
+			ucs, err := bs.ProcessQc(qc3)
+			require.NoError(t, err)
+			require.Len(t, ucs, 1)
+
+			// next request of the shard, extends the state certified by the commit of B2
+			si := bs.ShardInfo(partitionID, shardID)
+			ir := &types.InputRecord{
+				Version:      1,
+				PreviousHash: si.RootHash,
+				Hash:         test.RandomBytes(32),
+				BlockHash:    test.RandomBytes(32),
+				SummaryValue: []byte{2, 3, 4},
+				RoundNumber:  si.LastCR.Technical.Round,
+				Epoch:        si.LastCR.Technical.Epoch,
+				Timestamp:    si.LastCR.UC.UnicitySeal.Timestamp,
+			}
+			var bcrs []*certification.BlockCertificationRequest
+			for _, n := range shardNodes[0:2] {
+				bcrs = append(bcrs, testutils.CreateBlockCertificationRequest(t, ir, partitionID, n))
+			}
+			nextReq := &drctypes.IRChangeReq{Partition: partitionID, Shard: shardID, CertReason: drctypes.Quorum, Requests: bcrs}
+			require.NoError(t, cm.irReqBuffer.Add(4, nextReq, cm.irReqVerifier))
+
+			payload := cm.irReqBuffer.GeneratePayload(4, nil, func(p types.PartitionID, s types.ShardID) *types.InputRecord {
+				return bs.IsChangeInProgress(bs.GetHighQc().GetRound(), p, s)
+			})
+			require.Equal(t, []*drctypes.IRChangeReq{nextReq}, payload.Requests)
+			_, err = bs.Add(&drctypes.BlockData{Round: 4, Payload: payload, Qc: qc3}, cm.irReqVerifier)
+			require.NoError(t, err)
+		})
+	}
+}
+
 func testQC(round, parent uint64, rootHash []byte) *drctypes.QuorumCert {
 	return &drctypes.QuorumCert{
 		VoteInfo:         &drctypes.RoundInfo{RoundNumber: round, ParentRoundNumber: parent, CurrentRootHash: rootHash},
