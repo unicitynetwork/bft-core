@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -33,14 +34,20 @@ var msShapes = []msShape{
 
 // msIR describes an aggregation input record. Typical is what a shard aggregator
 // certifies: 32 byte state/previous/block hashes, empty (non-nil) summary value,
-// no fees. Max stretches every optional field to its consolidation admission limit.
+// no fees, no ETHash. Max sets every optional field to its consolidation admission
+// limit: 256 byte summary value, 32 byte ETHash and maximal uint64 round, epoch,
+// timestamp and fee fields (the longest CBOR encodings).
 type msIR struct {
 	name    string
 	summary int
 	fees    uint64
+	max     bool // every field at its admitted maximum (see Test_MeasurementMaximumIRIsAdmitted)
 }
 
-var msIRs = []msIR{{"typical aggregation IR", 0, 0}, {"max-admission IR (256 B summary, 2^53 fees)", 256, 1 << 53}}
+var msIRs = []msIR{
+	{name: "typical aggregation IR"},
+	{name: "maximum admitted IR (256 B summary, 32 B ETHash, all uint64 fields 2^64-1)", summary: 256, fees: math.MaxUint64, max: true},
+}
 
 func msBlock(t testing.TB, ir msIR, bits int, changed ...int) *ExecutedBlock {
 	scheme := fxScheme(bits)
@@ -58,6 +65,16 @@ func msBlock(t testing.TB, ir msIR, bits int, changed ...int) *ExecutedBlock {
 			TR:            certification.TechnicalRecord{Round: uint64(n + 1), Epoch: 1, Leader: "16Uiu2HAmLeaderPeerIDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", FeeHash: fxHash("fee"), StatHash: fxHash("stat")},
 			ShardConfHash: fxHash(fmt.Sprint("conf", p, id)),
 		}
+	}
+	mkMax := mk
+	mk = func(p types.PartitionID, id types.ShardID, n int) *ShardInfo {
+		si := mkMax(p, id, n)
+		if ir.max {
+			si.IR.RoundNumber, si.IR.Epoch, si.IR.Timestamp = math.MaxUint64-uint64(n), math.MaxUint64, math.MaxUint64
+			si.IR.ETHash = fxHash(fmt.Sprint("eth", p, id, n))
+			si.TR.Round, si.TR.Epoch = math.MaxUint64-uint64(n), math.MaxUint64
+		}
+		return si
 	}
 	for i, id := range order {
 		ss.States[types.PartitionShardID{PartitionID: fxPartition, ShardID: id.Key()}] = mk(fxPartition, id, i)
@@ -83,6 +100,23 @@ func msSeal(rootHash []byte, signers int) *types.UnicitySeal {
 	}
 	return &types.UnicitySeal{Version: 1, NetworkID: 5, RootChainRoundNumber: 1_000_003, Epoch: 1, Timestamp: 1731504600,
 		PreviousHash: fxHash("previous root"), Hash: rootHash, Signatures: sigs}
+}
+
+// msCertify runs the producer on blk with a seal signed by the given number of
+// 65 byte signatures, and checks that witness is what the response carries.
+func msCertify(t testing.TB, blk *ExecutedBlock, signers int) []*certification.CertificationResponse {
+	qc := fxCommitQc(blk)
+	qc.LedgerCommitInfo = msSeal(blk.RootHash, signers)
+	qc.Signatures = qc.LedgerCommitInfo.Signatures // GenerateCertificates copies the QC's signatures
+	crs, err := blk.GenerateCertificates(qc)
+	require.NoError(t, err)
+	for _, cr := range crs {
+		require.Len(t, cr.UC.UnicitySeal.Signatures, signers)
+		for _, sig := range cr.UC.UnicitySeal.Signatures {
+			require.Len(t, sig, 65)
+		}
+	}
+	return crs
 }
 
 func msFrame(data []byte) int {
@@ -120,6 +154,34 @@ func baselineCertificationResponses(ss ShardStates, algo crypto.Hash) ([]*certif
 	return crs, ut.RootHash(), nil
 }
 
+// Test_MeasurementMaximumIRIsAdmitted checks the "maximum admitted IR" workload really
+// is the largest the producer admits: every optional IR field is populated at its
+// limit, generation succeeds and the strict decoder accepts the result, and one more
+// byte of summary value is rejected.
+func Test_MeasurementMaximumIRIsAdmitted(t *testing.T) {
+	ir := msIRs[1]
+	b := msBlock(t, ir, 3, 0, 1)
+	crs := msCertify(t, b, 4)
+	cr := crs[0]
+	view, err := types.DecodePartitionViewV1(cr.PartitionView)
+	require.NoError(t, err)
+	require.Len(t, view.Leaves, 8)
+	for _, l := range view.Leaves {
+		require.Len(t, l.InputRecord.SummaryValue, types.MaxPartitionViewSummaryValueBytes)
+		require.Len(t, l.InputRecord.ETHash, 32)
+		require.Equal(t, uint64(math.MaxUint64), l.InputRecord.Epoch)
+		require.Equal(t, uint64(math.MaxUint64), l.InputRecord.Timestamp)
+		require.Equal(t, uint64(math.MaxUint64), l.InputRecord.SumOfEarnedFees)
+		enc, err := types.Cbor.Marshal(l.InputRecord)
+		require.NoError(t, err)
+		require.LessOrEqual(t, len(enc), types.MaxPartitionViewIRBytes)
+	}
+	over := view.Clone()
+	over.Leaves[0].InputRecord.SummaryValue = make([]byte, types.MaxPartitionViewSummaryValueBytes+1)
+	_, err = over.MarshalCBOR()
+	require.Error(t, err)
+}
+
 // Test_MeasurementReport prints (go test -v) the exact encoded sizes as a markdown
 // table and enforces the consolidation limits on them.
 func Test_MeasurementReport(t *testing.T) {
@@ -129,11 +191,7 @@ func Test_MeasurementReport(t *testing.T) {
 	for _, ir := range msIRs {
 		for _, sh := range msShapes {
 			b := msBlock(t, ir, sh.bits, sh.changed...)
-			qc := fxCommitQc(b)
-			qc.LedgerCommitInfo = msSeal(b.RootHash, signers)
-			qc.Signatures = qc.LedgerCommitInfo.Signatures
-			crs, err := b.GenerateCertificates(qc)
-			require.NoError(t, err)
+			crs := msCertify(t, b, signers)
 			require.NotEmpty(t, crs)
 			cr := crs[0]
 			require.NotEmpty(t, cr.PartitionView)
@@ -225,6 +283,8 @@ func BenchmarkGenerateCertificates(b *testing.B) {
 		blk := msBlock(b, msIRs[0], sh.bits, sh.changed...)
 		qc := fxCommitQc(blk)
 		qc.LedgerCommitInfo = msSeal(blk.RootHash, 4)
+		qc.Signatures = qc.LedgerCommitInfo.Signatures
+		msCertify(b, blk, 4) // validates the witness shape before timing
 		b.Run(sh.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
@@ -242,10 +302,7 @@ func BenchmarkGenerateCertificates(b *testing.B) {
 func BenchmarkResponseSerialization(b *testing.B) {
 	for _, sh := range msShapes[:4] {
 		blk := msBlock(b, msIRs[0], sh.bits, sh.changed...)
-		qc := fxCommitQc(blk)
-		qc.LedgerCommitInfo = msSeal(blk.RootHash, 4)
-		crs, err := blk.GenerateCertificates(qc)
-		require.NoError(b, err)
+		crs := msCertify(b, blk, 4)
 		cr := crs[0]
 		v2 := certification.NewCertificationResponseV2(cr)
 		v1Bytes, err := types.Cbor.Marshal(cr)
