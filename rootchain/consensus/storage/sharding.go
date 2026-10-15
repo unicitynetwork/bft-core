@@ -8,6 +8,7 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
@@ -223,7 +224,12 @@ func (ss ShardStates) partitionViews(inputs map[types.PartitionID][]types.ShardT
 	return views, errs
 }
 
+// partitionViewEncodes counts encodePartitionView calls (observability for the scaling tests: the view
+// must be encoded once per changed partition per round, whatever the number of responses).
+var partitionViewEncodes atomic.Int64
+
 func encodePartitionView(partition types.PartitionID, inputs []types.ShardTreeInput) ([]byte, error) {
+	partitionViewEncodes.Add(1)
 	if len(inputs) == 0 {
 		return nil, errors.New("no shard tree inputs")
 	}

@@ -1,62 +1,86 @@
 package network
 
 import (
+	"bufio"
+	"context"
+	"encoding/binary"
+	"fmt"
+	"io"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
-
-	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 )
 
-// Receiver fan-out of one certification response: the framed bytes are produced
-// once per dispatch and shared between recipients, so serialization work is flat
-// in the number of recipients while outgoing bytes are linear in it.
-// Opt in with UC_MEASURE=1; see docs/uc-consolidation-measurements.md.
+// Receiver fan-out of one certification response, measured by actually sending it to f
+// recipients (see docs/uc-consolidation-measurements.md). Opt in with UC_MEASURE=1.
+//
+// Each recipient is a real libp2p peer with a raw stream handler for the V2 protocol that
+// counts the bytes the sender writes into its stream (varint length prefix plus payload).
+// The marshal counters are the sender's own (v1Marshals / v2Marshals of the dispatch).
 func Test_ScalingRecipientFanout(t *testing.T) {
 	if os.Getenv("UC_MEASURE") == "" {
 		t.Skip("set UC_MEASURE=1 to run the scaling measurements")
 	}
 	view := make([]byte, 1544) // typical 8-shard view
-	cr := testCertResponse(t, view)
-	build := testing.AllocsPerRun(20, func() {
-		frames := &certificationFrames{cr: cr}
-		_, _ = frames.v2Frame()
-		_, _ = frames.legacy()
-	})
-	frames := &certificationFrames{cr: cr}
-	v2, err := frames.v2Frame()
-	require.NoError(t, err)
-	_, err = frames.legacy()
-	require.NoError(t, err)
-	cached := testing.AllocsPerRun(1000, func() {
-		_, _ = frames.v2Frame()
-		_, _ = frames.legacy()
-	})
-	require.Zero(t, cached, "serving a further recipient from the dispatch's frames allocates nothing")
-
 	var sb strings.Builder
-	sb.WriteString("| recipients f | allocations to build both frames (once) | allocations for the other f-1 recipients | outgoing B (V2) |\n|---|---|---|---|\n")
-	for f := 1; f <= 256; f *= 2 {
-		sb.WriteString(fmtRow(f, uint64(build), uint64(cached)*uint64(f-1), len(v2)*f))
-	}
-	t.Logf("one V2 frame is %d B; the V1 and V2 frames are each serialized once per dispatch\n%s", len(v2), sb.String())
-}
+	sb.WriteString("| recipients f | V2 marshals (counted) | V1 marshals (counted) | streams that received a frame | bytes written to the f streams | bytes per stream |\n|---|---|---|---|---|---|\n")
+	var firstPer int64
+	for _, f := range []int{1, 2, 4, 8, 16, 32} {
+		senderPeer, senderNw := newCertSender(t)
+		var frames *certificationFrames
+		senderNw.framesHook = func(fr *certificationFrames) { frames = fr }
 
-func fmtRow(f int, build, others uint64, out int) string {
-	return "| " + itoa(f) + " | " + itoa(int(build)) + " | " + itoa(int(others)) + " | " + itoa(out) + " |\n"
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
+		var total, streams atomic.Int64
+		var wg sync.WaitGroup
+		wg.Add(f)
+		ids := make([]peer.ID, 0, f)
+		for i := 0; i < f; i++ {
+			p := createPeer(t)
+			senderPeer.Network().Peerstore().AddAddrs(p.ID(), p.MultiAddresses(), peerstore.PermanentAddrTTL)
+			var once sync.Once
+			p.RegisterProtocolHandler(ProtocolUnicityCertificatesV2, func(s libp2pNetwork.Stream) {
+				defer once.Do(wg.Done)
+				defer s.Close()
+				r := bufio.NewReader(s)
+				length, err := binary.ReadUvarint(r)
+				if err != nil {
+					return
+				}
+				var prefix [binary.MaxVarintLen64]byte
+				n, err := io.CopyN(io.Discard, r, int64(length))
+				if err != nil {
+					return
+				}
+				total.Add(int64(binary.PutUvarint(prefix[:], length)) + n)
+				streams.Add(1)
+			})
+			ids = append(ids, p.ID())
+		}
+		require.NoError(t, senderNw.SendCertificationResponse(context.Background(), testCertResponse(t, view), ids...))
+		done := make(chan struct{})
+		go func() { wg.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(20 * time.Second):
+			t.Fatalf("f=%d: only %d of %d streams completed", f, streams.Load(), f)
+		}
+		require.EqualValues(t, f, streams.Load())
+		require.EqualValues(t, 1, frames.v2Marshals.Load(), "f=%d: one V2 encoding per dispatch", f)
+		require.Zero(t, frames.v1Marshals.Load(), "f=%d: the legacy frame is not built when every recipient negotiates V2", f)
+		per := total.Load() / streams.Load()
+		if firstPer == 0 {
+			firstPer = per
+		}
+		require.Equal(t, firstPer, per)
+		fmt.Fprintf(&sb, "| %d | %d | %d | %d | %d | %d |\n", f, frames.v2Marshals.Load(), frames.v1Marshals.Load(), streams.Load(), total.Load(), per)
 	}
-	var b []byte
-	for ; n > 0; n /= 10 {
-		b = append([]byte{byte('0' + n%10)}, b...)
-	}
-	return string(b)
+	t.Logf("recipient fan-out: real sends over libp2p\n%s", sb.String())
 }
-
-var _ = certification.MaxPartitionViewSize
