@@ -17,6 +17,10 @@ type CertificationResponse struct {
 	Shard     types.ShardID
 	Technical TechnicalRecord
 	UC        types.UnicityCertificate
+
+	// PartitionView is an in-process carrier of the canonical partition view bytes sent
+	// as the V2 sidecar. It is never part of the legacy wire format, hashing or storage.
+	PartitionView []byte `cbor:"-" json:"-"`
 }
 
 func (cr *CertificationResponse) IsValid() error {
