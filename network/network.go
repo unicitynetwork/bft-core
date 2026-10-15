@@ -68,6 +68,9 @@ type LibP2PNetwork struct {
 	receivedMsgs  chan any // messages from LibP2PNetwork sent to this peer
 	tracer        trace.Tracer
 	log           *slog.Logger
+
+	// framesHook, when set (tests), observes the per dispatch certification frames cache
+	framesHook func(*certificationFrames)
 }
 
 /*
