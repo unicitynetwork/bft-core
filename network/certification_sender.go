@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/trace"
@@ -27,11 +28,16 @@ type certificationFrames struct {
 	v2Once sync.Once
 	v2     []byte // nil when v2 must not be used for this response
 	v2Err  error
+
+	// serialization counters (observability and scaling tests): CBOR encodings performed
+	v1Marshals atomic.Int64
+	v2Marshals atomic.Int64
 }
 
 func (f *certificationFrames) legacy() ([]byte, error) {
 	f.v1Once.Do(func() {
 		// the carrier field is tagged cbor:"-", legacy bytes are independent of the view
+		f.v1Marshals.Add(1)
 		data, err := types.Cbor.Marshal(f.cr)
 		if err != nil {
 			f.v1Err = fmt.Errorf("marshaling %T as CBOR: %w", f.cr, err)
@@ -46,10 +52,12 @@ func (f *certificationFrames) legacy() ([]byte, error) {
 // response, ie the frame would exceed the limit even without the partition view.
 func (f *certificationFrames) v2Frame() ([]byte, error) {
 	f.v2Once.Do(func() {
-		env := certification.NewCertificationResponseV2(f.cr)
+		// the carrier bytes are immutable (encoded once per partition), share them instead of copying
+		env := certification.NewCertificationResponseV2Shared(f.cr)
 		if len(env.PartitionView) > certification.MaxPartitionViewSize {
 			env.PartitionView = nil
 		}
+		f.v2Marshals.Add(1)
 		data, err := types.Cbor.Marshal(env)
 		if err != nil {
 			f.v2Err = fmt.Errorf("marshaling %T as CBOR: %w", env, err)
@@ -58,6 +66,7 @@ func (f *certificationFrames) v2Frame() ([]byte, error) {
 		if len(data) > certification.MaxCertificationResponseV2Frame && env.PartitionView != nil {
 			// oversize sidecar: send ordinary response with null view
 			env.PartitionView = nil
+			f.v2Marshals.Add(1)
 			if data, err = types.Cbor.Marshal(env); err != nil {
 				f.v2Err = fmt.Errorf("marshaling %T as CBOR: %w", env, err)
 				return
@@ -92,6 +101,9 @@ func (n *LibP2PNetwork) SendCertificationResponse(ctx context.Context, cr *certi
 	defer span.End()
 
 	frames := &certificationFrames{cr: cr}
+	if n.framesHook != nil {
+		n.framesHook(frames)
+	}
 	// choose up front whether v2 can be offered at all (size based selection)
 	v2, err := frames.v2Frame()
 	if err != nil {
@@ -99,8 +111,12 @@ func (n *LibP2PNetwork) SendCertificationResponse(ctx context.Context, cr *certi
 		n.log.WarnContext(ctx, "serializing CertificationResponseV2, falling back to legacy", logger.Error(err))
 		v2 = nil
 	}
-	if _, err := frames.legacy(); err != nil {
-		return fmt.Errorf("serializing message: %w", err)
+	if v2 == nil {
+		// the legacy frame is the only one which can be sent: fail synchronously. Otherwise it is
+		// serialized lazily, only if some receiver negotiates the legacy protocol.
+		if _, err := frames.legacy(); err != nil {
+			return fmt.Errorf("serializing message: %w", err)
+		}
 	}
 	protocols := []string{ProtocolUnicityCertificatesV2, p.protocolID}
 	if v2 == nil {
