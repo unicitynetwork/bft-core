@@ -3,11 +3,7 @@ package storage
 import (
 	"crypto"
 	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"testing"
 
@@ -99,70 +95,6 @@ var fxCases = []fxCase{
 	{"shards-4", 2, []int{0, 3}},
 	{"shards-8", 3, []int{1, 2, 6}},
 	{"shards-8-all", 3, []int{0, 1, 2, 3, 4, 5, 6, 7}},
-}
-
-// Producer fixtures of the consolidation corpus; regenerate with
-// UC_CONSOLIDATION_REGEN=1 go test ./rootchain/consensus/storage -run Test_ConsolidationFixtures
-func Test_ConsolidationFixtures(t *testing.T) {
-	root := filepath.Join("testdata", "uc-consolidation", "v1")
-	regen := os.Getenv("UC_CONSOLIDATION_REGEN") != ""
-	files := map[string][]byte{}
-	for _, c := range fxCases {
-		b := fxBlock(t, fxScheme(c.bits), c.changed...)
-		crs, err := b.GenerateCertificates(fxCommitQc(b))
-		require.NoError(t, err)
-		require.Len(t, crs, len(c.changed))
-		slices.SortFunc(crs, func(a, b *certification.CertificationResponse) int {
-			return slices.Compare([]byte(a.Shard.String()), []byte(b.Shard.String()))
-		})
-		files[c.name+"/partition-view.cbor"] = crs[0].PartitionView
-		for _, cr := range crs {
-			// legacy response bytes are the four element array, the view never appears in it
-			legacy, err := types.Cbor.Marshal(cr)
-			require.NoError(t, err)
-			require.NotContains(t, string(legacy), string(cr.PartitionView))
-			files[fmt.Sprintf("%s/response-v1/%s.cbor", c.name, shardName(cr.Shard))] = legacy
-			uc, err := cr.UC.MarshalCBOR()
-			require.NoError(t, err)
-			files[fmt.Sprintf("%s/ucs/%s.cbor", c.name, shardName(cr.Shard))] = uc
-		}
-	}
-
-	if regen {
-		man := map[string]string{}
-		for name, data := range files {
-			p := filepath.Join(root, name)
-			require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
-			require.NoError(t, os.WriteFile(p, data, 0o644))
-			sum := sha256.Sum256(data)
-			man[name] = hex.EncodeToString(sum[:])
-		}
-		b, err := json.MarshalIndent(map[string]any{"corpus": "uc-consolidation-producer", "version": 1, "sha256": man}, "", "  ")
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(filepath.Join(root, "manifest.json"), append(b, '\n'), 0o644))
-	}
-
-	var man struct {
-		SHA256 map[string]string `json:"sha256"`
-	}
-	b, err := os.ReadFile(filepath.Join(root, "manifest.json"))
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(b, &man))
-	require.Len(t, man.SHA256, len(files))
-	for name, data := range files {
-		got, err := os.ReadFile(filepath.Join(root, name))
-		require.NoError(t, err, name)
-		sum := sha256.Sum256(got)
-		require.Equal(t, man.SHA256[name], hex.EncodeToString(sum[:]), name)
-		require.Equal(t, data, got, "%s differs from the committed corpus; regenerate deliberately", name)
-	}
-}
-
-func shardName(id types.ShardID) string {
-	if id.Length() == 0 {
-		return "root"
-	}
-	return id.String()
 }
 
 // fxOrder is the left-to-right order of the scheme, also for schemes over the view limit.
