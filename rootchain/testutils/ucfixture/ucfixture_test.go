@@ -127,3 +127,25 @@ func TestProducerIsDeterministic(t *testing.T) {
 	t2, _ := p2.TrustBaseCBOR()
 	require.Equal(t, t1, t2)
 }
+
+// Several timeouts in one block: each shard repeats its own record.
+func TestProducerMultipleTimeoutsKeepPerShardRecords(t *testing.T) {
+	p, err := New(Config{Partition: 0x0a0b0c0d, ShardBits: 2})
+	require.NoError(t, err)
+	b1, err := p.Next(BlockSpec{Round: 5, Timestamp: 1731504100, Changes: []Change{
+		{Shard: 0, Hash: h("a"), Fees: 1}, {Shard: 1, Hash: h("b"), Fees: 2}, {Shard: 2, Hash: h("c"), Fees: 3},
+	}})
+	require.NoError(t, err)
+	b2, err := p.Next(BlockSpec{Round: 9, Timestamp: 1731504200, Changes: []Change{
+		{Shard: 0, Timeout: true}, {Shard: 1, Timeout: true}, {Shard: 2, Timeout: true},
+	}})
+	require.NoError(t, err)
+	for i := 0; i < 3; i++ {
+		want, got := b1.Shards[i].Record, b2.Shards[i].Record
+		require.Equal(t, want.Hash, got.Hash, "shard %d", i)
+		require.Equal(t, want.BlockHash, got.BlockHash, "shard %d", i)
+		require.Equal(t, want.SumOfEarnedFees, got.SumOfEarnedFees, "shard %d", i)
+		require.True(t, b2.Shards[i].Changed)
+	}
+	require.NotEqual(t, b2.Shards[0].Record.Hash, b2.Shards[1].Record.Hash)
+}

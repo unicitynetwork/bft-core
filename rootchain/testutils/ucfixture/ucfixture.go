@@ -258,7 +258,7 @@ func (p *Producer) Next(spec BlockSpec) (*Block, error) {
 	}
 	prevTimestamp := p.seal.Timestamp
 	payload := &rctypes.Payload{}
-	repeat := map[types.PartitionID]*types.InputRecord{}
+	repeat := map[types.PartitionShardID]*types.InputRecord{}
 	for _, c := range spec.Changes {
 		if c.Shard < 0 || c.Shard >= len(p.shards) {
 			return nil, fmt.Errorf("no shard %d", c.Shard)
@@ -269,7 +269,7 @@ func (p *Producer) Next(spec BlockSpec) (*Block, error) {
 		req := &rctypes.IRChangeReq{Partition: p.cfg.Partition, Shard: sh.ID}
 		if c.Timeout {
 			req.CertReason = rctypes.T2Timeout
-			repeat[p.cfg.Partition] = si.IR.NewRepeatIR()
+			repeat[k] = si.IR.NewRepeatIR()
 		} else {
 			if len(c.Hash) != sha256.Size {
 				return nil, errors.New("state hash must be 32 bytes")
@@ -295,7 +295,7 @@ func (p *Producer) Next(spec BlockSpec) (*Block, error) {
 		if len(ch.Requests) > 0 {
 			return ch.Requests[0].InputRecord, nil
 		}
-		return repeat[ch.Partition], nil
+		return repeat[key(ch.Partition, ch.Shard)], nil
 	})
 	bd := &rctypes.BlockData{Author: "fixture", Round: spec.Round, Timestamp: spec.Timestamp, Payload: payload}
 	next, err := p.cur.Extend(bd, verifier, p.orc, crypto.SHA256, slog.New(slog.NewTextHandler(io.Discard, nil)))
