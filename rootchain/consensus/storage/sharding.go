@@ -2,7 +2,6 @@ package storage
 
 import (
 	"bytes"
-	"cmp"
 	"crypto"
 	"errors"
 	"fmt"
@@ -182,58 +181,12 @@ func (ss ShardStates) certificationResponsesWithViews(algo crypto.Hash) ([]*cert
 	return crs, ut.RootHash(), viewErrs, nil
 }
 
-// MaxRetainedViewsPerPartition bounds how many distinct (different certification round) encoded
-// partition views the LastCR responses of one partition may retain. Every shard keeps the response
-// of its own last certification, and with staggered updates these belong to different rounds, so without
-// a bound a partition can retain min(S, R) full views (O(min(S,R)·W)). Responses of older rounds beyond the
-// bound keep the ordinary certificate (UC, TR) and lose only the optional sidecar: a later handshake
-// is answered with a null sidecar, which every receiver already has to handle.
-const MaxRetainedViewsPerPartition = 1
-
-/*
-pruneRetainedViews enforces MaxRetainedViewsPerPartition for the partitions which just got new
-responses. Responses are shared between block states, so they are never modified in place: the
-affected shard gets a shallow copy of its response without the view. The work is O(S) per changed partition.
-*/
-func (ss ShardStates) pruneRetainedViews(changed []*certification.CertificationResponse) {
-	partitions := map[types.PartitionID]struct{}{}
-	for _, cr := range changed {
-		if len(cr.PartitionView) > 0 {
-			partitions[cr.Partition] = struct{}{}
-		}
-	}
-	if len(partitions) == 0 {
-		return
-	}
-	// retained view rounds per partition, newest first
-	rounds := map[types.PartitionID][]uint64{}
-	for _, si := range ss.States {
-		if _, ok := partitions[si.PartitionID]; !ok || si.LastCR == nil || len(si.LastCR.PartitionView) == 0 {
-			continue
-		}
-		r := si.LastCR.UC.GetRootRoundNumber()
-		if !slices.Contains(rounds[si.PartitionID], r) {
-			rounds[si.PartitionID] = append(rounds[si.PartitionID], r)
-		}
-	}
-	keepFrom := map[types.PartitionID]uint64{} // views of rounds below this are dropped
-	for p, rs := range rounds {
-		if len(rs) <= MaxRetainedViewsPerPartition {
-			continue
-		}
-		slices.SortFunc(rs, func(a, b uint64) int { return cmp.Compare(b, a) })
-		keepFrom[p] = rs[MaxRetainedViewsPerPartition-1]
-	}
-	for _, si := range ss.States {
-		from, ok := keepFrom[si.PartitionID]
-		if !ok || si.LastCR == nil || len(si.LastCR.PartitionView) == 0 || si.LastCR.UC.GetRootRoundNumber() >= from {
-			continue
-		}
-		stripped := *si.LastCR
-		stripped.PartitionView = nil
-		si.LastCR = &stripped
-	}
-}
+// Retention of partition views: every shard's LastCR keeps its own, original response including the
+// encoded partition view of the round it was certified in, so a handshake or a stale request is answered
+// with exactly the original bytes (never regenerated from newer state). A view is shared by the
+// responses of one round, so a partition retains at most one distinct view per shard that has a LastCR,
+// ie <= S views of <= MaxPartitionViewSize bytes: O(S*W) per partition, O(S^2) bytes with W = Theta(S). With the
+// production cap (S <= MaxPartitionViewLeaves = 8, W <= 16 KiB) that is at most 128 KiB per partition.
 
 /*
 partitionViews encodes the partition view (the complete vector of the shard tree leaves) of

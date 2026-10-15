@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"runtime"
 	"testing"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -56,38 +55,35 @@ func Test_SendCertificationResponse_LegacyBuiltEagerlyWhenV2Unusable(t *testing.
 	require.EqualValues(t, 1, frames.v1Marshals.Load())
 }
 
-// The V2 envelope shares the sidecar bytes of the carrier instead of copying them: the allocation of
-// building the v2 frame is smaller than the copying reference by about one view, for every view size.
+// The V2 envelope shares the sidecar bytes of the carrier instead of copying them: the bytes allocated per
+// built v2 frame are smaller than the copying reference by about one view, for every view size. Measured
+// with testing.Benchmark (B/op averaged over many iterations, so it is not a single noisy process-wide delta).
 func Test_CertificationFrames_SidecarBytesAreShared(t *testing.T) {
-	measure := func(f func()) uint64 {
-		var a, b runtime.MemStats
-		runtime.ReadMemStats(&a)
-		f()
-		runtime.ReadMemStats(&b)
-		return b.TotalAlloc - a.TotalAlloc
-	}
-	sharedPath := func(cr *certification.CertificationResponse) func() {
-		return func() {
-			f := &certificationFrames{cr: cr}
-			_, err := f.v2Frame()
-			require.NoError(t, err)
-		}
-	}
-	copyingPath := func(cr *certification.CertificationResponse) func() { // the previous behavior: copy the view into the envelope
-		return func() {
-			env := certification.NewCertificationResponseV2(cr)
-			data, err := types.Cbor.Marshal(env)
-			require.NoError(t, err)
-			_ = frameMsg(data)
-		}
+	bytesPerOp := func(f func()) int64 {
+		return testing.Benchmark(func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				f()
+			}
+		}).AllocedBytesPerOp()
 	}
 	for _, w := range []int{4 << 10, 8 << 10, 16 << 10} {
 		cr := testCertResponse(t, bytesOf(0x5A, w))
-		// warm up (encoder caches, lazy initialization) before counting bytes
-		sharedPath(cr)()
-		copyingPath(cr)()
-		shared, copying := measure(sharedPath(cr)), measure(copyingPath(cr))
-		require.GreaterOrEqual(t, int64(copying)-int64(shared), int64(w)*8/10, "W=%d shared=%d copying=%d", w, shared, copying)
+		shared := bytesPerOp(func() {
+			f := &certificationFrames{cr: cr}
+			if _, err := f.v2Frame(); err != nil {
+				panic(err)
+			}
+		})
+		copying := bytesPerOp(func() { // the previous behavior: copy the view into the envelope
+			env := certification.NewCertificationResponseV2(cr)
+			data, err := types.Cbor.Marshal(env)
+			if err != nil {
+				panic(err)
+			}
+			_ = frameMsg(data)
+		})
+		require.GreaterOrEqual(t, copying-shared, int64(w)*8/10, "W=%d shared=%d B/op copying=%d B/op", w, shared, copying)
 		// the carrier backing array is shared with the envelope
 		env := certification.NewCertificationResponseV2Shared(cr)
 		require.Same(t, &cr.PartitionView[0], &env.PartitionView[0])
