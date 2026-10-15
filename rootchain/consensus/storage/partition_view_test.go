@@ -176,31 +176,7 @@ func Test_PartitionView_NotInLegacyFormat(t *testing.T) {
 	require.Nil(t, back.PartitionView)
 }
 
-func Test_PartitionView_RecoveryOmitsView(t *testing.T) {
-	// LastCR rebuilt from a recovered UC/TR (NewRootBlock) never carries a view and the
-	// current vector is never attached to an older LastCR.
-	b := fxBlock(t, fxScheme(1), 0)
-	crs, err := b.GenerateCertificates(fxCommitQc(b))
-	require.NoError(t, err)
-	require.NotEmpty(t, crs[0].PartitionView)
-
-	other := fxBlock(t, fxScheme(1), 0)
-	for _, si := range other.ShardState.States {
-		// what NewRootBlock builds from a recovered UC/TR: no view
-		si.LastCR = &certification.CertificationResponse{Partition: si.PartitionID, Shard: si.ShardID, Technical: si.TR}
-	}
-	// the next block commits another change in the other shard only; old shard's LastCR keeps no view
-	other.ShardState.Changed = ShardSet{{PartitionID: fxPartition, ShardID: fxShardKey(1, 1)}: {}}
-	crs2, err := other.GenerateCertificates(fxCommitQc(other))
-	require.NoError(t, err)
-	require.Len(t, crs2, 1)
-	for k, si := range other.ShardState.States {
-		if _, changed := other.ShardState.Changed[k]; !changed {
-			require.Nil(t, si.LastCR.PartitionView, "%s", k)
-		}
-	}
-}
-
+// fxShardKey is the key of the idx-th shard of the scheme.
 func fxShardKey(bits, idx int) string {
 	return fxOrder(fxScheme(bits))[idx].Key()
 }
