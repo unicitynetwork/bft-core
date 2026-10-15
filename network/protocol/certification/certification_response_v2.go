@@ -84,17 +84,37 @@ func (v2 CertificationResponseV2) MarshalCBOR() ([]byte, error) {
 	return types.Cbor.Marshal(alias(v2))
 }
 
-// UnmarshalCBOR rejects unknown envelope versions and an empty (non-null) view.
+// UnmarshalCBOR rejects unknown envelope versions, an empty (non-null) view and any
+// view CBOR type other than byte string or null (eg an integer array or undefined).
 // The inner view bytes are not interpreted.
 func (v2 *CertificationResponseV2) UnmarshalCBOR(data []byte) error {
-	type alias CertificationResponseV2
-	var a alias
-	if err := cbor.Unmarshal(data, &a); err != nil {
+	type rawEnvelope struct {
+		_             struct{} `cbor:",toarray"`
+		Version       uint32
+		Response      CertificationResponse
+		PartitionView cbor.RawMessage
+	}
+	var r rawEnvelope
+	if err := cbor.Unmarshal(data, &r); err != nil {
 		return err
 	}
-	if err := (*CertificationResponseV2)(&a).IsValid(); err != nil {
+	if len(r.PartitionView) == 0 {
+		return errors.New("partition view is missing")
+	}
+	var view []byte
+	switch major := r.PartitionView[0] >> 5; {
+	case r.PartitionView[0] == 0xf6: // null
+	case major == 2 && r.PartitionView[0] != 0x5f: // definite-length byte string
+		if err := cbor.Unmarshal(r.PartitionView, &view); err != nil {
+			return fmt.Errorf("decoding partition view: %w", err)
+		}
+	default:
+		return fmt.Errorf("partition view must be a byte string or null, got CBOR major type %d", major)
+	}
+	out := CertificationResponseV2{Version: r.Version, Response: r.Response, PartitionView: view}
+	if err := out.IsValid(); err != nil {
 		return err
 	}
-	*v2 = CertificationResponseV2(a)
+	*v2 = out
 	return nil
 }

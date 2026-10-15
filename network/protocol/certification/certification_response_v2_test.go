@@ -109,6 +109,26 @@ func Test_CertificationResponseV2_Wire(t *testing.T) {
 		}
 	})
 
+	t.Run("view must be bstr or null", func(t *testing.T) {
+		for name, tail := range map[string][]byte{
+			"integer array":   {0x81, 0x01},
+			"undefined":       {0xf7},
+			"text string":     {0x61, 'a'},
+			"integer":         {0x01},
+			"indefinite bstr": {0x5f, 0x41, 0x01, 0xff},
+			"false":           {0xf4},
+		} {
+			data := append(append([]byte{0x83, 0x02}, legacy...), tail...)
+			var dec CertificationResponseV2
+			require.Error(t, types.Cbor.Unmarshal(data, &dec), name)
+		}
+		// arbitrary nonempty bstr contents (opaque inner view) are accepted
+		data := append(append([]byte{0x83, 0x02}, legacy...), 0x43, 0xff, 0x00, 0xf7)
+		var dec CertificationResponseV2
+		require.NoError(t, types.Cbor.Unmarshal(data, &dec))
+		require.Equal(t, []byte{0xff, 0x00, 0xf7}, dec.PartitionView)
+	})
+
 	t.Run("malformed envelopes", func(t *testing.T) {
 		good, err := types.Cbor.Marshal(NewCertificationResponseV2(cr))
 		require.NoError(t, err)
