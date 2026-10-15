@@ -21,6 +21,7 @@ import (
 	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
+	msmux "github.com/multiformats/go-multistream"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -267,6 +268,59 @@ func (p *Peer) RemoveProtocolHandler(protocolID string) {
 // CreateStream opens a new stream to given peer p, and writes a libp2p protocol header with given ProtocolID.
 func (p *Peer) CreateStream(ctx context.Context, peerID peer.ID, protocolID string) (network.Stream, error) {
 	return p.host.NewStream(ctx, peerID, libp2pprotocol.ID(protocolID))
+}
+
+// CreateStreamProtocols opens a new stream to given peer and explicitly negotiates one of
+// the protocols (in the order of preference) before returning, bounded by ctx. Unlike
+// host.NewStream it never takes the lazy path for protocols cached in the peerstore, which
+// would send the negotiation headers together with the first payload write, without waiting
+// for acceptance. The negotiated protocol is available via stream.Protocol().
+func (p *Peer) CreateStreamProtocols(ctx context.Context, peerID peer.ID, protocolIDs ...string) (_ network.Stream, err error) {
+	if len(protocolIDs) == 0 {
+		return nil, errors.New("at least one protocol must be offered")
+	}
+	if nodial, _ := network.GetNoDial(ctx); !nodial {
+		if err := p.host.Connect(ctx, peer.AddrInfo{ID: peerID}); err != nil {
+			return nil, err
+		}
+	}
+	s, err := p.host.Network().NewStream(network.WithNoDial(ctx, "already dialed"), peerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open stream: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = s.Reset()
+		}
+	}()
+
+	ids := make([]libp2pprotocol.ID, len(protocolIDs))
+	for i, id := range protocolIDs {
+		ids[i] = libp2pprotocol.ID(id)
+	}
+	var selected libp2pprotocol.ID
+	errCh := make(chan error, 1)
+	go func() {
+		var nerr error
+		selected, nerr = msmux.SelectOneOf(ids, s)
+		errCh <- nerr
+	}()
+	select {
+	case err = <-errCh:
+		if err != nil {
+			return nil, fmt.Errorf("failed to negotiate protocol: %w", err)
+		}
+	case <-ctx.Done():
+		_ = s.Reset() // makes SelectOneOf return
+		<-errCh
+		err = fmt.Errorf("failed to negotiate protocol: %w", ctx.Err())
+		return nil, err
+	}
+	if err = s.SetProtocol(selected); err != nil {
+		return nil, err
+	}
+	_ = p.host.Peerstore().AddProtocols(peerID, selected)
+	return s, nil
 }
 
 // Configuration returns peer configuration

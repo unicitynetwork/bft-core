@@ -38,7 +38,7 @@ func Test_Subscriptions(t *testing.T) {
 	nodeIdB := generateNodeID(t)
 
 	t.Run("subscribe", func(t *testing.T) {
-		sender := func(ctx context.Context, msg any, receivers ...peer.ID) error {
+		sender := func(ctx context.Context, msg *certification.CertificationResponse, receivers ...peer.ID) error {
 			t.Error("unexpected send call", msg, receivers)
 			return nil
 		}
@@ -72,7 +72,7 @@ func Test_Subscriptions(t *testing.T) {
 	})
 
 	t.Run("send, not subscribed", func(t *testing.T) {
-		sender := func(ctx context.Context, msg any, receivers ...peer.ID) error {
+		sender := func(ctx context.Context, msg *certification.CertificationResponse, receivers ...peer.ID) error {
 			t.Error("unexpected send call", msg, receivers)
 			return nil
 		}
@@ -110,7 +110,7 @@ func Test_Subscriptions(t *testing.T) {
 
 	t.Run("send, one receiver", func(t *testing.T) {
 		done := make(chan struct{})
-		sender := func(ctx context.Context, msg any, receivers ...peer.ID) error {
+		sender := func(ctx context.Context, msg *certification.CertificationResponse, receivers ...peer.ID) error {
 			defer close(done)
 			if assert.Len(t, receivers, 1) {
 				assert.Equal(t, nodeIdA, receivers[0])
@@ -135,7 +135,7 @@ func Test_Subscriptions(t *testing.T) {
 
 	t.Run("send, two receivers", func(t *testing.T) {
 		done := make(chan struct{})
-		sender := func(ctx context.Context, msg any, receivers ...peer.ID) error {
+		sender := func(ctx context.Context, msg *certification.CertificationResponse, receivers ...peer.ID) error {
 			defer close(done)
 			if assert.Len(t, receivers, 2) {
 				assert.ElementsMatch(t, []peer.ID{nodeIdA, nodeIdB}, receivers)
@@ -164,7 +164,7 @@ func Test_Subscriptions(t *testing.T) {
 		// calls it's counter should be zero and next call will remove it from registry
 		var sendCalls, receiverCnt atomic.Int32
 		done := make(chan struct{})
-		sender := func(ctx context.Context, msg any, receivers ...peer.ID) error {
+		sender := func(ctx context.Context, msg *certification.CertificationResponse, receivers ...peer.ID) error {
 			switch sendCalls.Add(1) {
 			case responsesPerSubscription:
 				done <- struct{}{}
