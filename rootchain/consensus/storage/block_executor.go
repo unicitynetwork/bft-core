@@ -181,6 +181,7 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 		cr.UC.UnicitySeal = uSeal
 		x.ShardState.States[types.PartitionShardID{PartitionID: cr.Partition, ShardID: cr.Shard.Key()}].LastCR = cr
 	}
+	x.ShardState.pruneRetainedViews(crs)
 	return crs, nil
 }
 

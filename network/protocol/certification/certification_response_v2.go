@@ -49,6 +49,19 @@ func NewCertificationResponseV2(cr *CertificationResponse) *CertificationRespons
 	return v2
 }
 
+// NewCertificationResponseV2Shared is NewCertificationResponseV2 without the copy of the view
+// bytes: the envelope shares the backing array of cr.PartitionView. The caller guarantees that the
+// view bytes are immutable for the lifetime of the envelope (certificate generation encodes them once
+// per partition and never changes them), which makes the O(W) copy per dispatch unnecessary.
+func NewCertificationResponseV2Shared(cr *CertificationResponse) *CertificationResponseV2 {
+	v2 := &CertificationResponseV2{Version: CertificationResponseV2Version, Response: *cr}
+	v2.Response.PartitionView = nil
+	if len(cr.PartitionView) > 0 {
+		v2.PartitionView = cr.PartitionView
+	}
+	return v2
+}
+
 // Legacy returns the operational response with the partition view copied into the
 // in-process carrier field.
 func (v2 *CertificationResponseV2) Legacy() *CertificationResponse {
