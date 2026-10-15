@@ -1,9 +1,9 @@
 {
   "corpus": "uc-consolidation-producer-subset",
   "version": 1,
-  "sourceManifestSha256": "5e09fe7feb41b79a077d73e8a5cbeb4689d46df7359dc69c8a81986f788fa9bd",
+  "sourceManifestSha256": "de05b259d6b3b840a3d84ec281d7a022da6b561785213a5c25d0dfb7d40f355d",
   "generatorCommits": {
-    "aggregator-go": "6a6d6ff8d2161c280d7c46bfde3e6a9f4856e641",
+    "aggregator-go": "b063f164b1bda06fc6ad89f18cba85e19a7f8bfa",
     "bft-core": "39340692da3a",
     "bft-go-base": "6251c1d73eee"
   },
