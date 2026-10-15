@@ -866,6 +866,10 @@ func (pn mockPartitionNet) Send(ctx context.Context, msg any, receivers ...p2pee
 	return pn.send(ctx, msg, receivers...)
 }
 
+func (pn mockPartitionNet) SendCertificationResponse(ctx context.Context, cr *certification.CertificationResponse, receivers ...p2peer.ID) error {
+	return pn.send(ctx, cr, receivers...)
+}
+
 func (pn mockPartitionNet) ReceivedChannel() <-chan any { return pn.recCh() }
 
 type mockConsensusManager struct {

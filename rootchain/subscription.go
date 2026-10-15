@@ -20,14 +20,14 @@ const responsesPerSubscription = 2
 type Subscriptions struct {
 	mu     sync.RWMutex
 	subs   map[partitionShard]map[peer.ID]int
-	sender func(ctx context.Context, msg any, receivers ...peer.ID) error
+	sender func(ctx context.Context, cr *certification.CertificationResponse, receivers ...peer.ID) error
 
 	log *slog.Logger
 
 	bcRespSent metric.Int64Counter // number of Block Certification Responses sent
 }
 
-func NewSubscriptions(sender func(ctx context.Context, msg any, receivers ...peer.ID) error, obs Observability) (*Subscriptions, error) {
+func NewSubscriptions(sender func(ctx context.Context, cr *certification.CertificationResponse, receivers ...peer.ID) error, obs Observability) (*Subscriptions, error) {
 	r := &Subscriptions{
 		subs:   map[partitionShard]map[peer.ID]int{},
 		sender: sender,

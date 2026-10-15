@@ -269,6 +269,16 @@ func (p *Peer) CreateStream(ctx context.Context, peerID peer.ID, protocolID stri
 	return p.host.NewStream(ctx, peerID, libp2pprotocol.ID(protocolID))
 }
 
+// CreateStreamProtocols opens a new stream to given peer offering the protocols in the
+// order of preference. The negotiated protocol is available via stream.Protocol().
+func (p *Peer) CreateStreamProtocols(ctx context.Context, peerID peer.ID, protocolIDs ...string) (network.Stream, error) {
+	ids := make([]libp2pprotocol.ID, len(protocolIDs))
+	for i, id := range protocolIDs {
+		ids[i] = libp2pprotocol.ID(id)
+	}
+	return p.host.NewStream(ctx, peerID, ids...)
+}
+
 // Configuration returns peer configuration
 func (p *Peer) Configuration() *PeerConfiguration {
 	return p.conf

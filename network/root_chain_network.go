@@ -12,6 +12,8 @@ const (
 	ProtocolHandshake           = "/ab/handshake/0.0.1"
 	ProtocolBlockCertification  = "/ab/block-certification/0.0.1"
 	ProtocolUnicityCertificates = "/ab/certificates/0.0.1"
+	// ProtocolUnicityCertificatesV2 carries certification.CertificationResponseV2.
+	ProtocolUnicityCertificatesV2 = "/ab/certificates/0.0.2"
 )
 
 /*
