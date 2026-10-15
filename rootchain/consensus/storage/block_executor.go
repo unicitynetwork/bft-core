@@ -145,7 +145,7 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 }
 
 func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*certification.CertificationResponse, error) {
-	crs, rootHash, err := x.ShardState.certificationResponses(x.HashAlgo)
+	crs, rootHash, viewErrs, err := x.ShardState.certificationResponsesWithViews(x.HashAlgo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate root hash: %w", err)
 	}
@@ -159,6 +159,11 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 	}
 	if len(crs) == 0 {
 		return nil, nil
+	}
+	// the partition view is optional proof material, never a reason to fail the certification
+	for partition, err := range viewErrs {
+		slog.Warn("certification responses are sent without partition view",
+			slog.Uint64("partition", uint64(partition)), slog.Uint64("round", x.GetRound()), logErr(err))
 	}
 
 	// create UnicitySeal for pending certificates
@@ -192,3 +197,5 @@ func (x *ExecutedBlock) GetParentRound() uint64 {
 	}
 	return 0
 }
+
+func logErr(err error) slog.Attr { return slog.String("err", err.Error()) }
