@@ -240,7 +240,7 @@ func TestProposalMsg_Verify(t *testing.T) {
 		require.ErrorContains(t, prop.Verify(tbs), `signature verification failed: verify bytes failed`)
 
 		prop.Signature = []byte{0, 1, 2, 3, 4}
-		require.ErrorContains(t, prop.Verify(tbs), `signature verification failed: verify bytes failed: signature length is 5 b (expected 64 b)`)
+		require.ErrorContains(t, prop.Verify(tbs), `signature verification failed: verify bytes failed: signature length is 5 b (expected 65 b)`)
 	})
 
 	t.Run("no quorum signatures", func(t *testing.T) {
