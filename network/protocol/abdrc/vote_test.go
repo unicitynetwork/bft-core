@@ -192,7 +192,7 @@ func Test_VoteMsg_Verify(t *testing.T) {
 		require.EqualError(t, vi.Verify(tbs), `vote from '1' signature verification error: verify bytes failed: verification failed`)
 
 		vi.Signature = []byte{0, 1, 2, 3, 4}
-		require.EqualError(t, vi.Verify(tbs), `vote from '1' signature verification error: verify bytes failed: signature length is 5 b (expected 64 b)`)
+		require.EqualError(t, vi.Verify(tbs), `vote from '1' signature verification error: verify bytes failed: signature length is 5 b (expected 65 b)`)
 
 		vi.Signature = nil
 		require.EqualError(t, vi.Verify(tbs), `vote from '1' signature verification error: verify bytes failed: invalid nil argument`)

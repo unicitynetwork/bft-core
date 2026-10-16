@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	testsig "github.com/unicitynetwork/bft-core/internal/testutils/sig"
+	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 )
 
@@ -79,8 +80,21 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 
 	t.Run("invalid signature", func(t *testing.T) {
 		bcr := validBCR(t)
-		bcr.Signature = make([]byte, 64)
-		require.EqualError(t, bcr.IsValid(verifier), `signature verification: verification failed`)
+		bcr.Signature = make([]byte, 65)
+		require.ErrorIs(t, bcr.IsValid(verifier), abcrypto.ErrVerificationFailed)
+	})
+
+	t.Run("compact signature without recovery id", func(t *testing.T) {
+		bcr := validBCR(t)
+		bcr.Signature = bcr.Signature[:64]
+		require.EqualError(t, bcr.IsValid(verifier), `signature verification: signature length is 64 b (expected 65 b)`)
+	})
+
+	t.Run("modified recovery id", func(t *testing.T) {
+		bcr := validBCR(t)
+		bcr.Signature = append([]byte(nil), bcr.Signature...)
+		bcr.Signature[64] ^= 1
+		require.ErrorIs(t, bcr.IsValid(verifier), abcrypto.ErrVerificationFailed)
 	})
 }
 
