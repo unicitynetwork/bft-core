@@ -81,7 +81,7 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 	t.Run("invalid signature", func(t *testing.T) {
 		bcr := validBCR(t)
 		bcr.Signature = make([]byte, 65)
-		require.EqualError(t, bcr.IsValid(verifier), `signature verification: verification failed`)
+		require.ErrorIs(t, bcr.IsValid(verifier), abcrypto.ErrVerificationFailed)
 	})
 
 	t.Run("compact signature without recovery id", func(t *testing.T) {
