@@ -124,19 +124,12 @@ func (ss ShardStates) unicityTree(algo crypto.Hash) (*types.UnicityTree, map[typ
 }
 
 /*
-certificationResponses builds the unicity tree and certification responses based on the shard states.
+certificationResponsesWithViews builds the unicity tree and certification responses based on the shard states.
 CertificationResponse will be generated only for shards marked as "changed".
 The UnicityCertificates in the response are not complete, they miss the UnicitySeal.
-*/
-func (ss ShardStates) certificationResponses(algo crypto.Hash) ([]*certification.CertificationResponse, []byte, error) {
-	crs, rootHash, _, err := ss.certificationResponsesWithViews(algo)
-	return crs, rootHash, err
-}
 
-/*
-certificationResponsesWithViews is certificationResponses which also attaches the encoded
-partition view (see partitionViews) to the responses. Failure to produce a view is not an
-error of the certification, the failures are returned (by partition) for reporting and the
+The responses also carry the encoded partition view (see partitionViews). Failure to produce a view
+is not an error of the certification, the failures are returned (by partition) for reporting and the
 responses of that partition are left without the view.
 */
 func (ss ShardStates) certificationResponsesWithViews(algo crypto.Hash) ([]*certification.CertificationResponse, []byte, map[types.PartitionID]error, error) {
