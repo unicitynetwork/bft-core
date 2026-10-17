@@ -148,7 +148,7 @@ func (rb *ReputationBased) Update(qc *abtypes.QuorumCert, currentRound uint64, b
 		leaderNode := pickLeader(nextTrustBase.RootNodes, leaderSeed(qc))
 		leader, err = peer.Decode(leaderNode.NodeID)
 		if err != nil {
-			return fmt.Errorf("invalid peer id %q: %w", leaderNode, err)
+			return fmt.Errorf("invalid peer id %q: %w", leaderNode.NodeID, err)
 		}
 	} else {
 		leader, err = rb.electLeader(qc, blockLoader)
