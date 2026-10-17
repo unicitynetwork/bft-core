@@ -9,9 +9,9 @@ Run `make build` to build the application. Executable will be built to `build/ub
 
 # Upgrading
 
-Releases which change consensus validity rules are rolled out as a stop-all upgrade: all root
-validators, shard validators and aggregators are stopped and upgraded together. Rolling upgrades
-are not supported. See [docs/upgrade.md](docs/upgrade.md).
+The release with the strict signature rule assumes a stop-all upgrade of every process (the conservative baseline; there is no activation gate). A gentler procedure
+(root validator cutover first, then rolling aggregators) is described in
+[docs/upgrade.md](docs/upgrade.md#strict-signature-rule-bft-go-base-uc-consolidation).
 
 # Configuration
 
