@@ -15,7 +15,8 @@ const (
 
 	// MaxPartitionViewSize is the consolidation admission limit for the encoded
 	// partition view carried in the sidecar. Larger views are omitted (null) by producers.
-	MaxPartitionViewSize = 16 * 1024
+	// It is the limit of the view encoder, types.MaxPartitionViewBytes.
+	MaxPartitionViewSize = types.MaxPartitionViewBytes
 
 	// MaxCertificationResponseV2Frame is the limit for the CBOR payload (excluding the
 	// varint length prefix) of a V2 frame.
