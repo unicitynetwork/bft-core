@@ -31,7 +31,9 @@ If a full stop is unwanted, the architect's recommended alternative is:
 1. A coordinated cutover of all root validators together (see the procedure of the
    [PR #27 section](#procedure) below for the steps), plus any shard consensus cohort according to
    its own verification paths.
-2. Aggregators keep running and are upgraded afterwards, one at a time. Strict-valid
+2. Check that the network makes progress, recovers and produces fresh UCs, and that a
+   still-old aggregator accepts and processes those UCs. Only then upgrade the aggregators, one at
+   a time while they keep running. Strict-valid
    certificates pass the old verifier and aggregators already send strict-valid requests.
 
 New certifications pause during the root cutover; uninterrupted writes are not promised. Do not
@@ -49,9 +51,11 @@ possible future work and is not implemented.
 - Fence the old root validators so that none of them can rejoin after the cutover.
 - Back up the home directory and never erase safety (voting) records to get a node to start.
 - Rollback after the network has made new progress needs a coordinated plan; do not restart
-  isolated old binaries. Message and database formats do not change with this release, so the
-  old binary can open the new databases, but rolling back one node does not undo certificates
-  that were produced meanwhile.
+  isolated old binaries. The strict rule itself changes no message or database format, but the
+  release also adds the versioned V2 certification response (legacy peers keep the old form) and
+  aggregator-go stores a partition view next to the UC. Check wire and storage compatibility of
+  the pinned builds separately before relying on a rollback. Rolling back one node does not undo
+  certificates that were produced meanwhile.
 
 ### What can go wrong
 
