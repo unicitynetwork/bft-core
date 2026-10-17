@@ -7,6 +7,12 @@ Run `make build` to build the application. Executable will be built to `build/ub
 * [`Go`](https://go.dev/doc/install) version 1.24.
 * `C` compiler, recent versions of [GCC](https://gcc.gnu.org/) are recommended. In Debian and Ubuntu repositories, GCC is part of the build-essential package. On macOS, GCC can be installed with [Homebrew](https://formulae.brew.sh/formula/gcc).
 
+# Upgrading
+
+Releases which change consensus validity rules are rolled out as a stop-all upgrade: all root
+validators, shard validators and aggregators are stopped and upgraded together. Rolling upgrades
+are not supported. See [docs/upgrade.md](docs/upgrade.md).
+
 # Configuration
 
 It's possible to define the configuration values from (in the order of precedence):

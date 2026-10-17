@@ -1,6 +1,54 @@
 # Upgrading root nodes
 
-Notes for upgrades which need more than replacing the binary of one node at a time.
+Notes for upgrades which need more than replacing the binary of one node at a time. Releases
+which change consensus validity rules are rolled out as stop-all upgrades (next section).
+
+## Stop-all upgrade: strict secp256k1 signature verification (bft-go-base uc-consolidation)
+
+**This release must be rolled out as a stop-all upgrade.** All root validators, all shard
+validators and every aggregator are stopped, upgraded and started together. Rolling upgrades
+(one node at a time) and activation at an epoch boundary are not supported.
+
+### What changes
+
+The new bft-go-base applies a strict rule in secp256k1 `VerifyHash`. This changes which unicity
+seals and quorum certificates (QCs) are accepted as having a quorum of valid signatures. Message
+and database formats are the same.
+
+### Why all nodes must be upgraded together
+
+A seal or QC can be accepted by a node with the new rule and rejected by a node with the old
+rule, so nodes of different versions can disagree on whether the same seal or QC has a quorum.
+This applies to root validators, shard validators and aggregators, since all of them verify
+seals and QCs.
+
+If versions are mixed:
+
+- rounds stall while the versions are mixed: the nodes which reject a seal or QC do not follow
+  it, and when the nodes of one version alone do not have quorum, no round completes;
+- aggregators on the old version can accept or reject unicity certificates (UCs) differently
+  from the root chain (see the aggregator-go documentation).
+
+The network recovers when all nodes run the same version. Signers that follow the protocol
+(honest signers) are not affected: the signatures they produce are valid under both rules.
+
+### Procedure
+
+Use the procedure of the section below, extended to every node type:
+
+1. Install the new binary on every root validator, shard validator and aggregator. Do not
+   restart anything yet.
+2. Stop all of them. Wait until all have stopped.
+3. Start all of them with the new binary and the same configuration as before.
+4. Check the build revision in each log and that rounds advance and shards get certificates.
+
+Do not start any node with the old binary after step 2, and do not leave nodes running the old
+version while others are upgraded.
+
+### Merge and release order
+
+bft-go-base → bft-core → aggregator-go. Each repository is released with the previous one
+pinned; the deployment is still one stop-all step for all binaries.
 
 ## Branch-aware "change in progress" check (PR #27)
 
