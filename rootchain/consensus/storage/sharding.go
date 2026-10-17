@@ -8,7 +8,6 @@ import (
 	"iter"
 	"maps"
 	"slices"
-	"sync/atomic"
 	"time"
 
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
@@ -23,6 +22,10 @@ type ShardStates struct {
 
 	// cache schemes of the block
 	schemes map[types.PartitionID]types.ShardingScheme
+
+	// viewEncodeHook, when set (tests), is called for every partition view encoded by
+	// the operations on this value. It is not propagated to the states derived from it.
+	viewEncodeHook func(types.PartitionID)
 }
 
 /*
@@ -201,7 +204,7 @@ func (ss ShardStates) partitionViews(inputs map[types.PartitionID][]types.ShardT
 		if _, failed := errs[psID.PartitionID]; failed {
 			continue
 		}
-		data, err := encodePartitionView(psID.PartitionID, inputs[psID.PartitionID])
+		data, err := encodePartitionView(psID.PartitionID, inputs[psID.PartitionID], ss.viewEncodeHook)
 		if err != nil {
 			if errs == nil {
 				errs = map[types.PartitionID]error{}
@@ -217,12 +220,13 @@ func (ss ShardStates) partitionViews(inputs map[types.PartitionID][]types.ShardT
 	return views, errs
 }
 
-// partitionViewEncodes counts encodePartitionView calls (observability for the scaling tests: the view
-// must be encoded once per changed partition per round, whatever the number of responses).
-var partitionViewEncodes atomic.Int64
-
-func encodePartitionView(partition types.PartitionID, inputs []types.ShardTreeInput) ([]byte, error) {
-	partitionViewEncodes.Add(1)
+// encodePartitionView encodes the view of the partition, onEncode (optional, nil in production) is
+// called once per call (observability for the scaling tests: the view must be encoded once per
+// changed partition per round, whatever the number of responses).
+func encodePartitionView(partition types.PartitionID, inputs []types.ShardTreeInput, onEncode func(types.PartitionID)) ([]byte, error) {
+	if onEncode != nil {
+		onEncode(partition)
+	}
 	if len(inputs) == 0 {
 		return nil, errors.New("no shard tree inputs")
 	}

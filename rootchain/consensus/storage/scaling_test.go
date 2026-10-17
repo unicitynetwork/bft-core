@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -176,7 +177,7 @@ func Test_ScalingShardCount(t *testing.T) {
 		raw := msHarnessLeaves(t, inputs[fxPartition])
 		viewBytes := msEncode(t, raw)
 		if S <= types.MaxPartitionViewLeaves { // the harness encoding is the production encoding where both exist
-			prod, err := encodePartitionView(fxPartition, inputs[fxPartition])
+			prod, err := encodePartitionView(fxPartition, inputs[fxPartition], nil)
 			require.NoError(t, err)
 			require.Equal(t, prod, viewBytes)
 		}
@@ -224,13 +225,14 @@ func Test_ScalingChangedShards(t *testing.T) {
 				changed[i] = i
 			}
 			blk := msBlock(t, msIRs[0], bits, changed...)
-			before := partitionViewEncodes.Load()
+			var encodes atomic.Int64
+			blk.ShardState.viewEncodeHook = func(types.PartitionID) { encodes.Add(1) }
 			crs, _, viewErrs, err := blk.ShardState.certificationResponsesWithViews(crypto.SHA256)
 			require.NoError(t, err)
 			require.Empty(t, viewErrs)
 			require.Len(t, crs, k)
-			encodes := partitionViewEncodes.Load() - before
-			require.EqualValues(t, 1, encodes, "k=%d: the view is encoded once per changed partition, not once per response", k)
+			blk.ShardState.viewEncodeHook = nil
+			require.EqualValues(t, 1, encodes.Load(), "k=%d: the view is encoded once per changed partition, not once per response", k)
 			distinct := map[*byte]bool{}
 			for _, cr := range crs {
 				distinct[&cr.PartitionView[0]] = true
@@ -238,7 +240,7 @@ func Test_ScalingChangedShards(t *testing.T) {
 			require.Len(t, distinct, 1)
 			total, _ := dispatchBytes(t, blk, nil)
 			c := costOf(func() { _, _, _, _ = blk.ShardState.certificationResponsesWithViews(crypto.SHA256) })
-			fmt.Fprintf(&sb, "| %d | %d | %d | %d | %.0f | %.0f | %d |\n", k, len(crs), encodes, len(distinct), c.allocs, c.bytes, total)
+			fmt.Fprintf(&sb, "| %d | %d | %d | %d | %.0f | %.0f | %d |\n", k, len(crs), encodes.Load(), len(distinct), c.allocs, c.bytes, total)
 			ks = append(ks, float64(k))
 			allocs = append(allocs, c.allocs)
 			bytesCol = append(bytesCol, c.bytes)

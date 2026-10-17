@@ -268,7 +268,7 @@ func BenchmarkEncodePartitionView(b *testing.B) {
 			b.Run(ir.name+"/"+sh.name, func(b *testing.B) {
 				b.ReportAllocs()
 				for b.Loop() {
-					if _, err := encodePartitionView(fxPartition, inputs[fxPartition]); err != nil {
+					if _, err := encodePartitionView(fxPartition, inputs[fxPartition], nil); err != nil {
 						b.Fatal(err)
 					}
 				}
