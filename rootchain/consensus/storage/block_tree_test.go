@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"path/filepath"
 	"testing"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/unicitynetwork/bft-go-base/types"
 
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 

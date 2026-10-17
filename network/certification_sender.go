@@ -33,18 +33,16 @@ type certificationFrames struct {
 	marshalHook func(v2 bool)
 }
 
-func (f *certificationFrames) observeV2() {
+func (f *certificationFrames) observe(v2 bool) {
 	if f.marshalHook != nil {
-		f.marshalHook(true)
+		f.marshalHook(v2)
 	}
 }
 
 func (f *certificationFrames) legacy() ([]byte, error) {
 	f.v1Once.Do(func() {
 		// the carrier field is tagged cbor:"-", legacy bytes are independent of the view
-		if f.marshalHook != nil {
-			f.marshalHook(false)
-		}
+		f.observe(false)
 		data, err := types.Cbor.Marshal(f.cr)
 		if err != nil {
 			f.v1Err = fmt.Errorf("marshaling %T as CBOR: %w", f.cr, err)
@@ -64,7 +62,7 @@ func (f *certificationFrames) v2Frame() ([]byte, error) {
 		if len(env.PartitionView) > certification.MaxPartitionViewSize {
 			env.PartitionView = nil
 		}
-		f.observeV2()
+		f.observe(true)
 		data, err := types.Cbor.Marshal(env)
 		if err != nil {
 			f.v2Err = fmt.Errorf("marshaling %T as CBOR: %w", env, err)
@@ -73,7 +71,7 @@ func (f *certificationFrames) v2Frame() ([]byte, error) {
 		if len(data) > certification.MaxCertificationResponseV2Frame && env.PartitionView != nil {
 			// oversize sidecar: send ordinary response with null view
 			env.PartitionView = nil
-			f.observeV2()
+			f.observe(true)
 			if data, err = types.Cbor.Marshal(env); err != nil {
 				f.v2Err = fmt.Errorf("marshaling %T as CBOR: %w", env, err)
 				return

@@ -4,13 +4,13 @@ import (
 	"crypto"
 	"encoding/binary"
 	"fmt"
-	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"math"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	"github.com/unicitynetwork/bft-go-base/types"
 )

@@ -3,11 +3,11 @@ package storage
 import (
 	"bytes"
 	"crypto"
-	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	"github.com/unicitynetwork/bft-go-base/types"
 )

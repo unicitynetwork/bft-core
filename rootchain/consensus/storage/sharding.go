@@ -178,14 +178,15 @@ func (ss ShardStates) certificationResponsesWithViews(algo crypto.Hash) ([]*cert
 	return crs, ut.RootHash(), viewErrs, nil
 }
 
-// Retention of partition views: while the process runs, every shard's LastCR keeps its own, original response
-// including the encoded partition view of the round it was certified in, so a handshake or a stale request is
-// answered with exactly the original bytes (never regenerated from newer state). The view is kept in memory
-// only: it is not persisted and not part of the recovery data, so after a root restart or recovery the replies
-// carry a null view until the shard is certified again, which restores it automatically within a few rounds. A view is shared by the
-// responses of one round, so a partition retains at most one distinct view per shard that has a LastCR,
-// ie <= S views of <= MaxPartitionViewSize bytes: O(S*W) per partition, O(S^2) bytes with W = Theta(S). With the
-// production cap (S <= MaxPartitionViewLeaves = 8, W <= 16 KiB) that is at most 128 KiB per partition.
+// Retention of partition views: while the process runs, every shard's LastCR keeps its own, original
+// response including the encoded partition view of the round it was certified in, so a handshake or a
+// stale request is answered with exactly the original bytes (never regenerated from newer state). The view
+// is kept in memory only: it is not persisted and not part of the recovery data, so after a root restart or
+// recovery the replies carry a null view until it is restored when the shard is next certified (normally
+// within a few rounds). A view is shared by the responses of one round, so a partition retains at most one
+// distinct view per shard that has a LastCR, ie <= S views of <= MaxPartitionViewSize bytes: O(S*W) per
+// partition, O(S^2) bytes with W = Theta(S). With the production cap (S <= MaxPartitionViewLeaves = 8,
+// W <= 16 KiB) that is at most 128 KiB per partition.
 
 /*
 partitionViews encodes the partition view (the complete vector of the shard tree leaves) of
