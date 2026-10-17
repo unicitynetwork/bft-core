@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -11,6 +12,25 @@ import (
 	"github.com/unicitynetwork/bft-go-base/types"
 )
 
+// marshalCounts counts the CBOR encodings of one dispatch. The hook is per network (nil in production) and
+// the counters are atomic: the encodings may be requested concurrently by the sends to the recipients.
+type marshalCounts struct{ v1, v2 atomic.Int64 }
+
+// countMarshals counts the encodings of the next dispatch of nw.
+func countMarshals(nw *LibP2PNetwork) *marshalCounts {
+	c := &marshalCounts{}
+	nw.framesHook = func(f *certificationFrames) {
+		f.marshalHook = func(v2 bool) {
+			if v2 {
+				c.v2.Add(1)
+			} else {
+				c.v1.Add(1)
+			}
+		}
+	}
+	return c
+}
+
 // Serialization counts are independent of the recipient fan-out: one v2 encoding per dispatch, and the
 // legacy (v1) encoding happens lazily - never when every recipient negotiates v2, once when any does not.
 func Test_SendCertificationResponse_EncodeCountsIndependentOfFanout(t *testing.T) {
@@ -18,8 +38,7 @@ func Test_SendCertificationResponse_EncodeCountsIndependentOfFanout(t *testing.T
 	for _, fanout := range []int{1, 2, 4} {
 		for _, withLegacy := range []bool{false, true} {
 			senderPeer, senderNw := newCertSender(t)
-			var frames *certificationFrames
-			senderNw.framesHook = func(f *certificationFrames) { frames = f }
+			frames := countMarshals(senderNw)
 			var nws []*LibP2PNetwork
 			var ids []peer.ID
 			for i := 0; i < fanout; i++ {
@@ -34,11 +53,11 @@ func Test_SendCertificationResponse_EncodeCountsIndependentOfFanout(t *testing.T
 			for _, nw := range nws {
 				recv(t, nw)
 			}
-			require.EqualValues(t, 1, frames.v2Marshals.Load(), "fanout=%d", fanout)
+			require.EqualValues(t, 1, frames.v2.Load(), "fanout=%d", fanout)
 			if withLegacy {
-				require.EqualValues(t, 1, frames.v1Marshals.Load(), "fanout=%d", fanout)
+				require.EqualValues(t, 1, frames.v1.Load(), "fanout=%d", fanout)
 			} else {
-				require.Zero(t, frames.v1Marshals.Load(), "legacy frame must not be built when nobody needs it, fanout=%d", fanout)
+				require.Zero(t, frames.v1.Load(), "legacy frame must not be built when nobody needs it, fanout=%d", fanout)
 			}
 		}
 	}
@@ -47,12 +66,11 @@ func Test_SendCertificationResponse_EncodeCountsIndependentOfFanout(t *testing.T
 // When v2 cannot be used the legacy frame is the only one: built (once) and any error is synchronous.
 func Test_SendCertificationResponse_LegacyBuiltEagerlyWhenV2Unusable(t *testing.T) {
 	senderPeer, senderNw := newCertSender(t)
-	var frames *certificationFrames
-	senderNw.framesHook = func(f *certificationFrames) { frames = f }
+	frames := countMarshals(senderNw)
 	p, nw := newCertReceiver(t, senderPeer, recvLegacy)
 	require.NoError(t, senderNw.SendCertificationResponse(context.Background(), testCertResponse(t, nil), p.ID()))
 	recv(t, nw)
-	require.EqualValues(t, 1, frames.v1Marshals.Load())
+	require.EqualValues(t, 1, frames.v1.Load())
 }
 
 // The V2 envelope shares the sidecar bytes of the carrier instead of copying them: the bytes allocated per

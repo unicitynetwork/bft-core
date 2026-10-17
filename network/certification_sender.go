@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
-	"sync/atomic"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/trace"
@@ -29,15 +28,21 @@ type certificationFrames struct {
 	v2     []byte // nil when v2 must not be used for this response
 	v2Err  error
 
-	// serialization counters (observability and scaling tests): CBOR encodings performed
-	v1Marshals atomic.Int64
-	v2Marshals atomic.Int64
+	// marshalHook, when set (tests), is called for every CBOR encoding performed: v2 tells
+	// the V2 envelope from the legacy response. It must be set before the frames are used.
+	marshalHook func(v2 bool)
+}
+
+func (f *certificationFrames) observe(v2 bool) {
+	if f.marshalHook != nil {
+		f.marshalHook(v2)
+	}
 }
 
 func (f *certificationFrames) legacy() ([]byte, error) {
 	f.v1Once.Do(func() {
 		// the carrier field is tagged cbor:"-", legacy bytes are independent of the view
-		f.v1Marshals.Add(1)
+		f.observe(false)
 		data, err := types.Cbor.Marshal(f.cr)
 		if err != nil {
 			f.v1Err = fmt.Errorf("marshaling %T as CBOR: %w", f.cr, err)
@@ -57,7 +62,7 @@ func (f *certificationFrames) v2Frame() ([]byte, error) {
 		if len(env.PartitionView) > certification.MaxPartitionViewSize {
 			env.PartitionView = nil
 		}
-		f.v2Marshals.Add(1)
+		f.observe(true)
 		data, err := types.Cbor.Marshal(env)
 		if err != nil {
 			f.v2Err = fmt.Errorf("marshaling %T as CBOR: %w", env, err)
@@ -66,7 +71,7 @@ func (f *certificationFrames) v2Frame() ([]byte, error) {
 		if len(data) > certification.MaxCertificationResponseV2Frame && env.PartitionView != nil {
 			// oversize sidecar: send ordinary response with null view
 			env.PartitionView = nil
-			f.v2Marshals.Add(1)
+			f.observe(true)
 			if data, err = types.Cbor.Marshal(env); err != nil {
 				f.v2Err = fmt.Errorf("marshaling %T as CBOR: %w", env, err)
 				return

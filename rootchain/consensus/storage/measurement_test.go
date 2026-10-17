@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	"github.com/unicitynetwork/bft-go-base/types"
 )
@@ -108,7 +109,7 @@ func msCertify(t testing.TB, blk *ExecutedBlock, signers int) []*certification.C
 	qc := fxCommitQc(blk)
 	qc.LedgerCommitInfo = msSeal(blk.RootHash, signers)
 	qc.Signatures = qc.LedgerCommitInfo.Signatures // GenerateCertificates copies the QC's signatures
-	crs, err := blk.GenerateCertificates(qc)
+	crs, err := blk.GenerateCertificates(qc, logger.New(t))
 	require.NoError(t, err)
 	for _, cr := range crs {
 		require.Len(t, cr.UC.UnicitySeal.Signatures, signers)
@@ -267,7 +268,7 @@ func BenchmarkEncodePartitionView(b *testing.B) {
 			b.Run(ir.name+"/"+sh.name, func(b *testing.B) {
 				b.ReportAllocs()
 				for b.Loop() {
-					if _, err := encodePartitionView(fxPartition, inputs[fxPartition]); err != nil {
+					if _, err := encodePartitionView(fxPartition, inputs[fxPartition], nil); err != nil {
 						b.Fatal(err)
 					}
 				}
@@ -288,7 +289,7 @@ func BenchmarkGenerateCertificates(b *testing.B) {
 		b.Run(sh.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				if _, err := blk.GenerateCertificates(qc); err != nil {
+				if _, err := blk.GenerateCertificates(qc, logger.New(b)); err != nil {
 					b.Fatal(err)
 				}
 			}

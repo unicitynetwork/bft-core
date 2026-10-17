@@ -14,6 +14,7 @@ import (
 	"github.com/unicitynetwork/bft-go-base/types"
 
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	drctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 )
 
@@ -516,7 +517,7 @@ func Test_BlockTree_Add(t *testing.T) {
 				Hash:         b.RootHash,
 			},
 		}
-		certs, err := bt.Commit(commitQc)
+		certs, err := bt.Commit(commitQc, logger.New(t))
 		require.NoError(t, err)
 		require.Empty(t, certs)
 		newRoot := bt.Root()

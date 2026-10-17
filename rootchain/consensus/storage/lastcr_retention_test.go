@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	"github.com/unicitynetwork/bft-go-base/types"
 )
@@ -26,7 +27,7 @@ func TestLastCRRetention_EachShardKeepsOwnOriginalSidecar(t *testing.T) {
 		for r := 0; r < rounds; r++ {
 			idx := r % S
 			b.ShardState.Changed = ShardSet{{PartitionID: fxPartition, ShardID: order[idx].Key()}: {}}
-			crs, err := b.GenerateCertificates(fxCommitQc(b))
+			crs, err := b.GenerateCertificates(fxCommitQc(b), logger.New(t))
 			require.NoError(t, err)
 			require.Len(t, crs, 1)
 			require.NotEmpty(t, crs[0].PartitionView)

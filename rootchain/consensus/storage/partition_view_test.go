@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	"github.com/unicitynetwork/bft-go-base/types"
 )
@@ -30,7 +31,7 @@ func Test_PartitionView_Producer(t *testing.T) {
 			wantTree, _, err := b.ShardState.UnicityTree(crypto.SHA256)
 			require.NoError(t, err)
 
-			crs, err := b.GenerateCertificates(fxCommitQc(b))
+			crs, err := b.GenerateCertificates(fxCommitQc(b), logger.New(t))
 			require.NoError(t, err)
 			require.Len(t, crs, len(c.changed))
 
@@ -97,7 +98,7 @@ func Test_PartitionView_OnlyChangedPartitions(t *testing.T) {
 
 func Test_PartitionView_Immutable(t *testing.T) {
 	b := fxBlock(t, fxScheme(2), 1)
-	crs, err := b.GenerateCertificates(fxCommitQc(b))
+	crs, err := b.GenerateCertificates(fxCommitQc(b), logger.New(t))
 	require.NoError(t, err)
 	before := bytes.Clone(crs[0].PartitionView)
 
@@ -125,7 +126,7 @@ func Test_PartitionView_ErrorsAreNotFatal(t *testing.T) {
 	require.NoError(t, err)
 	b.RootHash = ut.RootHash()
 
-	crs, err := b.GenerateCertificates(fxCommitQc(b))
+	crs, err := b.GenerateCertificates(fxCommitQc(b), logger.New(t))
 	require.NoError(t, err, "sidecar failure must not fail certification")
 	require.Len(t, crs, 2)
 	for _, cr := range crs {
@@ -140,7 +141,7 @@ func Test_PartitionView_ErrorsAreNotFatal(t *testing.T) {
 func Test_PartitionView_OverLimitTopologyOmitted(t *testing.T) {
 	// 16 shards is a valid partition but outside of the view limits
 	b := fxBlock(t, fxScheme(4), 0)
-	crs, err := b.GenerateCertificates(fxCommitQc(b))
+	crs, err := b.GenerateCertificates(fxCommitQc(b), logger.New(t))
 	require.NoError(t, err)
 	require.Len(t, crs, 1)
 	require.Nil(t, crs[0].PartitionView)
@@ -148,7 +149,7 @@ func Test_PartitionView_OverLimitTopologyOmitted(t *testing.T) {
 
 func Test_PartitionView_NotInLegacyFormat(t *testing.T) {
 	b := fxBlock(t, fxScheme(1), 0)
-	crs, err := b.GenerateCertificates(fxCommitQc(b))
+	crs, err := b.GenerateCertificates(fxCommitQc(b), logger.New(t))
 	require.NoError(t, err)
 	cr := crs[0]
 	require.NotEmpty(t, cr.PartitionView)

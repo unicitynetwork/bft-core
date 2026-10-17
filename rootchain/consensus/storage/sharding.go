@@ -8,7 +8,6 @@ import (
 	"iter"
 	"maps"
 	"slices"
-	"sync/atomic"
 	"time"
 
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
@@ -23,6 +22,10 @@ type ShardStates struct {
 
 	// cache schemes of the block
 	schemes map[types.PartitionID]types.ShardingScheme
+
+	// viewEncodeHook, when set (tests), is called for every partition view encoded by
+	// the operations on this value. It is not propagated to the states derived from it.
+	viewEncodeHook func(types.PartitionID)
 }
 
 /*
@@ -124,19 +127,12 @@ func (ss ShardStates) unicityTree(algo crypto.Hash) (*types.UnicityTree, map[typ
 }
 
 /*
-certificationResponses builds the unicity tree and certification responses based on the shard states.
+certificationResponsesWithViews builds the unicity tree and certification responses based on the shard states.
 CertificationResponse will be generated only for shards marked as "changed".
 The UnicityCertificates in the response are not complete, they miss the UnicitySeal.
-*/
-func (ss ShardStates) certificationResponses(algo crypto.Hash) ([]*certification.CertificationResponse, []byte, error) {
-	crs, rootHash, _, err := ss.certificationResponsesWithViews(algo)
-	return crs, rootHash, err
-}
 
-/*
-certificationResponsesWithViews is certificationResponses which also attaches the encoded
-partition view (see partitionViews) to the responses. Failure to produce a view is not an
-error of the certification, the failures are returned (by partition) for reporting and the
+The responses also carry the encoded partition view (see partitionViews). Failure to produce a view
+is not an error of the certification, the failures are returned (by partition) for reporting and the
 responses of that partition are left without the view.
 */
 func (ss ShardStates) certificationResponsesWithViews(algo crypto.Hash) ([]*certification.CertificationResponse, []byte, map[types.PartitionID]error, error) {
@@ -182,12 +178,15 @@ func (ss ShardStates) certificationResponsesWithViews(algo crypto.Hash) ([]*cert
 	return crs, ut.RootHash(), viewErrs, nil
 }
 
-// Retention of partition views: every shard's LastCR keeps its own, original response including the
-// encoded partition view of the round it was certified in, so a handshake or a stale request is answered
-// with exactly the original bytes (never regenerated from newer state). A view is shared by the
-// responses of one round, so a partition retains at most one distinct view per shard that has a LastCR,
-// ie <= S views of <= MaxPartitionViewSize bytes: O(S*W) per partition, O(S^2) bytes with W = Theta(S). With the
-// production cap (S <= MaxPartitionViewLeaves = 8, W <= 16 KiB) that is at most 128 KiB per partition.
+// Retention of partition views: while the process runs, every shard's LastCR keeps its own, original
+// response including the encoded partition view of the round it was certified in, so a handshake or a
+// stale request is answered with exactly the original bytes (never regenerated from newer state). The view
+// is kept in memory only: it is not persisted and not part of the recovery data, so after a root restart or
+// recovery the replies carry a null view until it is restored when the shard is next certified (normally
+// within a few rounds). A view is shared by the responses of one round, so a partition retains at most one
+// distinct view per shard that has a LastCR, ie <= S views of <= MaxPartitionViewSize bytes: O(S*W) per
+// partition, O(S^2) bytes with W = Theta(S). With the production cap (S <= MaxPartitionViewLeaves = 8,
+// W <= 16 KiB) that is at most 128 KiB per partition.
 
 /*
 partitionViews encodes the partition view (the complete vector of the shard tree leaves) of
@@ -208,7 +207,7 @@ func (ss ShardStates) partitionViews(inputs map[types.PartitionID][]types.ShardT
 		if _, failed := errs[psID.PartitionID]; failed {
 			continue
 		}
-		data, err := encodePartitionView(psID.PartitionID, inputs[psID.PartitionID])
+		data, err := encodePartitionView(psID.PartitionID, inputs[psID.PartitionID], ss.viewEncodeHook)
 		if err != nil {
 			if errs == nil {
 				errs = map[types.PartitionID]error{}
@@ -224,12 +223,13 @@ func (ss ShardStates) partitionViews(inputs map[types.PartitionID][]types.ShardT
 	return views, errs
 }
 
-// partitionViewEncodes counts encodePartitionView calls (observability for the scaling tests: the view
-// must be encoded once per changed partition per round, whatever the number of responses).
-var partitionViewEncodes atomic.Int64
-
-func encodePartitionView(partition types.PartitionID, inputs []types.ShardTreeInput) ([]byte, error) {
-	partitionViewEncodes.Add(1)
+// encodePartitionView encodes the view of the partition, onEncode (optional, nil in production) is
+// called once per call (observability for the scaling tests: the view must be encoded once per
+// changed partition per round, whatever the number of responses).
+func encodePartitionView(partition types.PartitionID, inputs []types.ShardTreeInput, onEncode func(types.PartitionID)) ([]byte, error) {
+	if onEncode != nil {
+		onEncode(partition)
+	}
 	if len(inputs) == 0 {
 		return nil, errors.New("no shard tree inputs")
 	}

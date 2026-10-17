@@ -24,7 +24,7 @@ import (
 //
 // Each recipient is a real libp2p peer with a raw stream handler for the V2 protocol that
 // counts the bytes the sender writes into its stream (varint length prefix plus payload).
-// The marshal counters are the sender's own (v1Marshals / v2Marshals of the dispatch).
+// The marshal counters are the sender's own (countMarshals, a hook on the dispatch).
 func Test_ScalingRecipientFanout(t *testing.T) {
 	if os.Getenv("UC_MEASURE") == "" {
 		t.Skip("set UC_MEASURE=1 to run the scaling measurements")
@@ -35,8 +35,7 @@ func Test_ScalingRecipientFanout(t *testing.T) {
 	var firstPer int64
 	for _, f := range []int{1, 2, 4, 8, 16, 32} {
 		senderPeer, senderNw := newCertSender(t)
-		var frames *certificationFrames
-		senderNw.framesHook = func(fr *certificationFrames) { frames = fr }
+		frames := countMarshals(senderNw)
 
 		var total, streams atomic.Int64
 		var wg sync.WaitGroup
@@ -73,14 +72,14 @@ func Test_ScalingRecipientFanout(t *testing.T) {
 			t.Fatalf("f=%d: only %d of %d streams completed", f, streams.Load(), f)
 		}
 		require.EqualValues(t, f, streams.Load())
-		require.EqualValues(t, 1, frames.v2Marshals.Load(), "f=%d: one V2 encoding per dispatch", f)
-		require.Zero(t, frames.v1Marshals.Load(), "f=%d: the legacy frame is not built when every recipient negotiates V2", f)
+		require.EqualValues(t, 1, frames.v2.Load(), "f=%d: one V2 encoding per dispatch", f)
+		require.Zero(t, frames.v1.Load(), "f=%d: the legacy frame is not built when every recipient negotiates V2", f)
 		per := total.Load() / streams.Load()
 		if firstPer == 0 {
 			firstPer = per
 		}
 		require.Equal(t, firstPer, per)
-		fmt.Fprintf(&sb, "| %d | %d | %d | %d | %d | %d |\n", f, frames.v2Marshals.Load(), frames.v1Marshals.Load(), streams.Load(), total.Load(), per)
+		fmt.Fprintf(&sb, "| %d | %d | %d | %d | %d | %d |\n", f, frames.v2.Load(), frames.v1.Load(), streams.Load(), total.Load(), per)
 	}
 	t.Logf("recipient fan-out: real sends over libp2p\n%s", sb.String())
 }

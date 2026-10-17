@@ -333,7 +333,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		block := validBlock()
 		// scheme lists partition for which there is no shard info
 		block.ShardState.schemes = map[types.PartitionID]types.ShardingScheme{66: {}}
-		certs, err := block.GenerateCertificates(commitQc)
+		certs, err := block.GenerateCertificates(commitQc, logger.New(t))
 		require.EqualError(t, err, `failed to generate root hash: creating unicity tree: missing shard info for 00000042_80`)
 		require.Empty(t, certs)
 	})
@@ -342,7 +342,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		commitQc := validCommitQc()
 		block := validBlock()
 		block.RootHash = []byte{1}
-		certs, err := block.GenerateCertificates(commitQc)
+		certs, err := block.GenerateCertificates(commitQc, logger.New(t))
 		require.EqualError(t, err, "root hash does not match previously calculated root hash")
 		require.Nil(t, certs)
 	})
@@ -351,7 +351,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		commitQc := validCommitQc()
 		commitQc.LedgerCommitInfo.Hash = []byte{2}
 		block := validBlock()
-		certs, err := block.GenerateCertificates(commitQc)
+		certs, err := block.GenerateCertificates(commitQc, logger.New(t))
 		require.EqualError(t, err, "root hash does not match hash in commit QC")
 		require.Nil(t, certs)
 	})
@@ -360,7 +360,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		commitQc := validCommitQc()
 		block := validBlock()
 		block.ShardState.Changed = nil
-		certs, err := block.GenerateCertificates(commitQc)
+		certs, err := block.GenerateCertificates(commitQc, logger.New(t))
 		require.NoError(t, err)
 		require.Empty(t, certs)
 	})
@@ -368,7 +368,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	t.Run("success with changes", func(t *testing.T) {
 		commitQc := validCommitQc()
 		block := validBlock()
-		certs, err := block.GenerateCertificates(commitQc)
+		certs, err := block.GenerateCertificates(commitQc, logger.New(t))
 		require.NoError(t, err)
 		require.Len(t, certs, 2)
 		si, ok := block.ShardState.States[types.PartitionShardID{PartitionID: partitionID1, ShardID: types.ShardID{}.Key()}]
