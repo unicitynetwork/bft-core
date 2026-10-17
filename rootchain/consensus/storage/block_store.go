@@ -146,7 +146,7 @@ func (x *BlockStore) ProcessQc(qc *rctypes.QuorumCert) ([]*certification.Certifi
 		return nil, nil
 	}
 	// If the QC commits a state committed block becomes the new root
-	ucs, err := x.blockTree.Commit(qc)
+	ucs, err := x.blockTree.Commit(qc, x.log)
 	if err != nil {
 		return nil, fmt.Errorf("committing new root block: %w", err)
 	}

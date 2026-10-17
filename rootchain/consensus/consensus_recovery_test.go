@@ -18,6 +18,7 @@ import (
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 
+	testlogger "github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	testobservability "github.com/unicitynetwork/bft-core/internal/testutils/observability"
 	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/logger"
@@ -895,7 +896,7 @@ func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionReco
 	// the same QC accepts the genesis block and commits it, usually commit comes later
 	executedBlock.Qc, executedBlock.CommitQc, executedBlock.RootHash = commitQc, commitQc, commitQc.LedgerCommitInfo.Hash
 
-	crs, err := executedBlock.GenerateCertificates(commitQc)
+	crs, err := executedBlock.GenerateCertificates(commitQc, testlogger.New(t))
 	require.NoError(t, err)
 	require.Len(t, crs, 1)
 	require.NotNil(t, si.LastCR)

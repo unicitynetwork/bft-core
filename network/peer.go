@@ -21,6 +21,7 @@ import (
 	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
+	msmux "github.com/multiformats/go-multistream"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -70,6 +71,11 @@ type (
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
 // listens to the multiaddresses "/ip4/0.0.0.0/tcp/0".
 func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, prom prometheus.Registerer) (*Peer, error) {
+	return newPeer(ctx, conf, log, prom)
+}
+
+// newPeer is NewPeer with additional libp2p options (tests).
+func newPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, prom prometheus.Registerer, extra ...config.Option) (*Peer, error) {
 	if conf == nil {
 		return nil, ErrPeerConfigurationIsNil
 	}
@@ -118,6 +124,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 		})
 		opts = append(opts, addrsFactory)
 	}
+	opts = append(opts, extra...)
 	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, err
@@ -267,6 +274,29 @@ func (p *Peer) RemoveProtocolHandler(protocolID string) {
 // CreateStream opens a new stream to given peer p, and writes a libp2p protocol header with given ProtocolID.
 func (p *Peer) CreateStream(ctx context.Context, peerID peer.ID, protocolID string) (network.Stream, error) {
 	return p.host.NewStream(ctx, peerID, libp2pprotocol.ID(protocolID))
+}
+
+// CreateStreamPreferred opens a new stream to given peer for the first of the protocols (in the order
+// of preference) which the peer announced via identify on its current connection. It waits for identify
+// but not for the remote end: the multistream header is sent together with the first payload write, so
+// there is no negotiation round trip before the payload. Only if the peer announced none of the
+// protocols does libp2p negotiate explicitly. The chosen protocol is available via stream.Protocol()
+// before the first write. A refusal of the protocol is reported by Read (see lazyHandshakeRefused).
+func (p *Peer) CreateStreamPreferred(ctx context.Context, peerID peer.ID, protocolIDs ...string) (network.Stream, error) {
+	if len(protocolIDs) == 0 {
+		return nil, errors.New("at least one protocol must be offered")
+	}
+	ids := make([]libp2pprotocol.ID, len(protocolIDs))
+	for i, id := range protocolIDs {
+		ids[i] = libp2pprotocol.ID(id)
+	}
+	return p.host.NewStream(ctx, peerID, ids...)
+}
+
+// lazyHandshakeRefused returns true if err tells that the remote end refused the protocol of a stream
+// opened by the lazy path of host.NewStream.
+func lazyHandshakeRefused(err error) bool {
+	return errors.Is(err, msmux.ErrNotSupported[libp2pprotocol.ID]{})
 }
 
 // Configuration returns peer configuration

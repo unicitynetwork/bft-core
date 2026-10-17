@@ -40,6 +40,9 @@ type (
 		// received message can be stored
 		TypeFn  func() any
 		Handler libp2pNetwork.StreamHandler
+		// when non-zero, frames with CBOR payload larger than this are rejected before
+		// allocation and the payload must be consumed exactly.
+		MaxFrameSize uint64
 	}
 
 	sendProtocolData struct {
@@ -65,6 +68,9 @@ type LibP2PNetwork struct {
 	receivedMsgs  chan any // messages from LibP2PNetwork sent to this peer
 	tracer        trace.Tracer
 	log           *slog.Logger
+
+	// framesHook, when set (tests), observes the per dispatch certification frames cache
+	framesHook func(*certificationFrames)
 }
 
 /*
@@ -211,7 +217,7 @@ streamHandlerForProtocol returns libp2p stream handler for given protocolID.
 The "ctor" is constructor which returns pointer to a data struct into which
 incoming message can be stored.
 */
-func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() any) libp2pNetwork.StreamHandler {
+func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() any, maxFrame uint64) libp2pNetwork.StreamHandler {
 	return func(s libp2pNetwork.Stream) {
 		success := false
 		defer func() {
@@ -235,7 +241,12 @@ func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() 
 		reader := bufio.NewReader(s)
 		for {
 			msg := ctor()
-			if err = deserializeMsg(reader, msg); err != nil {
+			if maxFrame > 0 {
+				err = deserializeMsgLimited(reader, msg, maxFrame)
+			} else {
+				err = deserializeMsg(reader, msg)
+			}
+			if err != nil {
 				if errors.Is(err, io.EOF) {
 					break
 				}
@@ -307,7 +318,7 @@ func (n *LibP2PNetwork) registerReceiveProtocol(protoc ReceiveProtocolDescriptio
 		return fmt.Errorf("data struct constructor must return pointer to struct but returns %s", typ)
 	}
 
-	n.self.RegisterProtocolHandler(protoc.ProtocolID, n.streamHandlerForProtocol(protoc.ProtocolID, protoc.TypeFn))
+	n.self.RegisterProtocolHandler(protoc.ProtocolID, n.streamHandlerForProtocol(protoc.ProtocolID, protoc.TypeFn, protoc.MaxFrameSize))
 	return nil
 }
 

@@ -7,6 +7,12 @@ Run `make build` to build the application. Executable will be built to `build/ub
 * [`Go`](https://go.dev/doc/install) version 1.24.
 * `C` compiler, recent versions of [GCC](https://gcc.gnu.org/) are recommended. In Debian and Ubuntu repositories, GCC is part of the build-essential package. On macOS, GCC can be installed with [Homebrew](https://formulae.brew.sh/formula/gcc).
 
+# Upgrading
+
+The release with the strict signature rule assumes a stop-all upgrade of every process (the conservative baseline; there is no activation gate). A gentler procedure
+(root validator cutover first, then rolling aggregators) is described in
+[docs/upgrade.md](docs/upgrade.md#strict-signature-rule-bft-go-base-uc-consolidation).
+
 # Configuration
 
 It's possible to define the configuration values from (in the order of precedence):

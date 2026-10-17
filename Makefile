@@ -26,7 +26,7 @@ gosec:
 	gosec -exclude-generated ./...
 
 tools:
-	go install github.com/securego/gosec/v2/cmd/gosec@latest
+	go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
 
 .PHONY: \
 	all \
