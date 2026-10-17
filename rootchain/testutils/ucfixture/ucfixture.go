@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"slices"
 
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
@@ -189,7 +190,13 @@ func (p *Producer) TrustBase() *types.RootTrustBaseV1 { return p.tb }
 func (p *Producer) TrustBaseCBOR() ([]byte, error) { return p.tb.MarshalCBOR() }
 
 // Quorum is the number of root signatures a seal needs.
-func (p *Producer) Quorum() int { return int(p.tb.GetQuorumThreshold()) }
+func (p *Producer) Quorum() int {
+	q := p.tb.GetQuorumThreshold()
+	if q > uint64(math.MaxInt) {
+		panic(fmt.Sprintf("ucfixture: quorum threshold %d does not fit in int", q))
+	}
+	return int(q)
+}
 
 // Change is a new state record of a shard in a block.
 type Change struct {
