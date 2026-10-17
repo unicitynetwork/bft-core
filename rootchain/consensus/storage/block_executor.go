@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
@@ -144,7 +145,7 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 	}, nil
 }
 
-func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*certification.CertificationResponse, error) {
+func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert, log *slog.Logger) ([]*certification.CertificationResponse, error) {
 	crs, rootHash, viewErrs, err := x.ShardState.certificationResponsesWithViews(x.HashAlgo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate root hash: %w", err)
@@ -162,8 +163,8 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 	}
 	// the partition view is optional proof material, never a reason to fail the certification
 	for partition, err := range viewErrs {
-		slog.Warn("certification responses are sent without partition view",
-			slog.Uint64("partition", uint64(partition)), slog.Uint64("round", x.GetRound()), logErr(err))
+		log.Warn("certification responses are sent without partition view",
+			slog.Uint64("partition", uint64(partition)), slog.Uint64("round", x.GetRound()), logger.Error(err))
 	}
 
 	// create UnicitySeal for pending certificates
@@ -197,5 +198,3 @@ func (x *ExecutedBlock) GetParentRound() uint64 {
 	}
 	return 0
 }
-
-func logErr(err error) slog.Attr { return slog.String("err", err.Error()) }

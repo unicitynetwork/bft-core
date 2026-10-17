@@ -62,7 +62,7 @@ func (e *tsEnv) genesis() (*ExecutedBlock, []*certification.CertificationRespons
 		BlockData: &drctypes.BlockData{Author: "test", Round: drctypes.GenesisRootRound, Payload: &drctypes.Payload{}},
 		HashAlgo:  crypto.SHA256, RootHash: ut.RootHash(), ShardState: ss,
 	}
-	crs, err := b.GenerateCertificates(fxCommitQc(b))
+	crs, err := b.GenerateCertificates(fxCommitQc(b), logger.New(e.t))
 	require.NoError(e.t, err)
 	return b, crs
 }
@@ -118,7 +118,7 @@ func (e *tsEnv) step(parent *ExecutedBlock, orc mockOrchestration, reqs ...tsReq
 	bd := &drctypes.BlockData{Author: "test", Round: parent.GetRound() + 1, Payload: payload}
 	b, err := parent.Extend(bd, verifier, orc, crypto.SHA256, logger.New(e.t))
 	require.NoError(e.t, err)
-	crs, err := b.GenerateCertificates(fxCommitQc(b))
+	crs, err := b.GenerateCertificates(fxCommitQc(b), logger.New(e.t))
 	require.NoError(e.t, err)
 	return b, crs
 }

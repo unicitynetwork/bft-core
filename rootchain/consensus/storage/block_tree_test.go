@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"path/filepath"
 	"testing"
 
@@ -516,7 +517,7 @@ func Test_BlockTree_Add(t *testing.T) {
 				Hash:         b.RootHash,
 			},
 		}
-		certs, err := bt.Commit(commitQc)
+		certs, err := bt.Commit(commitQc, logger.New(t))
 		require.NoError(t, err)
 		require.Empty(t, certs)
 		newRoot := bt.Root()

@@ -333,7 +333,7 @@ func (p *Producer) commit(b *storage.ExecutedBlock, timestamp uint64, signers []
 		LedgerCommitInfo: &types.UnicitySeal{Version: 1, NetworkID: seal.NetworkID, RootChainRoundNumber: seal.RootChainRoundNumber, Epoch: seal.Epoch, Timestamp: seal.Timestamp, PreviousHash: seal.PreviousHash, Hash: seal.Hash},
 		Signatures:       seal.Signatures,
 	}
-	crs, err := b.GenerateCertificates(qc)
+	crs, err := b.GenerateCertificates(qc, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		return nil, fmt.Errorf("generating certificates: %w", err)
 	}

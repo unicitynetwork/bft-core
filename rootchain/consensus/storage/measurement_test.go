@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"encoding/binary"
 	"fmt"
+	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
 	"math"
 	"strings"
 	"testing"
@@ -108,7 +109,7 @@ func msCertify(t testing.TB, blk *ExecutedBlock, signers int) []*certification.C
 	qc := fxCommitQc(blk)
 	qc.LedgerCommitInfo = msSeal(blk.RootHash, signers)
 	qc.Signatures = qc.LedgerCommitInfo.Signatures // GenerateCertificates copies the QC's signatures
-	crs, err := blk.GenerateCertificates(qc)
+	crs, err := blk.GenerateCertificates(qc, logger.New(t))
 	require.NoError(t, err)
 	for _, cr := range crs {
 		require.Len(t, cr.UC.UnicitySeal.Signatures, signers)
@@ -288,7 +289,7 @@ func BenchmarkGenerateCertificates(b *testing.B) {
 		b.Run(sh.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				if _, err := blk.GenerateCertificates(qc); err != nil {
+				if _, err := blk.GenerateCertificates(qc, logger.New(b)); err != nil {
 					b.Fatal(err)
 				}
 			}
