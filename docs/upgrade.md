@@ -34,7 +34,7 @@ The network recovers when all nodes run the same version. Signers that follow th
 
 ### Procedure
 
-Use the procedure of the section below, extended to every node type:
+The procedure is the same as for the root nodes (see the sections below), for every node type:
 
 1. Install the new binary on every root validator, shard validator and aggregator. Do not
    restart anything yet.
