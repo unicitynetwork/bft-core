@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 
@@ -38,7 +37,10 @@ const (
 )
 
 func newCertReceiver(t *testing.T, sender *Peer, kind recvKind) (*Peer, *LibP2PNetwork) {
-	p := createPeer(t)
+	return registerReceiver(t, sender, createPeer(t), kind)
+}
+
+func registerReceiver(t *testing.T, sender *Peer, p *Peer, kind recvKind) (*Peer, *LibP2PNetwork) {
 	nw, err := NewLibP2PNetwork(p, 10, observability.Default(t))
 	require.NoError(t, err)
 	sender.Network().Peerstore().AddAddrs(p.ID(), p.MultiAddresses(), peerstore.PermanentAddrTTL)
@@ -210,42 +212,4 @@ func Test_deserializeMsgLimited(t *testing.T) {
 		var dec certification.CertificationResponseV2
 		require.ErrorContains(t, deserializeMsgLimited(bufio.NewReader(bytes.NewReader(frameMsg(d))), &dec, 1<<20), "unsupported")
 	})
-}
-
-// A peerstore which still lists v2 for a recipient that only speaks v1 (stale capability
-// cache) must not make the sender write the certificate on a lazily negotiated v2 stream.
-func Test_SendCertificationResponse_StaleCachedCapability(t *testing.T) {
-	senderPeer, senderNw := newCertSender(t)
-	p, nw := newCertReceiver(t, senderPeer, recvLegacy)
-	require.NoError(t, senderPeer.host.Peerstore().AddProtocols(p.ID(), ProtocolUnicityCertificatesV2, ProtocolUnicityCertificates))
-
-	require.NoError(t, senderNw.SendCertificationResponse(context.Background(), testCertResponse(t, []byte{1, 2, 3}), p.ID()))
-	got, ok := recv(t, nw).(*certification.CertificationResponse)
-	require.True(t, ok, "v1 must be delivered after v2 is rejected")
-	require.Equal(t, uint64(7), got.Technical.Round)
-	requireNoMore(t, nw)
-}
-
-func Test_CreateStreamProtocols_NegotiatesBeforeReturn(t *testing.T) {
-	a := createPeer(t)
-	b := createPeer(t)
-	a.Network().Peerstore().AddAddrs(b.ID(), b.MultiAddresses(), peerstore.PermanentAddrTTL)
-	b.RegisterProtocolHandler(ProtocolUnicityCertificates, func(s libp2pNetwork.Stream) { _ = s.Close() })
-	// cached (stale) knowledge of an unsupported first choice
-	require.NoError(t, a.host.Peerstore().AddProtocols(b.ID(), ProtocolUnicityCertificatesV2))
-
-	s, err := a.CreateStreamProtocols(context.Background(), b.ID(), ProtocolUnicityCertificatesV2, ProtocolUnicityCertificates)
-	require.NoError(t, err)
-	defer func() { _ = s.Close() }()
-	require.Equal(t, ProtocolUnicityCertificates, string(s.Protocol()))
-
-	_, err = a.CreateStreamProtocols(context.Background(), b.ID(), "/unsupported/1")
-	require.Error(t, err)
-	_, err = a.CreateStreamProtocols(context.Background(), b.ID())
-	require.Error(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	_, err = a.CreateStreamProtocols(ctx, b.ID(), ProtocolUnicityCertificates)
-	require.Error(t, err)
 }

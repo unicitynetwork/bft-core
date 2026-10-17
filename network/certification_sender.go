@@ -87,9 +87,12 @@ func (f *certificationFrames) v2Frame() ([]byte, error) {
 
 /*
 SendCertificationResponse sends the response asynchronously to the receivers, offering
-"/ab/certificates/0.0.2" and "/ab/certificates/0.0.1" to each. The serialization is chosen
-from the negotiated stream protocol before any payload is written; exactly one certificate
-is sent per receiver and a failure is never followed by a second send in another format.
+"/ab/certificates/0.0.2" and "/ab/certificates/0.0.1" to each. The protocol is the first one the
+receiver announced via identify on its current connection, so no negotiation round trip
+precedes the payload in steady state (explicit negotiation happens only when the receiver
+announced neither). The serialization is chosen from the stream protocol before any payload is
+written; exactly one certificate is sent per receiver and a failure is never followed by a
+second send in the same or another format.
 */
 func (n *LibP2PNetwork) SendCertificationResponse(ctx context.Context, cr *certification.CertificationResponse, receivers ...peer.ID) error {
 	if len(receivers) == 0 {
@@ -149,8 +152,12 @@ func (n *LibP2PNetwork) SendCertificationResponse(ctx context.Context, cr *certi
 	return nil
 }
 
+// sendCertificationFrame opens the stream with host.NewStream semantics: the protocol is the first of
+// protocols which the receiver announced via identify on its current connection, and the multistream
+// header travels with the payload (no round trip before it). Nothing is ever resent: after a failure
+// there is no proof that the payload was not handed to the receiver's handler.
 func (n *LibP2PNetwork) sendCertificationFrame(ctx context.Context, receiver peer.ID, protocols []string, legacyID string, frames *certificationFrames) (err error) {
-	s, err := n.self.CreateStreamProtocols(ctx, receiver, protocols...)
+	s, err := n.self.CreateStreamPreferred(ctx, receiver, protocols...)
 	if err != nil {
 		return fmt.Errorf("open p2p stream: %w", err)
 	}
@@ -159,8 +166,9 @@ func (n *LibP2PNetwork) sendCertificationFrame(ctx context.Context, receiver pee
 			err = errors.Join(err, fmt.Errorf("closing p2p stream: %w", closeErr))
 		}
 	}()
+	negotiated := string(s.Protocol())
 	var data []byte
-	switch negotiated := string(s.Protocol()); negotiated {
+	switch negotiated {
 	case ProtocolUnicityCertificatesV2:
 		data, err = frames.v2Frame()
 	case legacyID:
@@ -176,13 +184,26 @@ func (n *LibP2PNetwork) sendCertificationFrame(ctx context.Context, receiver pee
 		_ = s.Reset()
 		return errors.New("negotiated protocol has no serialized payload")
 	}
+	// Bound both directions before the first write: it starts the lazy handshake reader, which the
+	// deferred Close waits for.
 	if deadline, ok := ctx.Deadline(); ok {
-		if err = s.SetWriteDeadline(deadline); err != nil {
-			return fmt.Errorf("error setting write deadline: %w", err)
+		if err = s.SetDeadline(deadline); err != nil {
+			_ = s.Reset()
+			return fmt.Errorf("setting deadline on p2p stream (%s): %w", negotiated, err)
 		}
 	}
 	if _, err = s.Write(data); err != nil {
-		return fmt.Errorf("writing data to p2p stream: %w", err)
+		_ = s.Reset() // Close must not wait for the handshake reply of a stalled peer
+		return fmt.Errorf("writing data to p2p stream (%s): %w", negotiated, err)
+	}
+	// Observe the (already pipelined) handshake reply, after the payload went out. A refusal means the
+	// receiver advertised a protocol it does not handle (now); it is reported, not retried.
+	if _, rerr := s.Read(nil); rerr != nil {
+		_ = s.Reset()
+		if lazyHandshakeRefused(rerr) {
+			return fmt.Errorf("receiver refused protocol %s, certificate not resent: %w", negotiated, rerr)
+		}
+		return fmt.Errorf("reading protocol handshake reply for %s: %w", negotiated, rerr)
 	}
 	return nil
 }
