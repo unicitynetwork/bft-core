@@ -254,8 +254,9 @@ func Test_SendCertificationResponse_RefusalIsNotRetried(t *testing.T) {
 	p, nw := newCertReceiver(t, senderPeer, recvBoth)
 	require.NoError(t, senderNw.SendCertificationResponse(context.Background(), testCertResponse(t, nil), p.ID()))
 	recv(t, nw)
-	// the handler is removed without a new identify (no push): the sender still believes V2 is served
-	p.RemoveProtocolHandler(ProtocolUnicityCertificatesV2)
+	// removed from the mux directly: unlike RemoveStreamHandler this emits no EvtLocalProtocolsUpdated,
+	// so identify does not push and the sender deterministically still believes V2 is served
+	p.host.Mux().RemoveHandler(ProtocolUnicityCertificatesV2)
 	sendCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	err := senderNw.sendCertificationFrame(sendCtx, p.ID(), []string{ProtocolUnicityCertificatesV2, ProtocolUnicityCertificates}, ProtocolUnicityCertificates, &certificationFrames{cr: testCertResponse(t, nil)})
@@ -293,4 +294,35 @@ func Test_SendCertificationResponse_DeliveredWithLatencyWithinTimeout(t *testing
 		recv(t, nw)
 		requireNoMore(t, nw)
 	}
+}
+
+// A receiver which is connected and identified but no longer services new streams: the send is
+// bounded by the context (both lazy handshake directions), returns the error and is not resent.
+func Test_SendCertificationResponse_StalledReceiverIsBounded(t *testing.T) {
+	senderPeer, senderNw, cm := newCountingCertSender(t)
+	p, nw := newCertReceiver(t, senderPeer, recvBoth)
+	require.NoError(t, senderNw.SendCertificationResponse(context.Background(), testCertResponse(t, nil), p.ID()))
+	recv(t, nw)
+	cm.reset()
+	// the swarm hands new streams to a handler which never reads or negotiates
+	p.host.Network().SetStreamHandler(func(network.Stream) {})
+
+	frames := &certificationFrames{cr: testCertResponse(t, nil)}
+	frames.v2Once.Do(func() { frames.v2 = frameMsg(bytes.Repeat([]byte{1}, 1<<20)) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- senderNw.sendCertificationFrame(ctx, p.ID(), []string{ProtocolUnicityCertificatesV2, ProtocolUnicityCertificates}, ProtocolUnicityCertificates, frames)
+	}()
+	select {
+	case err := <-done:
+		require.Error(t, err)
+		require.Contains(t, err.Error(), ProtocolUnicityCertificatesV2)
+	case <-time.After(2 * time.Second):
+		t.Fatal("send not bounded by its deadline")
+	}
+	requireNoMore(t, nw)
+	require.Len(t, cm.stats(), 1, "one stream, nothing resent")
 }

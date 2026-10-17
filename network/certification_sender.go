@@ -179,20 +179,20 @@ func (n *LibP2PNetwork) sendCertificationFrame(ctx context.Context, receiver pee
 		_ = s.Reset()
 		return errors.New("negotiated protocol has no serialized payload")
 	}
-	deadline, hasDeadline := ctx.Deadline()
-	if hasDeadline {
-		if err = s.SetWriteDeadline(deadline); err != nil {
-			return fmt.Errorf("error setting write deadline: %w", err)
+	// Bound both directions before the first write: it starts the lazy handshake reader, which the
+	// deferred Close waits for.
+	if deadline, ok := ctx.Deadline(); ok {
+		if err = s.SetDeadline(deadline); err != nil {
+			_ = s.Reset()
+			return fmt.Errorf("setting deadline on p2p stream (%s): %w", negotiated, err)
 		}
 	}
 	if _, err = s.Write(data); err != nil {
-		return fmt.Errorf("writing data to p2p stream: %w", err)
+		_ = s.Reset() // Close must not wait for the handshake reply of a stalled peer
+		return fmt.Errorf("writing data to p2p stream (%s): %w", negotiated, err)
 	}
 	// Observe the (already pipelined) handshake reply, after the payload went out. A refusal means the
 	// receiver advertised a protocol it does not handle (now); it is reported, not retried.
-	if hasDeadline {
-		_ = s.SetReadDeadline(deadline)
-	}
 	if _, rerr := s.Read(nil); rerr != nil {
 		_ = s.Reset()
 		if lazyHandshakeRefused(rerr) {
