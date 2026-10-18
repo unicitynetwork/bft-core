@@ -79,7 +79,7 @@ func (sm *StateMsg) CanRecoverToRound(round uint64) error {
 	if round == sm.CommittedHead.Block.GetRound() {
 		return nil
 	}
-	if !slices.ContainsFunc(sm.Pending, func(b *rctypes.BlockData) bool { return b.GetRound() == round }) {
+	if !slices.ContainsFunc(sm.Pending, func(b *rctypes.BlockData) bool { return b != nil && b.GetRound() == round }) {
 		return fmt.Errorf("state has no data block for round %d", round)
 	}
 
@@ -107,6 +107,9 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) er
 	}
 	// verify node blocks
 	for _, n := range sm.Pending {
+		if n == nil {
+			return errors.New("invalid block node: block is nil")
+		}
 		if err := n.IsValid(); err != nil {
 			return fmt.Errorf("invalid block node: %w", err)
 		}
@@ -117,6 +120,14 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) er
 		}
 	}
 	for _, c := range sm.CommittedHead.ShardInfo {
+		if c.UC == nil {
+			// a shard which has not been certified yet carries no UC: nothing to verify (ShardInfo.IsValid
+			// validates the UC when it is present)
+			continue
+		}
+		if c.UC.UnicityTreeCertificate == nil {
+			return fmt.Errorf("certificate for %s is invalid: %w", c.Partition, types.ErrUnicityTreeCertificateIsNil)
+		}
 		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.GetPartitionID(), c.UC.GetShardID(), nil); err != nil {
 			return fmt.Errorf("certificate for %s is invalid: %w", c.UC.UnicityTreeCertificate.Partition, err)
 		}
