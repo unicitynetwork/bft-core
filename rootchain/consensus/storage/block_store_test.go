@@ -586,6 +586,44 @@ func Test_BlockStore_RecoveredShardWithoutCertificateRefusesRequests(t *testing.
 	})
 }
 
+// The recovered state of a shard without UC/TR and with an IRTR epoch which differs from the IR epoch makes the
+// next block switch the shard into its next epoch; the error of that path used to be formatted from the (nil)
+// LastCR and panicked.
+func Test_BlockStore_RecoveredShardWithoutCertificateAndInconsistentEpoch(t *testing.T) {
+	shardConf := newShardConf(t)
+	storeA := initBlockStoreFromGenesis(t, shardConf)
+	clear(storeA.blockTree.root.data.ShardState.Changed)
+	state, err := storeA.GetState()
+	require.NoError(t, err)
+	raw, err := types.Cbor.Marshal(state)
+	require.NoError(t, err)
+	var received abdrc.StateMsg
+	require.NoError(t, types.Cbor.Unmarshal(raw, &received))
+	for i := range received.CommittedHead.ShardInfo {
+		received.CommittedHead.ShardInfo[i].UC = nil
+		received.CommittedHead.ShardInfo[i].TR = nil
+		received.CommittedHead.ShardInfo[i].IRTR.Epoch = received.CommittedHead.ShardInfo[i].IR.Epoch + 7
+	}
+
+	db, err := NewBoltStorage(filepath.Join(t.TempDir(), "blocks.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	storeB, err := NewFromState(crypto.SHA256, received.CommittedHead, db, storeA.orchestration, logger.New(t))
+	if err != nil {
+		return // rejected at recovery: nothing to execute (the binding of the recovered state)
+	}
+	siB := storeB.ShardInfo(shardConf.PartitionID, shardConf.ShardID)
+	require.NotNil(t, siB)
+	require.Nil(t, siB.LastCR)
+	confs, err := storeB.orchestration.ShardConfigs(3)
+	require.NoError(t, err)
+	require.NotPanics(t, func() {
+		_, err := storeB.blockTree.root.data.ShardState.nextBlock(confs, crypto.SHA256)
+		require.Error(t, err)
+		require.ErrorContains(t, err, fmt.Sprintf("creating ShardInfo %s - %s of the next epoch", siB.PartitionID, siB.ShardID))
+	})
+}
+
 func Test_BlockStore_persistence(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "blocks.db")
 	// init new (empty) DB from genesis
