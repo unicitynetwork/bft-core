@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"reflect"
 	"slices"
+	"sync"
 	"time"
 
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
@@ -40,6 +41,13 @@ type (
 		// received message can be stored
 		TypeFn  func() any
 		Handler libp2pNetwork.StreamHandler
+		// AdmitPeer is optional. When set, it is called with the authenticated remote peer ID
+		// (s.Conn().RemotePeer()) before every frame is read from a stream, so before anything is
+		// decoded or enqueued, and again before each later frame on a stream that survives. A
+		// rejected stream is reset and the rejection is logged at a limited rate. It must be cheap
+		// and safe for concurrent use. Nil admits everyone (the default). It cannot be combined
+		// with Handler, which receives the stream directly and has to do its own admission.
+		AdmitPeer func(peer.ID) bool
 	}
 
 	sendProtocolData struct {
@@ -65,6 +73,9 @@ type LibP2PNetwork struct {
 	receivedMsgs  chan any // messages from LibP2PNetwork sent to this peer
 	tracer        trace.Tracer
 	log           *slog.Logger
+
+	// limits the log of streams rejected by a ReceiveProtocolDescription.AdmitPeer callback
+	rejectLog rateLimitedLog
 }
 
 /*
@@ -206,12 +217,43 @@ func sendMsg(ctx context.Context, host *Peer, protocolID string, data []byte, re
 	return nil
 }
 
+// rejectLogInterval is the minimum time between two log lines about rejected peers.
+const rejectLogInterval = 10 * time.Second
+
+// rateLimitedLog allows one log line per interval and counts the rest.
+type rateLimitedLog struct {
+	mu         sync.Mutex
+	last       time.Time
+	suppressed uint64
+}
+
+// allow reports whether a line may be logged now and, if so, how many were suppressed since the
+// previous one.
+func (l *rateLimitedLog) allow(now time.Time) (bool, uint64) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.last.IsZero() && now.Sub(l.last) < rejectLogInterval {
+		l.suppressed++
+		return false, 0
+	}
+	l.last = now
+	n := l.suppressed
+	l.suppressed = 0
+	return true, n
+}
+
+func (n *LibP2PNetwork) logRejectedPeer(protocolID string, from peer.ID) {
+	if ok, suppressed := n.rejectLog.allow(time.Now()); ok {
+		n.log.Warn(fmt.Sprintf("rejected %q stream from peer %s that is not admitted (%d similar rejections not logged)", protocolID, from, suppressed))
+	}
+}
+
 /*
 streamHandlerForProtocol returns libp2p stream handler for given protocolID.
 The "ctor" is constructor which returns pointer to a data struct into which
 incoming message can be stored.
 */
-func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() any) libp2pNetwork.StreamHandler {
+func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() any, admit func(peer.ID) bool) libp2pNetwork.StreamHandler {
 	return func(s libp2pNetwork.Stream) {
 		success := false
 		defer func() {
@@ -233,7 +275,14 @@ func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() 
 			return
 		}
 		reader := bufio.NewReader(s)
+		remote := s.Conn().RemotePeer()
 		for {
+			// admission is decided on the authenticated peer before a frame is read, and again for
+			// every later frame of a stream that survives (the stream is reset on rejection)
+			if admit != nil && !admit(remote) {
+				n.logRejectedPeer(protocolID, remote)
+				return
+			}
 			msg := ctor()
 			if err = deserializeMsg(reader, msg); err != nil {
 				if errors.Is(err, io.EOF) {
@@ -284,6 +333,9 @@ func (n *LibP2PNetwork) registerReceiveProtocol(protoc ReceiveProtocolDescriptio
 	}
 
 	if protoc.Handler != nil {
+		if protoc.AdmitPeer != nil {
+			return errors.New("peer admission can not be combined with a custom stream handler")
+		}
 		n.self.RegisterProtocolHandler(protoc.ProtocolID, protoc.Handler)
 		return nil
 	}
@@ -307,7 +359,7 @@ func (n *LibP2PNetwork) registerReceiveProtocol(protoc ReceiveProtocolDescriptio
 		return fmt.Errorf("data struct constructor must return pointer to struct but returns %s", typ)
 	}
 
-	n.self.RegisterProtocolHandler(protoc.ProtocolID, n.streamHandlerForProtocol(protoc.ProtocolID, protoc.TypeFn))
+	n.self.RegisterProtocolHandler(protoc.ProtocolID, n.streamHandlerForProtocol(protoc.ProtocolID, protoc.TypeFn, protoc.AdmitPeer))
 	return nil
 }
 

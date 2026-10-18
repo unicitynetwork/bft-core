@@ -3,9 +3,12 @@ package network
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 	test "github.com/unicitynetwork/bft-core/internal/testutils"
@@ -732,4 +735,88 @@ func Test_LibP2PNetwork_registerReceiveProtocol(t *testing.T) {
 		err = nw.registerReceiveProtocol(data)
 		require.EqualError(t, err, `data struct constructor must return pointer to struct but returns network.testMsg`)
 	})
+}
+
+func Test_LibP2PNetwork_AdmitPeer(t *testing.T) {
+	setup := func(t *testing.T, admit func(peer.ID) bool) (*LibP2PNetwork, *LibP2PNetwork, peer.ID) {
+		obs := observability.Default(t)
+		peer1 := createPeer(t)
+		t.Cleanup(func() { _ = peer1.Close() })
+		nw1, err := NewLibP2PNetwork(peer1, 1, obs)
+		require.NoError(t, err)
+		peer2 := createPeer(t)
+		t.Cleanup(func() { _ = peer2.Close() })
+		nw2, err := NewLibP2PNetwork(peer2, 8, obs)
+		require.NoError(t, err)
+		peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+		require.NoError(t, nw1.registerSendProtocol(SendProtocolDescription{ProtocolID: "test/p", MsgType: testStrMsg{}, Timeout: 100 * time.Millisecond}))
+		require.NoError(t, nw2.registerReceiveProtocol(ReceiveProtocolDescription{
+			ProtocolID: "test/p", TypeFn: func() any { return &testStrMsg{} }, AdmitPeer: admit,
+		}))
+		return nw1, nw2, peer1.ID()
+	}
+
+	t.Run("an admitted peer is received, the callback sees the authenticated sender", func(t *testing.T) {
+		var seen atomic.Value
+		var sender peer.ID
+		nw1, nw2, id := setup(t, func(p peer.ID) bool { seen.Store(p); return p == sender })
+		sender = id
+		require.NoError(t, nw1.Send(context.Background(), &testStrMsg{Info: "hello"}, nw2.self.ID()))
+		select {
+		case rm := <-nw2.ReceivedChannel():
+			require.Equal(t, "hello", rm.(*testStrMsg).Info)
+		case <-time.After(time.Second):
+			t.Fatal("admitted message not received")
+		}
+		require.Equal(t, id, seen.Load())
+	})
+
+	t.Run("a peer that is not admitted is rejected before anything is enqueued", func(t *testing.T) {
+		var calls atomic.Int32
+		nw1, nw2, _ := setup(t, func(peer.ID) bool { calls.Add(1); return false })
+		require.NoError(t, nw1.Send(context.Background(), &testStrMsg{Info: "outsider"}, nw2.self.ID()))
+		require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 10*time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
+		require.Empty(t, nw2.receivedMsgs, "nothing may be enqueued for a rejected peer")
+	})
+
+	t.Run("admission is checked again for later frames of a surviving stream", func(t *testing.T) {
+		var calls atomic.Int32
+		nw1, nw2, _ := setup(t, func(peer.ID) bool { return calls.Add(1) == 1 }) // admitted once, then revoked
+		q := &testMsgContainer{}
+		for _, s := range []string{"one", "two", "three"} {
+			q.PushBack(&testStrMsg{Info: s})
+		}
+		_ = nw1.SendMsgs(context.Background(), q, nw2.self.ID())
+		require.Eventually(t, func() bool { return calls.Load() >= 2 }, time.Second, 10*time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
+		require.Len(t, nw2.receivedMsgs, 1, "only the frame read before the revocation is delivered")
+		require.Equal(t, "one", (<-nw2.ReceivedChannel()).(*testStrMsg).Info)
+	})
+
+	t.Run("a custom handler can not be combined with admission", func(t *testing.T) {
+		peer1 := createPeer(t)
+		t.Cleanup(func() { _ = peer1.Close() })
+		nw1, err := NewLibP2PNetwork(peer1, 1, observability.Default(t))
+		require.NoError(t, err)
+		err = nw1.registerReceiveProtocol(ReceiveProtocolDescription{
+			ProtocolID: "test/h", Handler: func(libp2pNetwork.Stream) {}, AdmitPeer: func(peer.ID) bool { return true },
+		})
+		require.EqualError(t, err, "peer admission can not be combined with a custom stream handler")
+	})
+}
+
+func Test_rateLimitedLog(t *testing.T) {
+	var l rateLimitedLog
+	now := time.Now()
+	ok, n := l.allow(now)
+	require.True(t, ok)
+	require.Zero(t, n)
+	for i := 0; i < 5; i++ {
+		ok, _ = l.allow(now.Add(time.Duration(i) * time.Second))
+		require.False(t, ok, "within the interval")
+	}
+	ok, n = l.allow(now.Add(rejectLogInterval))
+	require.True(t, ok)
+	require.EqualValues(t, 5, n, "suppressed lines are counted")
 }
