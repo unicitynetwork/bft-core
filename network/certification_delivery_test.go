@@ -27,9 +27,17 @@ import (
 // message counts do not depend on timing.
 type streamStats struct {
 	writes int // Write calls (the multistream header is flushed together with the payload when lazy)
-	// reads which completed before the last write, ie replies the sender waited for before the payload
-	readsBeforeLastWrite int
-	reads                int
+	// bytes of the first write, and whether it opens with the multistream header
+	firstWriteLen    int
+	firstWriteHeader bool
+	// reads which completed before the first write began: the listener greets a new stream with its multistream header
+	// at once, and the lazy handshake reader, which starts inside the first Write, may consume it before the Write
+	// reaches the muxer. It answers nothing the sender sent, so it is not a round trip.
+	readsBeforeFirstWrite int
+	// reads which completed before the last write began, other than that greeting: replies the sender waited for
+	// before it wrote again, ie negotiation round trips
+	repliesBeforeLastWrite int
+	reads                  int
 }
 
 // countingMuxer wraps yamux and records the outbound streams carrying certificates.
@@ -94,11 +102,16 @@ type countingStream struct {
 
 func (s *countingStream) Write(b []byte) (int, error) {
 	s.mu.Lock()
-	if s.writes == 0 && bytes.Contains(b, []byte("/ab/certificates/")) {
-		s.cert = true
+	if s.writes == 0 {
+		if bytes.Contains(b, []byte("/ab/certificates/")) {
+			s.cert = true
+		}
+		s.firstWriteLen = len(b)
+		s.firstWriteHeader = bytes.HasPrefix(b, []byte("\x13/multistream/1.0.0\n"))
+		s.readsBeforeFirstWrite = s.reads
 	}
 	s.writes++
-	s.readsBeforeLastWrite = s.reads
+	s.repliesBeforeLastWrite = s.reads - s.readsBeforeFirstWrite
 	cert := s.cert
 	s.mu.Unlock()
 	if cert {
@@ -158,10 +171,30 @@ func Test_SendCertificationResponse_NoNegotiationRoundTripOnWarmConnection(t *te
 			require.Len(t, st, sends)
 			for _, s := range st {
 				require.Equal(t, 1, s.writes, "header and payload must be a single write")
-				require.Zero(t, s.readsBeforeLastWrite, "no negotiation exchange before the payload")
+				require.True(t, s.firstWriteHeader, "the single write opens with the multistream header")
+				require.Greater(t, s.firstWriteLen, 64, "the single write carries the payload after the header and protocol")
+				require.Zero(t, s.repliesBeforeLastWrite, "no negotiation exchange before the payload")
 			}
 		})
 	}
+}
+
+// Positive control of the counters above: when the sender does not know the receiver's protocols it negotiates
+// explicitly, and the counters see it: more than one write, with replies read before the last one.
+func Test_SendCertificationResponse_ExplicitNegotiationIsCounted(t *testing.T) {
+	senderPeer, senderNw, cm := newCountingCertSender(t)
+	p, nw := newCertReceiver(t, senderPeer, recvLegacy)
+	require.NoError(t, senderNw.SendCertificationResponse(context.Background(), testCertResponse(t, []byte{1}), p.ID()))
+	recv(t, nw)
+	cm.reset()
+	// forget what identify said: the next send has to ask (the receiver is v1 only, so v2 is refused first)
+	require.NoError(t, senderPeer.host.Peerstore().SetProtocols(p.ID()))
+	require.NoError(t, senderNw.SendCertificationResponse(context.Background(), testCertResponse(t, []byte{1}), p.ID()))
+	recv(t, nw)
+	require.Eventually(t, func() bool { return len(cm.stats()) == 1 }, 3*time.Second, 10*time.Millisecond)
+	st := cm.stats()[0]
+	require.Greater(t, st.writes, 1, "explicit negotiation writes more than once")
+	require.Positive(t, st.repliesBeforeLastWrite, "and waits for a reply before the last write")
 }
 
 // When the receiver advertises none of the protocols libp2p negotiates explicitly, which is
