@@ -14,7 +14,7 @@ import (
 	"github.com/unicitynetwork/bft-go-base/types"
 )
 
-const fxPartition types.PartitionID = 0x0a0b0c0d
+const fxPartition types.PartitionID = 7 // the aggregation partition, as in the vendored corpus
 
 func fxHash(label string) []byte {
 	h := sha256.Sum256([]byte(label))
