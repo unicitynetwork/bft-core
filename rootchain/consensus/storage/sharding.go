@@ -597,6 +597,11 @@ func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) 
 		return fmt.Errorf("request of shard %s-%s but ShardInfo of %s-%s", req.PartitionID, req.ShardID, si.PartitionID, si.ShardID)
 	}
 
+	// a shard whose last certification response is unknown (never certified, or recovered from a state message
+	// which carried no UC/TR for it) can not be extended: the request is refused, the node must not crash
+	if si.LastCR == nil {
+		return errors.New("shard has no certification response yet")
+	}
 	if req.IRRound() != si.LastCR.Technical.Round {
 		return fmt.Errorf("expected round %d, got %d", si.LastCR.Technical.Round, req.IRRound())
 	}

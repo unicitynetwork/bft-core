@@ -66,6 +66,9 @@ func getMaxHashCount(hashCnt map[sha256Hash]uint64) uint64 {
 }
 
 func (x *IRChangeReq) IsValid() error {
+	if x == nil {
+		return errors.New("IR change request is nil")
+	}
 	// ignore other values for now, just make sure it is not negative
 	if x.CertReason > T2Timeout {
 		return fmt.Errorf("unknown reason (%d)", x.CertReason)
@@ -90,7 +93,10 @@ func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, 
 	// duplicate requests
 	nodeIDs := make(map[string]struct{})
 	// validate all block request in the proof
-	for _, req := range x.Requests {
+	for i, req := range x.Requests {
+		if req == nil {
+			return nil, fmt.Errorf("certification request %d is nil", i)
+		}
 		if x.Partition != req.PartitionID || !x.Shard.Equal(req.ShardID) {
 			return nil, fmt.Errorf("shard of the change request is %s-%s but block certification request is for %s=%s",
 				x.Partition, x.Shard, req.PartitionID, req.ShardID)

@@ -24,7 +24,7 @@ type ProposalMsg struct {
 }
 
 func (x *ProposalMsg) getLastTcRound() uint64 {
-	if x.LastRoundTc == nil {
+	if x.LastRoundTc == nil || x.LastRoundTc.Timeout == nil {
 		return 0
 	}
 	return x.LastRoundTc.Timeout.Round
