@@ -117,6 +117,24 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		require.EqualError(t, err, "IR change request is nil")
 	})
 
+	// a shard recovered from a state message without UC/TR (or not certified yet) has no LastCR
+	t.Run("shard without certification response yet", func(t *testing.T) {
+		st := stateProvider(nil, nil)
+		realShardInfo := st.shardInfo
+		st.shardInfo = func(partitionID types.PartitionID, shard types.ShardID) *storage.ShardInfo {
+			si := realShardInfo(partitionID, shard)
+			si.LastCR = nil
+			return si
+		}
+		ver := &IRChangeReqVerifier{params: &Parameters{BlockRate: 500 * time.Millisecond}, state: st}
+		req := &abtypes.IRChangeReq{Partition: partitionID1, CertReason: abtypes.T2Timeout}
+		require.NotPanics(t, func() {
+			data, err := ver.VerifyIRChangeReq(2, 1, req)
+			require.Nil(t, data)
+			require.ErrorContains(t, err, "no certification response yet")
+		})
+	})
+
 	t.Run("error change in progress", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
 			params: &Parameters{BlockRate: 500 * time.Millisecond},

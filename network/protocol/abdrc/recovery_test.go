@@ -106,7 +106,8 @@ func TestStateMsg_CanRecoverToRound(t *testing.T) {
 	})
 }
 
-func TestStateMsg_Verify(t *testing.T) {
+// stateMsgFixture builds a valid StateMsg (the QCs pass an always valid trust base) and returns the shard UC it carries.
+func stateMsgFixture(t *testing.T) (validStateMsg func() StateMsg, uc *types.UnicityCertificate) {
 	r4vInfo := &rctypes.RoundInfo{
 		RoundNumber:       4,
 		ParentRoundNumber: 3,
@@ -143,7 +144,7 @@ func TestStateMsg_Verify(t *testing.T) {
 
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 
-	uc := testcertificates.CreateUnicityCertificate(
+	uc = testcertificates.CreateUnicityCertificate(
 		t,
 		signer,
 		headIR,
@@ -153,7 +154,7 @@ func TestStateMsg_Verify(t *testing.T) {
 		make([]byte, 32),
 	)
 
-	validStateMsg := func() StateMsg {
+	validStateMsg = func() StateMsg {
 		h4, err := r4vInfo.Hash(crypto.SHA256)
 		require.NoError(t, err)
 		h5, err := r5vInfo.Hash(crypto.SHA256)
@@ -229,6 +230,12 @@ func TestStateMsg_Verify(t *testing.T) {
 			},
 		}
 	}
+
+	return validStateMsg, uc
+}
+
+func TestStateMsg_Verify(t *testing.T) {
+	validStateMsg, uc := stateMsgFixture(t)
 
 	t.Run("ok", func(t *testing.T) {
 		sm := validStateMsg()
