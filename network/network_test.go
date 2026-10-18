@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -819,4 +820,85 @@ func Test_rateLimitedLog(t *testing.T) {
 	ok, n = l.allow(now.Add(rejectLogInterval))
 	require.True(t, ok)
 	require.EqualValues(t, 5, n, "suppressed lines are counted")
+}
+
+func Test_LibP2PNetwork_RevokedWhileAwaitingNextFrame(t *testing.T) {
+	obs := observability.Default(t)
+	peer1 := createPeer(t)
+	nw1, err := NewLibP2PNetwork(peer1, 1, obs)
+	require.NoError(t, err)
+	peer2 := createPeer(t)
+	nw2, err := NewLibP2PNetwork(peer2, 8, obs)
+	require.NoError(t, err)
+	peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+	_ = nw1
+
+	var revoked atomic.Bool
+	var admitCalls atomic.Int32
+	require.NoError(t, nw2.registerReceiveProtocol(ReceiveProtocolDescription{
+		ProtocolID: "test/p", TypeFn: func() any { return &testStrMsg{} },
+		AdmitPeer:      func(peer.ID) bool { admitCalls.Add(1); return !revoked.Load() },
+		RevalidatePeer: func(peer.ID) bool { return !revoked.Load() },
+	}))
+
+	s, err := peer1.CreateStream(t.Context(), peer2.ID(), "test/p")
+	require.NoError(t, err)
+	defer func() { _ = s.Reset() }()
+	write := func(info string) {
+		data, err := serializeMsg(&testStrMsg{Info: info})
+		require.NoError(t, err)
+		_, err = s.Write(data)
+		require.NoError(t, err)
+	}
+
+	write("before revocation")
+	select {
+	case rm := <-nw2.ReceivedChannel():
+		require.Equal(t, "before revocation", rm.(*testStrMsg).Info)
+	case <-time.After(2 * time.Second):
+		t.Fatal("the admitted frame was not delivered")
+	}
+	// the handler passed its second admission check and is now blocked waiting for the next frame
+	require.Eventually(t, func() bool { return admitCalls.Load() >= 2 }, 2*time.Second, 5*time.Millisecond)
+	revoked.Store(true)
+	write("after revocation")
+	select {
+	case rm := <-nw2.ReceivedChannel():
+		t.Fatalf("a frame written after the revocation was delivered: %v", rm)
+	case <-time.After(400 * time.Millisecond):
+	}
+}
+
+func Test_LibP2PNetwork_MaxFrameSize(t *testing.T) {
+	obs := observability.Default(t)
+	peer1 := createPeer(t)
+	peer2 := createPeer(t)
+	nw2, err := NewLibP2PNetwork(peer2, 8, obs)
+	require.NoError(t, err)
+	peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+	require.NoError(t, nw2.registerReceiveProtocol(ReceiveProtocolDescription{
+		ProtocolID: "test/p", TypeFn: func() any { return &testStrMsg{} }, MaxFrameSize: 4096,
+		AdmitPeer: func(peer.ID) bool { return true },
+	}))
+	send := func(info string) {
+		s, err := peer1.CreateStream(t.Context(), peer2.ID(), "test/p")
+		require.NoError(t, err)
+		data, err := serializeMsg(&testStrMsg{Info: info})
+		require.NoError(t, err)
+		_, _ = s.Write(data)
+		_ = s.Close()
+	}
+	send(strings.Repeat("x", 2<<20)) // far above the limit: rejected from the declared length
+	select {
+	case <-nw2.ReceivedChannel():
+		t.Fatal("an oversized frame must not be decoded or enqueued")
+	case <-time.After(400 * time.Millisecond):
+	}
+	send("small")
+	select {
+	case rm := <-nw2.ReceivedChannel():
+		require.Equal(t, "small", rm.(*testStrMsg).Info)
+	case <-time.After(2 * time.Second):
+		t.Fatal("a frame within the limit was not delivered")
+	}
 }

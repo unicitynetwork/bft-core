@@ -41,6 +41,9 @@ type (
 		// received message can be stored
 		TypeFn  func() any
 		Handler libp2pNetwork.StreamHandler
+		// when non-zero, frames with CBOR payload larger than this are rejected before
+		// allocation and the payload must be consumed exactly.
+		MaxFrameSize uint64
 		// AdmitPeer is optional. When set, it is called with the authenticated remote peer ID
 		// (s.Conn().RemotePeer()) before every frame is read from a stream, so before anything is
 		// decoded or enqueued, and again before each later frame on a stream that survives. A
@@ -48,6 +51,13 @@ type (
 		// and safe for concurrent use. Nil admits everyone (the default). It cannot be combined
 		// with Handler, which receives the stream directly and has to do its own admission.
 		AdmitPeer func(peer.ID) bool
+		// RevalidatePeer is optional and meant to be used together with AdmitPeer. It is called
+		// with the authenticated remote peer after a frame has been read and decoded, immediately
+		// before the message is enqueued, so a peer whose admission was revoked while the handler
+		// was blocked waiting for the frame is not delivered. It must be a cheap, side effect free
+		// membership test (unlike AdmitPeer it must not consume a per-peer quota). A rejection
+		// resets the stream like an AdmitPeer rejection. Nil does nothing.
+		RevalidatePeer func(peer.ID) bool
 	}
 
 	sendProtocolData struct {
@@ -253,7 +263,7 @@ streamHandlerForProtocol returns libp2p stream handler for given protocolID.
 The "ctor" is constructor which returns pointer to a data struct into which
 incoming message can be stored.
 */
-func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() any, admit func(peer.ID) bool) libp2pNetwork.StreamHandler {
+func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() any, maxFrame uint64, admit, revalidate func(peer.ID) bool) libp2pNetwork.StreamHandler {
 	return func(s libp2pNetwork.Stream) {
 		success := false
 		defer func() {
@@ -284,11 +294,22 @@ func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() 
 				return
 			}
 			msg := ctor()
-			if err = deserializeMsg(reader, msg); err != nil {
+			if maxFrame > 0 {
+				err = deserializeMsgLimited(reader, msg, maxFrame)
+			} else {
+				err = deserializeMsg(reader, msg)
+			}
+			if err != nil {
 				if errors.Is(err, io.EOF) {
 					break
 				}
 				n.log.Warn(fmt.Sprintf("reading %q message", protocolID), logger.Error(err))
+				return
+			}
+			// the check above ran before a possibly long wait for this frame: the peer may have been
+			// revoked meanwhile, and a frame written after the revocation must not be delivered
+			if revalidate != nil && !revalidate(remote) {
+				n.logRejectedPeer(protocolID, remote)
 				return
 			}
 			if err = n.receivedMsg(s.Conn().RemotePeer(), protocolID, msg); err != nil {
@@ -359,7 +380,7 @@ func (n *LibP2PNetwork) registerReceiveProtocol(protoc ReceiveProtocolDescriptio
 		return fmt.Errorf("data struct constructor must return pointer to struct but returns %s", typ)
 	}
 
-	n.self.RegisterProtocolHandler(protoc.ProtocolID, n.streamHandlerForProtocol(protoc.ProtocolID, protoc.TypeFn, protoc.AdmitPeer))
+	n.self.RegisterProtocolHandler(protoc.ProtocolID, n.streamHandlerForProtocol(protoc.ProtocolID, protoc.TypeFn, protoc.MaxFrameSize, protoc.AdmitPeer, protoc.RevalidatePeer))
 	return nil
 }
 
