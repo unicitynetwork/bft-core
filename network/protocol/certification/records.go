@@ -24,6 +24,9 @@ type TechnicalRecord struct {
 }
 
 func (tr *TechnicalRecord) IsValid() error {
+	if tr == nil {
+		return errors.New("technical record is nil")
+	}
 	if tr.Round == 0 {
 		return errors.New("round is unassigned")
 	}

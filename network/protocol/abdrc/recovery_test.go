@@ -262,6 +262,90 @@ func TestStateMsg_Verify(t *testing.T) {
 		tb := testtb.NewAlwaysValidTrustBase(t)
 		require.ErrorContains(t, sm.Verify(crypto.SHA256, tb), "invalid block node: proposed block is missing quorum certificate")
 	})
+
+	// the same class of peer-supplied nulls in the shard infos
+	t.Run("null UC or null unicity tree certificate in a shard info", func(t *testing.T) {
+		tb := testtb.NewAlwaysValidTrustBase(t)
+		for name, mut := range map[string]func(*StateMsg){
+			"null UC (not yet certified shard)": func(sm *StateMsg) { sm.CommittedHead.ShardInfo[0].UC = nil },
+			"null technical record":             func(sm *StateMsg) { sm.CommittedHead.ShardInfo[0].TR = nil },
+			"null input record":                 func(sm *StateMsg) { sm.CommittedHead.ShardInfo[0].IR = nil },
+			"null unicity tree certificate": func(sm *StateMsg) {
+				cp := *uc
+				cp.UnicityTreeCertificate = nil
+				sm.CommittedHead.ShardInfo[0].UC = &cp
+			},
+		} {
+			sm := validStateMsg()
+			mut(&sm)
+			raw, err := types.Cbor.Marshal(&sm)
+			require.NoError(t, err)
+			var decoded StateMsg
+			require.NoError(t, types.Cbor.Unmarshal(raw, &decoded), name)
+			require.NotPanics(t, func() {
+				err := decoded.Verify(crypto.SHA256, tb)
+				if name != "null UC (not yet certified shard)" {
+					require.Error(t, err, name)
+				} // a shard without UC has nothing to verify and is not an error by itself
+			}, name)
+		}
+	})
+
+	t.Run("null entries elsewhere in the message", func(t *testing.T) {
+		tb := testtb.NewAlwaysValidTrustBase(t)
+		for name, mut := range map[string]func(*StateMsg){
+			"null pending block": func(sm *StateMsg) { sm.Pending = append(sm.Pending, nil) },
+			"null block":         func(sm *StateMsg) { sm.CommittedHead.Block = nil },
+			"null block qc":      func(sm *StateMsg) { sm.CommittedHead.Block.Qc = nil },
+			"null qc":            func(sm *StateMsg) { sm.CommittedHead.Qc = nil },
+			"null commit qc":     func(sm *StateMsg) { sm.CommittedHead.CommitQc = nil },
+			"null pending qc vote info": func(sm *StateMsg) {
+				sm.Pending[0].Qc = &rctypes.QuorumCert{}
+			},
+		} {
+			sm := validStateMsg()
+			mut(&sm)
+			raw, err := types.Cbor.Marshal(&sm)
+			require.NoError(t, err, name)
+			var decoded StateMsg
+			require.NoError(t, types.Cbor.Unmarshal(raw, &decoded), name)
+			require.NotPanics(t, func() {
+				require.Error(t, decoded.Verify(crypto.SHA256, tb), name)
+				_ = decoded.CanRecoverToRound(6)
+			}, name)
+		}
+	})
+
+	// bft-go-base#17: a CBOR null in the partition path of a shard UC decodes to a nil path item, which used to
+	// panic UC.Verify (a peer could crash a recovering root node with one StateMsg)
+	t.Run("nil entry in the partition path of a shard UC", func(t *testing.T) {
+		withNilStep := func(sm *StateMsg) {
+			cp := *uc
+			utc := *uc.UnicityTreeCertificate
+			utc.HashSteps = []*types.PathItem{nil}
+			cp.UnicityTreeCertificate = &utc
+			sm.CommittedHead.ShardInfo[0].UC = &cp
+		}
+		tb := testtb.NewAlwaysValidTrustBase(t)
+
+		sm := validStateMsg()
+		withNilStep(&sm)
+		require.NotPanics(t, func() {
+			err := sm.Verify(crypto.SHA256, tb)
+			require.Error(t, err)
+			require.ErrorIs(t, err, types.ErrNilPathItem)
+		})
+
+		// the same message as it arrives from the network
+		sm = validStateMsg()
+		withNilStep(&sm)
+		raw, err := types.Cbor.Marshal(&sm)
+		require.NoError(t, err)
+		var decoded StateMsg
+		require.NoError(t, types.Cbor.Unmarshal(raw, &decoded))
+		require.Contains(t, decoded.CommittedHead.ShardInfo[0].UC.UnicityTreeCertificate.HashSteps, (*types.PathItem)(nil))
+		require.NotPanics(t, func() { require.ErrorIs(t, decoded.Verify(crypto.SHA256, tb), types.ErrNilPathItem) })
+	})
 }
 
 func TestRecoveryBlock_IsValid(t *testing.T) {
