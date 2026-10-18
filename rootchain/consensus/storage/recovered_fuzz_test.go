@@ -106,7 +106,7 @@ func newRecFuzzEnv(t *testing.T) *recFuzzEnv {
 		Signatures:       map[string]hex.Bytes{"fuzz": {1}}, // the trust base of the fuzz accepts it
 	}
 	genesis.Qc, genesis.CommitQc = commitQc, commitQc
-	_, err = genesis.GenerateCertificates(commitQc, log)
+	_, err = genesis.GenerateCertificates(commitQc)
 	require.NoError(t, err)
 	require.NotNil(t, store.ShardInfo(conf.PartitionID, conf.ShardID).LastCR)
 	clear(genesis.ShardState.Changed)
@@ -228,7 +228,7 @@ func (e *recFuzzEnv) exercise(sm *abdrc.StateMsg) (r reached) {
 			LedgerCommitInfo: &types.UnicitySeal{Version: 1, NetworkID: 5, RootChainRoundNumber: round, Epoch: bd.Epoch, Timestamp: bd.Timestamp, Hash: eb.RootHash, PreviousHash: []byte{1}},
 			Signatures:       map[string]hex.Bytes{"fuzz": {1}},
 		}
-		_, _ = eb.GenerateCertificates(cqc, e.log)
+		_, _ = eb.GenerateCertificates(cqc)
 		_, _ = toRecoveryShardInfo(eb)
 		parent, qc = eb, cqc
 	}
