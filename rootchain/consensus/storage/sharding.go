@@ -45,8 +45,10 @@ func (ss ShardStates) nextBlock(shardConfs map[types.PartitionShardID]*types.Par
 			// switch the shard state into next epoch too
 			if prevSI.TR.Epoch != prevSI.IR.Epoch {
 				if nextBlock.States[k], err = prevSI.nextEpoch(pdr, hashAlg); err != nil {
+					// LastCR is nil for a shard which has no certification response (never certified,
+					// or recovered without UC/TR): the identity comes from the shard info itself
 					return nextBlock, fmt.Errorf("creating ShardInfo %s - %s of the next epoch: %w",
-						prevSI.LastCR.Partition, prevSI.LastCR.Shard, err)
+						prevSI.PartitionID, prevSI.ShardID, err)
 				}
 			} else {
 				si := *prevSI
