@@ -26,7 +26,7 @@ import (
 // the parent) so that the state messages it produces have the relationships between the block, the QCs, the shard
 // states and the committed root which a recovering node has to check.
 type testChain struct {
-	t       *testing.T
+	t       testing.TB
 	orch    *partitions.Orchestration
 	store   *BlockStore
 	nodes   map[types.PartitionID]*chainNode
@@ -50,13 +50,13 @@ type chainShard struct {
 	epochStarts []uint64
 }
 
-func newTestChain(t *testing.T, shards ...chainShard) *testChain {
+func newTestChain(t testing.TB, shards ...chainShard) *testChain {
 	t.Helper()
 	return newTestChainIn(t, t.TempDir(), shards...)
 }
 
 // newTestChainIn is newTestChain with the databases in the given directory (which outlives the test).
-func newTestChainIn(t *testing.T, dir string, shards ...chainShard) *testChain {
+func newTestChainIn(t testing.TB, dir string, shards ...chainShard) *testChain {
 	t.Helper()
 	db, err := NewBoltStorage(filepath.Join(dir, "blocks.db"))
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func newTestChainIn(t *testing.T, dir string, shards ...chainShard) *testChain {
 }
 
 // newTestChainOn is newTestChainIn with the given block storage.
-func newTestChainOn(t *testing.T, dir string, db PersistentStore, shards ...chainShard) *testChain {
+func newTestChainOn(t testing.TB, dir string, db PersistentStore, shards ...chainShard) *testChain {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	orch, err := partitions.NewOrchestration(5, filepath.Join(dir, "orchestration.db"), log)
@@ -84,8 +84,10 @@ func newTestChainOn(t *testing.T, dir string, db PersistentStore, shards ...chai
 			require.NoError(t, err)
 			node = &chainNode{info: &types.NodeInfo{NodeID: s.key, SigKey: pub, Stake: 1}, signer: signer}
 		} else {
-			tn := testutils.NewTestNode(t)
-			node = &chainNode{info: tn.NodeInfo(t), signer: tn.Signer}
+			tt, ok := t.(*testing.T)
+			require.True(t, ok, "a generated test node needs a *testing.T")
+			tn := testutils.NewTestNode(tt)
+			node = &chainNode{info: tn.NodeInfo(tt), signer: tn.Signer}
 		}
 		c.nodes[s.partition] = node
 		for epoch, start := range s.epochStarts {

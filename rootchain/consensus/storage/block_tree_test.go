@@ -225,11 +225,61 @@ func TestBlockTree_pruning(t *testing.T) {
 func TestBlockTree_InsertQc(t *testing.T) {
 	tree := createTestBlockTree(t)
 	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 2, CurrentRootHash: nil}}), "find block: block for round 2 not found")
-	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12, CurrentRootHash: test.RandomBytes(32)}}), "qc state hash is different from local computed state hash")
+
 	b, err := tree.FindBlock(12)
 	require.NoError(t, err)
 	b.RootHash = []byte{1, 2, 3}
-	require.NoError(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12, CurrentRootHash: []byte{1, 2, 3}}}))
+	// the QC which certifies the local block, field by field
+	exact := func() *drctypes.QuorumCert {
+		return &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{
+			RoundNumber: 12, ParentRoundNumber: b.GetParentRound(), Epoch: b.BlockData.Epoch,
+			Timestamp: b.BlockData.Timestamp, CurrentRootHash: []byte{1, 2, 3}}}
+	}
+
+	// every field of the QC the block must match is refused, before anything is attached, written or raised
+	for name, mutate := range map[string]func(*drctypes.RoundInfo){
+		"state root":   func(vi *drctypes.RoundInfo) { vi.CurrentRootHash = test.RandomBytes(32) },
+		"epoch":        func(vi *drctypes.RoundInfo) { vi.Epoch++ },
+		"timestamp":    func(vi *drctypes.RoundInfo) { vi.Timestamp++ },
+		"parent round": func(vi *drctypes.RoundInfo) { vi.ParentRoundNumber-- },
+	} {
+		t.Run("mismatch of the "+name, func(t *testing.T) {
+			highBefore := tree.HighQc()
+			qc := exact()
+			mutate(qc.VoteInfo)
+			require.ErrorContains(t, tree.InsertQc(qc), "qc does not certify the local block of round 12")
+			require.Nil(t, b.Qc, "the QC was not attached")
+			require.Same(t, highBefore, tree.HighQc(), "the high QC did not change")
+			stored := loadStoredBlock(t, tree, 12)
+			require.Nil(t, stored.Qc, "nothing was written")
+		})
+	}
+
+	t.Run("a QC of nothing", func(t *testing.T) {
+		require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12}}), "does not certify")
+	})
+
+	t.Run("exact match", func(t *testing.T) {
+		qc := exact()
+		require.NoError(t, tree.InsertQc(qc))
+		require.Same(t, qc, b.Qc)
+		require.Same(t, qc, tree.HighQc())
+		require.NotNil(t, loadStoredBlock(t, tree, 12).Qc)
+	})
+}
+
+// loadStoredBlock reads the block of the round back from the persistent store of the tree.
+func loadStoredBlock(t *testing.T, tree *BlockTree, round uint64) *ExecutedBlock {
+	t.Helper()
+	blocks, err := tree.blocksDB.LoadBlocks()
+	require.NoError(t, err)
+	for _, b := range blocks {
+		if b.GetRound() == round {
+			return b
+		}
+	}
+	t.Fatalf("no stored block for round %d", round)
+	return nil
 }
 
 func Test_NewBlockTree(t *testing.T) {
