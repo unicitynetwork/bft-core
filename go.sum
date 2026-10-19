@@ -464,6 +464,10 @@ github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSW
 github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07/go.mod h1:kDXzergiv9cbyO7IOYJZWg1U88JhDg3PB6klq9Hg2pA=
 github.com/unicitynetwork/bft-go-base v1.1.1-0.20261017115848-8c62c75b950c h1:A6xNCNyhZniYGmgh0jpKDFjgCUt7GWFnigpSm2OQZgo=
 github.com/unicitynetwork/bft-go-base v1.1.1-0.20261017115848-8c62c75b950c/go.mod h1:hBnOG52VRy/vpgIBUulTgk7PBTwODZ2xkVjCEu5yRcQ=
+github.com/unicitynetwork/bft-go-base v1.1.1-0.20261018223741-f1cb279b301c h1:JAjJf/VyoB2MXOEOwIgqK/iw3M+fnkSaDO59esXRkro=
+github.com/unicitynetwork/bft-go-base v1.1.1-0.20261018223741-f1cb279b301c/go.mod h1:hBnOG52VRy/vpgIBUulTgk7PBTwODZ2xkVjCEu5yRcQ=
+github.com/unicitynetwork/bft-go-base v1.1.1-0.20261018233336-465dccf17fba h1:f/lfrLYvD8EFW2TFBiv+PPL0QAuc0lielIdvoWpsy18=
+github.com/unicitynetwork/bft-go-base v1.1.1-0.20261018233336-465dccf17fba/go.mod h1:hBnOG52VRy/vpgIBUulTgk7PBTwODZ2xkVjCEu5yRcQ=
 github.com/urfave/cli v1.22.2/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
 github.com/urfave/cli v1.22.10/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
 github.com/viant/assertly v0.4.8/go.mod h1:aGifi++jvCrUaklKEKT0BU95igDNaqkvz+49uaYMPRU=
