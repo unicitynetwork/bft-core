@@ -38,3 +38,27 @@ func deserializeMsg(r io.Reader, msg any) error {
 
 	return nil
 }
+
+// deserializeMsgLimited reads one frame whose CBOR payload must not exceed maxLen bytes.
+// The declared length is checked before any allocation and the payload must be consumed
+// exactly by the decoder (no trailing bytes).
+func deserializeMsgLimited(src *bufio.Reader, msg any, maxLen uint64) error {
+	length, err := binary.ReadUvarint(src)
+	if err != nil {
+		return fmt.Errorf("reading data length: %w", err)
+	}
+	if length == 0 {
+		return fmt.Errorf("unexpected data length zero")
+	}
+	if length > maxLen {
+		return fmt.Errorf("data length %d exceeds the limit %d", length, maxLen)
+	}
+	data := make([]byte, length)
+	if _, err := io.ReadFull(src, data); err != nil {
+		return fmt.Errorf("reading message data: %w", err)
+	}
+	if err := types.Cbor.Unmarshal(data, msg); err != nil {
+		return fmt.Errorf("decoding message data: %w", err)
+	}
+	return nil
+}
