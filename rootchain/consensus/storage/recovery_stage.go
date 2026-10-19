@@ -30,11 +30,15 @@ pending block in round order: process the QC it carries, execute the block) on a
   - all blocks execute under the ordinary rules (verifier), and the block of the target round is there.
 
 A block without a QC (the tip) is not certified by anything in the message: it is only executed under the ordinary
-rules; when the proposal of the tip's round arrives after the recovery the consensus manager compares the whole
-blocks (BlockStore.Add) and does not vote on a mismatch.
+rules; its Timestamp, like its Author, has not been authenticated by the recovery message. When the proposal of the
+tip's round arrives after the recovery the consensus manager compares the whole blocks (BlockStore.Add) and does not
+vote on a mismatch. A later QC must bind the tip's timestamp (CheckQcOfBlock, also on the live path) before it
+certifies the block; a QC whose epoch, timestamp, parent or root differ from the local block is not attached and
+starts a recovery. The timestamps of blocks which are already certified are authenticated by their QC.
 
-The Author of a recovered block is not authenticated: RoundInfo commits to round, epoch, time, parent and state root
-but not to the block hash or the author, and the state message carries no proposer signature. Leader selection excludes
+The Author of a recovered block is not authenticated, not even after a QC certifies it: RoundInfo commits to round,
+epoch, time, parent and state root but not to the block hash or the author, and the state message carries no
+proposer signature. Leader selection excludes
 recent authors, so a recovering node can temporarily elect a different leader than its peers, reject an honest proposal
 or send its vote elsewhere (a liveness limitation, safety rules and the state root binding are not affected). The
 election is deliberately not changed for recovered authors only, nodes which saw the original proposal would not agree
@@ -88,7 +92,7 @@ func ValidateRecoveryState(hashAlg crypto.Hash, state *abdrc.StateMsg, toRound u
 		if err != nil || parent == nil {
 			return fmt.Errorf("pending block of round %d: parent round %d is not part of the recovered state", b.GetRound(), parentRound)
 		}
-		if err := checkQcOfBlock(b.Qc, parent); err != nil {
+		if err := CheckQcOfBlock(b.Qc, parent); err != nil {
 			return fmt.Errorf("pending block of round %d: its QC does not certify the recovered block of round %d: %w", b.GetRound(), parentRound, err)
 		}
 		if _, err := staged.ProcessQc(b.Qc); err != nil {
@@ -105,7 +109,7 @@ func ValidateRecoveryState(hashAlg crypto.Hash, state *abdrc.StateMsg, toRound u
 			if err != nil || added == nil {
 				return fmt.Errorf("pending block of round %d is not in the recovered tree", b.GetRound())
 			}
-			if err := checkQcOfBlock(head.CommitQc, added); err != nil {
+			if err := CheckQcOfBlock(head.CommitQc, added); err != nil {
 				return fmt.Errorf("pending block of round %d does not match the commit QC of the head: %w", b.GetRound(), err)
 			}
 		}
@@ -118,9 +122,15 @@ func ValidateRecoveryState(hashAlg crypto.Hash, state *abdrc.StateMsg, toRound u
 	return nil
 }
 
-// checkQcOfBlock requires that the QC certifies the block: its round, parent round, epoch, timestamp and state root
-// are the ones of the block (the root being the one computed by executing it).
-func checkQcOfBlock(qc *rctypes.QuorumCert, b *ExecutedBlock) error {
+// CheckQcOfBlock requires that the QC certifies the block: its round, parent round, epoch, timestamp and state root
+// are the ones of the block (the root being the one computed by executing it). It is the one predicate of recovery
+// staging and of the live path (BlockTree.InsertQc and the consensus manager's admission check), so a QC is never
+// attached to, nor taken as consistent with, a local block which differs in a field the QC authenticates.
+//
+// It is not an equality of the complete blocks: the QC commits neither to the block hash nor to the Author, so an
+// author-only difference is not detected here (see the note on the Author in ValidateRecoveryState). Tuple equality
+// is not QC authentication either, signatures and quorum are verified where the QC enters the node.
+func CheckQcOfBlock(qc *rctypes.QuorumCert, b *ExecutedBlock) error {
 	if qc == nil || qc.VoteInfo == nil || b == nil || b.BlockData == nil {
 		return errors.New("QC or block missing")
 	}

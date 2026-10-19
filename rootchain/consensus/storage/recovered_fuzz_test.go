@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"cmp"
 	"crypto"
 	"fmt"
@@ -32,34 +33,113 @@ import (
 // (iteration count):
 //
 //	go test ./rootchain/consensus/storage -run '^$' -fuzz FuzzRecoveredState -fuzztime 300000x
+//
+// The fixture belongs to the fuzz function (and so to the process which runs it): it is built from f before f.Fuzz, and
+// its databases and temporary directory are released by the cleanup of f, not by the cleanup of the first input (every
+// input is a test of its own and ends before the next one starts). In seed mode a checked-in valid seed must reach the
+// post-recovery code, which is asserted; for arbitrary inputs only a panic is a failure, and the progress of the run
+// (how many inputs were decoded, verified, installed, extended) is reported, see recFuzzProgress.
 func FuzzRecoveredState(f *testing.F) {
+	env := newRecFuzzEnv(f)
+	// the checked-in seeds which are states of the fixture run (the first ones, the rest are manipulated variants)
+	valid := readFuzzSeeds(f)[:len(env.states)]
 	f.Fuzz(func(t *testing.T, data []byte) {
-		env := recoveredEnv(t)
 		var sm abdrc.StateMsg
 		if types.Cbor.Unmarshal(data, &sm) != nil {
+			env.progress.record(reached{})
 			return
 		}
-		env.exercise(&sm)
+		r := env.exercise(&sm)
+		env.progress.record(r)
+		if i := indexOfSeed(valid, data); i >= 0 {
+			require.True(t, r.verified && r.installed, "valid seed %d: %+v", i, r)
+			if i > 3 {
+				require.GreaterOrEqual(t, r.blocks, 1, "valid seed %d: blocks were added after recovery", i)
+			}
+		}
 	})
 }
 
 type recFuzzEnv struct {
-	orch   Orchestration
-	db     PersistentStore
-	nodes  map[types.PartitionID]*chainNode
-	log    *slog.Logger
-	states [][]byte // the encoded state messages of the heads of the fixture run (seeds)
-	state  []byte   // the one of the last head
+	dir      string
+	orch     Orchestration
+	db       BoltDB
+	nodes    map[types.PartitionID]*chainNode
+	log      *slog.Logger
+	states   [][]byte // the encoded state messages of the heads of the fixture run (seeds)
+	state    []byte   // the one of the last head
+	progress *recFuzzProgress
 }
 
-var recFuzz struct {
-	once sync.Once
-	env  *recFuzzEnv
+func indexOfSeed(seeds [][]byte, data []byte) int {
+	for i, s := range seeds {
+		if bytes.Equal(s, data) {
+			return i
+		}
+	}
+	return -1
 }
 
-func recoveredEnv(t *testing.T) *recFuzzEnv {
-	recFuzz.once.Do(func() { recFuzz.env = newRecFuzzEnv(t) })
-	return recFuzz.env
+// recFuzzProgress counts how far the inputs of a run got, so that "executions" is not mistaken for coverage: most
+// mutated inputs of a CBOR decoder never decode. If FUZZ_PROGRESS_DIR is set the counters of the process are written
+// there (progress-<pid>.json, replaced every 100 inputs and at the cleanup), one file per fuzz worker.
+type recFuzzProgress struct {
+	m                                                  sync.Mutex
+	dir                                                string
+	executions, decoded, verified, installed, extended int
+}
+
+func (p *recFuzzProgress) record(r reached) {
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.executions++
+	if r.decoded {
+		p.decoded++
+	}
+	if r.verified {
+		p.verified++
+	}
+	if r.installed {
+		p.installed++
+	}
+	if r.blocks > 0 {
+		p.extended++
+	}
+	if p.dir != "" && p.executions%100 == 0 {
+		p.flushLocked()
+	}
+}
+
+func (p *recFuzzProgress) flush() {
+	p.m.Lock()
+	defer p.m.Unlock()
+	if p.dir != "" {
+		p.flushLocked()
+	}
+}
+
+func (p *recFuzzProgress) flushLocked() {
+	body := fmt.Sprintf(`{"executions":%d,"decoded":%d,"verified":%d,"installed":%d,"extended":%d}`+"\n",
+		p.executions, p.decoded, p.verified, p.installed, p.extended)
+	_ = os.WriteFile(filepath.Join(p.dir, fmt.Sprintf("progress-%d.json", os.Getpid())), []byte(body), 0o644)
+}
+
+func (p *recFuzzProgress) counts() (executions, decoded, verified, installed, extended int) {
+	p.m.Lock()
+	defer p.m.Unlock()
+	return p.executions, p.decoded, p.verified, p.installed, p.extended
+}
+
+// openFixtureBolt opens the disposable database of the recovering node of the fixture without fsync: it is thrown
+// away with the test, nothing has to survive a crash, and the sync dominates the cost of an input. The production
+// durability of BoltDB is not touched, NewBoltStorage is what the node uses.
+func openFixtureBolt(file string) (BoltDB, error) {
+	db, err := NewBoltStorage(file)
+	if err != nil {
+		return db, err
+	}
+	db.db.NoSync = true
+	return db, nil
 }
 
 // newRecFuzzEnv builds the deterministic fixture: three shards with validators of fixed keys (so that the
@@ -67,25 +147,31 @@ func recoveredEnv(t *testing.T) *recFuzzEnv {
 // each, driven through the production sequence (testChain). The shards are busy, idle, switching epochs at
 // different rounds, idle across their epoch start and idle after their switch, so the state messages of the
 // run reach the epoch transition paths of the recovery. The state message of every head is a seed.
-func newRecFuzzEnv(t *testing.T) *recFuzzEnv {
-	dir, err := os.MkdirTemp("", "recovered-fuzz")
-	require.NoError(t, err)
-	c := newTestChainOn(t, dir, newMemoryStore(),
+//
+// The environment belongs to tb: its temporary directory, its orchestration database and the database of the recovering
+// node are released by the cleanup of tb, in this order: the databases are closed, then the directory is removed.
+func newRecFuzzEnv(tb testing.TB) *recFuzzEnv {
+	tb.Helper()
+	dir := tb.TempDir()
+	c := newTestChainOn(tb, dir, newMemoryStore(),
 		chainShard{partition: 1, key: "recovered-fuzz-node-1", epochStarts: []uint64{1, 4, 10}},
 		chainShard{partition: 2, key: "recovered-fuzz-node-2", epochStarts: []uint64{1, 6}},
 		chainShard{partition: 3, key: "recovered-fuzz-node-3", epochStarts: []uint64{1, 8}})
-	env := &recFuzzEnv{orch: c.orch, nodes: c.nodes, log: c.log}
+	env := &recFuzzEnv{dir: dir, orch: c.orch, nodes: c.nodes, log: c.log, progress: &recFuzzProgress{dir: os.Getenv("FUZZ_PROGRESS_DIR")}}
+	tb.Cleanup(env.progress.flush)
 	for _, changed := range [][]types.PartitionID{nil, nil, {1, 2, 3}, nil, {1}, {2}, nil, {1}, {3}, nil, {1, 3}, nil, {2}, {1}, nil, nil} {
 		c.next(changed...)
 		raw, err := types.Cbor.Marshal(c.state())
-		require.NoError(t, err)
+		require.NoError(tb, err)
 		env.states = append(env.states, raw)
 		env.state = raw
 	}
 	// the storage of the recovering node stays on bolt: the inputs persist and reload blocks built from a peer's
 	// state (bolt, ShardStates/ShardSet CBOR); only the fixture chain above is in memory
-	env.db, err = NewBoltStorage(filepath.Join(dir, "recovered.db"))
-	require.NoError(t, err)
+	var err error
+	env.db, err = openFixtureBolt(filepath.Join(dir, "recovered.db"))
+	require.NoError(tb, err)
+	tb.Cleanup(func() { _ = env.db.Close() })
 	return env
 }
 
@@ -141,11 +227,12 @@ func (e *recFuzzEnv) signedRequests(si *ShardInfo) []*certification.BlockCertifi
 
 // reached tells how far a state message got.
 type reached struct {
-	verified, installed bool
-	blocks              int
+	decoded, verified, installed bool
+	blocks                       int
 }
 
 func (e *recFuzzEnv) exercise(sm *abdrc.StateMsg) (r reached) {
+	r.decoded = true
 	r.verified = sm.Verify(crypto.SHA256, &testtb.AlwaysValidTrustBase{}) == nil
 	_ = sm.CanRecoverToRound(sm.CommittedHead.GetRound())
 	if sm.CommittedHead == nil {
@@ -246,7 +333,7 @@ func (e *recFuzzEnv) exercise(sm *abdrc.StateMsg) (r reached) {
 // The seeds really reach the code which runs after recovery, on every head of the run, among them the ones with
 // shards in the middle of an epoch change.
 func TestRecoveredFuzzSeedsReachPostRecoveryCode(t *testing.T) {
-	env := recoveredEnv(t)
+	env := newRecFuzzEnv(t)
 	decode := func(raw []byte) *abdrc.StateMsg {
 		var sm abdrc.StateMsg
 		require.NoError(t, types.Cbor.Unmarshal(raw, &sm))
@@ -281,7 +368,7 @@ func TestWriteRecoveredFuzzSeeds(t *testing.T) {
 	if os.Getenv("UPDATE_FUZZ_SEEDS") == "" {
 		t.Skip("set UPDATE_FUZZ_SEEDS=1 to rewrite the seed corpus")
 	}
-	env := recoveredEnv(t)
+	env := newRecFuzzEnv(t)
 	enc := func(raw []byte, mut func(*abdrc.StateMsg)) []byte {
 		var sm abdrc.StateMsg
 		require.NoError(t, types.Cbor.Unmarshal(raw, &sm))
