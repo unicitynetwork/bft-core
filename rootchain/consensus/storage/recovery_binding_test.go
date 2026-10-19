@@ -138,8 +138,8 @@ func Test_RecoveryBinding_RejectsBeforePersistence(t *testing.T) {
 		// last responses
 		{"missing UC and TR of a certified shard", func(t *testing.T, sm *abdrc.StateMsg) {
 			shardEntry(sm, 1).UC, shardEntry(sm, 1).TR = nil, nil
-		}, "initial state"},
-		{"UC without TR", func(t *testing.T, sm *abdrc.StateMsg) { shardEntry(sm, 1).TR = nil }, "both"},
+		}, "last response"},
+		{"UC without TR", func(t *testing.T, sm *abdrc.StateMsg) { shardEntry(sm, 1).TR = nil }, "last response"},
 		{"UC of another shard", func(t *testing.T, sm *abdrc.StateMsg) {
 			*shardEntry(sm, 1).UC = *shardEntry(sm, 2).UC
 		}, "another shard"},
@@ -152,6 +152,7 @@ func Test_RecoveryBinding_RejectsBeforePersistence(t *testing.T) {
 			tr.Round++
 			shardEntry(sm, 1).TR = &tr
 		}, "technical record of the last response"},
+		{"UC of another shard configuration", func(t *testing.T, sm *abdrc.StateMsg) { shardEntry(sm, 1).UC.ShardConfHash = []byte{1, 2, 3} }, "configuration hash"},
 		// the shard set
 		{"duplicate shard", func(t *testing.T, sm *abdrc.StateMsg) {
 			sm.CommittedHead.ShardInfo = append(sm.CommittedHead.ShardInfo, *shardEntry(sm, 1))
@@ -214,9 +215,10 @@ func Test_RecoveryBinding_RejectsBeforePersistence(t *testing.T) {
 	})
 }
 
-// A shard which has really never been certified (its whole state is the initial one) may come without a last
-// response; any deviation of that state may not.
-func Test_RecoveryBinding_NeverCertifiedShard(t *testing.T) {
+// Every shard of a committed head has a last response (a newly activated shard gets its first one when the block of
+// the activation is committed): leaving it out is rejected even for a shard whose state is the initial one, a peer
+// could otherwise strip it from a certified shard.
+func Test_RecoveryBinding_LastResponseIsRequired(t *testing.T) {
 	conf := newShardConf(t)
 	si, err := NewShardInfo(conf, crypto.SHA256)
 	require.NoError(t, err)
@@ -224,21 +226,8 @@ func Test_RecoveryBinding_NeverCertifiedShard(t *testing.T) {
 		Partition: si.PartitionID, Shard: si.ShardID, T2Timeout: si.T2Timeout, RootHash: si.RootHash, PrevEpochStat: si.PrevEpochStat,
 		Stat: si.Stat, PrevEpochFees: si.PrevEpochFees, Fees: si.Fees, IR: si.IR, IRTR: si.TR, ShardConfHash: si.ShardConfHash,
 	}
-	pair := shardConfPair{current: conf}
-	_, err = validateRecoveredShard(&d, pair, crypto.SHA256)
-	require.NoError(t, err)
-
-	dd := d
-	dd.IRTR.Round++
-	_, err = validateRecoveredShard(&dd, pair, crypto.SHA256)
-	require.Error(t, err)
-
-	dd = d
-	ir := *d.IR
-	ir.RoundNumber = 4
-	dd.IR = &ir
-	_, err = validateRecoveredShard(&dd, pair, crypto.SHA256)
-	require.Error(t, err)
+	_, err = validateRecoveredShard(&d, shardConfPair{current: conf}, crypto.SHA256)
+	require.ErrorContains(t, err, "last response")
 }
 
 // What the next consumers do with a shard without a last response must not crash either (defence in depth, the
@@ -258,4 +247,29 @@ func Test_ShardWithoutLastResponseIsSafe(t *testing.T) {
 	})
 	si.trustBase = nil
 	require.NotPanics(t, func() { require.Error(t, si.ValidRequest(&certification.BlockCertificationRequest{NodeID: "a"})) })
+}
+
+// The genesis QC is unsigned: a genesis head is accepted only with the local genesis QC in every field.
+func Test_RecoveryBinding_GenesisQcIsTheLocalOne(t *testing.T) {
+	g := recoveryChain(t)
+	_, _, err := g.recoverInto(received(t, g.state()))
+	require.NoError(t, err)
+	for name, mut := range map[string]func(*abdrc.StateMsg){
+		"timestamp":     func(sm *abdrc.StateMsg) { sm.CommittedHead.Qc.VoteInfo.Timestamp++ },
+		"epoch":         func(sm *abdrc.StateMsg) { sm.CommittedHead.Qc.VoteInfo.Epoch++ },
+		"root":          func(sm *abdrc.StateMsg) { sm.CommittedHead.Qc.VoteInfo.CurrentRootHash = []byte{1} },
+		"commit info":   func(sm *abdrc.StateMsg) { sm.CommittedHead.Qc.LedgerCommitInfo.Timestamp++ },
+		"previous hash": func(sm *abdrc.StateMsg) { sm.CommittedHead.Qc.LedgerCommitInfo.PreviousHash = []byte{9} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			sm := received(t, g.state())
+			mut(sm)
+			db, err := NewBoltStorage(filepath.Join(t.TempDir(), "recovered.db"))
+			require.NoError(t, err)
+			defer db.Close()
+			_, err = NewFromState(crypto.SHA256, sm.CommittedHead, db, g.orch, g.log)
+			require.ErrorContains(t, err, "genesis QC differs")
+			requireNothingPersisted(t, db)
+		})
+	}
 }

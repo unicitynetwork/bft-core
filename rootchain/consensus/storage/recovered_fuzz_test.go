@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 
@@ -47,10 +46,10 @@ func FuzzRecoveredState(f *testing.F) {
 type recFuzzEnv struct {
 	orch   Orchestration
 	db     PersistentStore
-	signer abcrypto.Signer
-	nodeID string
+	nodes  map[types.PartitionID]*chainNode
 	log    *slog.Logger
-	state  []byte // the encoded genesis state (seed)
+	states [][]byte // the encoded state messages of the heads of the fixture run (seeds)
+	state  []byte   // the one of the last head
 }
 
 var recFuzz struct {
@@ -63,25 +62,29 @@ func recoveredEnv(t *testing.T) *recFuzzEnv {
 	return recFuzz.env
 }
 
-// newRecFuzzEnv builds the deterministic fixture: one shard with one validator of a fixed key (so that the
-// configuration hash, which the state message carries, is the same in every process) driven through the production
-// sequence for a few rounds (testChain), and its state message.
+// newRecFuzzEnv builds the deterministic fixture: three shards with validators of fixed keys (so that the
+// configuration hashes, which the state message carries, are the same in every process), with several epochs
+// each, driven through the production sequence (testChain). The shards are busy, idle, switching epochs at
+// different rounds, idle across their epoch start and idle after their switch, so the state messages of the
+// run reach the epoch transition paths of the recovery. The state message of every head is a seed.
 func newRecFuzzEnv(t *testing.T) *recFuzzEnv {
 	dir, err := os.MkdirTemp("", "recovered-fuzz")
 	require.NoError(t, err)
-	const nodeID = "recovered-state-fuzz-node"
-	c := newTestChainIn(t, dir, chainShard{partition: 1, key: nodeID, epochStarts: []uint64{1}})
-	c.next()
-	c.next()
-	c.next(1)
-	c.next(1)
-	raw, err := types.Cbor.Marshal(c.state())
+	c := newTestChainIn(t, dir,
+		chainShard{partition: 1, key: "recovered-fuzz-node-1", epochStarts: []uint64{1, 4, 10}},
+		chainShard{partition: 2, key: "recovered-fuzz-node-2", epochStarts: []uint64{1, 6}},
+		chainShard{partition: 3, key: "recovered-fuzz-node-3", epochStarts: []uint64{1, 8}})
+	env := &recFuzzEnv{orch: c.orch, nodes: c.nodes, log: c.log}
+	for _, changed := range [][]types.PartitionID{nil, nil, {1, 2, 3}, nil, {1}, {2}, nil, {1}, {3}, nil, {1, 3}, nil, {2}, {1}, nil, nil} {
+		c.next(changed...)
+		raw, err := types.Cbor.Marshal(c.state())
+		require.NoError(t, err)
+		env.states = append(env.states, raw)
+		env.state = raw
+	}
+	env.db, err = NewBoltStorage(filepath.Join(dir, "recovered.db"))
 	require.NoError(t, err)
-	db, err := NewBoltStorage(filepath.Join(dir, "recovered.db"))
-	require.NoError(t, err)
-	conf := c.store.ShardInfo(1, types.ShardID{})
-	require.NotNil(t, conf.LastCR)
-	return &recFuzzEnv{orch: c.orch, db: db, signer: c.nodes[1].signer, nodeID: nodeID, log: c.log, state: raw}
+	return env
 }
 
 // fuzzIRVerifier verifies IR change requests the way the consensus manager does (against the last response of
@@ -118,12 +121,16 @@ func (e *recFuzzEnv) signedRequests(si *ShardInfo) []*certification.BlockCertifi
 	}
 	var out []*certification.BlockCertificationRequest
 	for _, dr := range []uint64{0, 1} {
+		node := e.nodes[si.PartitionID]
+		if node == nil {
+			continue
+		}
 		bcr := &certification.BlockCertificationRequest{
-			PartitionID: si.PartitionID, ShardID: si.ShardID, NodeID: e.nodeID,
+			PartitionID: si.PartitionID, ShardID: si.ShardID, NodeID: node.info.NodeID,
 			InputRecord: &types.InputRecord{Version: 1, RoundNumber: round + dr, Epoch: epoch, PreviousHash: si.RootHash,
 				Hash: []byte{2, 2}, BlockHash: []byte{3}, SummaryValue: []byte{}, Timestamp: ts},
 		}
-		if bcr.Sign(e.signer) == nil {
+		if bcr.Sign(node.signer) == nil {
 			out = append(out, bcr)
 		}
 	}
@@ -234,7 +241,8 @@ func (e *recFuzzEnv) exercise(sm *abdrc.StateMsg) (r reached) {
 	return r
 }
 
-// The seeds really reach the code which runs after recovery.
+// The seeds really reach the code which runs after recovery, on every head of the run, among them the ones with
+// shards in the middle of an epoch change.
 func TestRecoveredFuzzSeedsReachPostRecoveryCode(t *testing.T) {
 	env := recoveredEnv(t)
 	decode := func(raw []byte) *abdrc.StateMsg {
@@ -242,55 +250,67 @@ func TestRecoveredFuzzSeedsReachPostRecoveryCode(t *testing.T) {
 		require.NoError(t, types.Cbor.Unmarshal(raw, &sm))
 		return &sm
 	}
-	t.Log("verify error:", decode(env.state).Verify(crypto.SHA256, &testtb.AlwaysValidTrustBase{}))
-	r := env.exercise(decode(env.state))
-	require.True(t, r.verified && r.installed, "%+v", r)
-	require.GreaterOrEqual(t, r.blocks, 1, "blocks were added after recovery")
+	switching := 0
+	for i, raw := range env.states {
+		sm := decode(raw)
+		r := env.exercise(sm)
+		require.True(t, r.verified && r.installed, "head %d: %+v", sm.CommittedHead.GetRound(), r)
+		if i > 3 {
+			require.GreaterOrEqual(t, r.blocks, 1, "head %d: blocks were added after recovery", sm.CommittedHead.GetRound())
+		}
+		for _, si := range sm.CommittedHead.ShardInfo {
+			if si.IR.Epoch != si.IRTR.Epoch {
+				switching++
+			}
+		}
+	}
+	require.Greater(t, switching, 2, "heads with a shard between the epoch change and its first certification in the new epoch")
 	// a certified shard without UC/TR passes StateMsg.Verify but is not installed (recovery binding)
 	sm := decode(env.state)
 	sm.CommittedHead.ShardInfo[0].UC, sm.CommittedHead.ShardInfo[0].TR = nil, nil
-	r = env.exercise(sm)
+	r := env.exercise(sm)
 	require.True(t, r.verified, "%+v", r)
 	require.False(t, r.installed, "%+v", r)
 }
 
-// UPDATE_FUZZ_SEEDS=1 go test ./rootchain/consensus/storage -run TestWriteRecoveredFuzzSeeds rewrites the seed corpus.
+// UPDATE_FUZZ_SEEDS=1 go test ./rootchain/consensus/storage -run TestWriteRecoveredFuzzSeeds rewrites the seed corpus:
+// the state message of every head of the fixture run, and manipulated variants of the last ones.
 func TestWriteRecoveredFuzzSeeds(t *testing.T) {
 	if os.Getenv("UPDATE_FUZZ_SEEDS") == "" {
 		t.Skip("set UPDATE_FUZZ_SEEDS=1 to rewrite the seed corpus")
 	}
 	env := recoveredEnv(t)
-	var base abdrc.StateMsg
-	require.NoError(t, types.Cbor.Unmarshal(env.state, &base))
-	enc := func(mut func(*abdrc.StateMsg)) []byte {
+	enc := func(raw []byte, mut func(*abdrc.StateMsg)) []byte {
 		var sm abdrc.StateMsg
-		require.NoError(t, types.Cbor.Unmarshal(env.state, &sm))
+		require.NoError(t, types.Cbor.Unmarshal(raw, &sm))
 		mut(&sm)
 		b, err := types.Cbor.Marshal(&sm)
 		require.NoError(t, err)
 		return b
 	}
-	seeds := [][]byte{
-		env.state,
-		enc(func(sm *abdrc.StateMsg) {
+	var seeds [][]byte
+	seeds = append(seeds, env.states...)
+	last := env.state
+	seeds = append(seeds,
+		enc(last, func(sm *abdrc.StateMsg) {
 			sm.CommittedHead.ShardInfo[0].UC, sm.CommittedHead.ShardInfo[0].TR = nil, nil
 		}),
-		enc(func(sm *abdrc.StateMsg) {
-			si := &sm.CommittedHead.ShardInfo[0]
-			si.UC, si.TR = nil, nil
-			si.IRTR.Epoch = si.IR.Epoch + 7
-		}),
-		enc(func(sm *abdrc.StateMsg) { sm.CommittedHead.ShardInfo[0].IR.Hash = []byte{9, 9} }),
-		enc(func(sm *abdrc.StateMsg) { sm.CommittedHead.ShardInfo[0].Fees = map[string]uint64{"x": 5} }),
-		enc(func(sm *abdrc.StateMsg) {
+		enc(last, func(sm *abdrc.StateMsg) { sm.CommittedHead.ShardInfo[0].IRTR.Epoch += 7 }),
+		enc(last, func(sm *abdrc.StateMsg) { sm.CommittedHead.ShardInfo[1].IR.Hash = []byte{9, 9} }),
+		enc(last, func(sm *abdrc.StateMsg) { sm.CommittedHead.ShardInfo[1].Fees = map[string]uint64{"x": 5} }),
+		enc(last, func(sm *abdrc.StateMsg) { sm.CommittedHead.ShardInfo[2].PrevEpochFees = []byte{0xa1, 0x61, 0x78, 0x01} }),
+		enc(last, func(sm *abdrc.StateMsg) {
 			sm.CommittedHead.ShardInfo = append(sm.CommittedHead.ShardInfo, sm.CommittedHead.ShardInfo[0])
 		}),
-		enc(func(sm *abdrc.StateMsg) { sm.CommittedHead.ShardInfo = nil }),
-	}
+		enc(last, func(sm *abdrc.StateMsg) { sm.CommittedHead.ShardInfo = sm.CommittedHead.ShardInfo[:1] }),
+		enc(last, func(sm *abdrc.StateMsg) { sm.CommittedHead.CommitQc.LedgerCommitInfo.Hash = []byte{1} }),
+		enc(last, func(sm *abdrc.StateMsg) { sm.CommittedHead.ShardInfo = nil }),
+	)
 	dir := filepath.Join("testdata", "fuzz", "FuzzRecoveredState")
+	require.NoError(t, os.RemoveAll(dir))
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	for i, s := range seeds {
 		body := fmt.Sprintf("go test fuzz v1\n[]byte(%q)\n", s)
-		require.NoError(t, os.WriteFile(filepath.Join(dir, fmt.Sprintf("seed-%d", i)), []byte(body), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, fmt.Sprintf("seed-%02d", i)), []byte(body), 0o644))
 	}
 }

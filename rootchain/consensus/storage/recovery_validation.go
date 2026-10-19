@@ -146,23 +146,36 @@ func validateRecoveredShard(d *abdrc.ShardInfo, pair shardConfPair, hashAlg cryp
 	if err != nil {
 		return nil, err
 	}
+	// While the shard has not certified in its new epoch (the IR is still of the old one) every block starts the
+	// next epoch of the info again (ShardStates.nextBlock): from the second block on its accounting is the
+	// deterministic one of a new epoch (nothing but the configured validators with zero fees) and the technical
+	// record still carries the hashes computed in the transition block. That state has no free value.
+	repeatedSwitch := !transition && conf == pair.current && d.IR.Epoch != d.IRTR.Epoch && isNewEpochAccounting(d, conf)
 	// the initial technical record carries precomputed hashes of the empty accounting
-	if !initial && (!bytes.Equal(feeHash, d.IRTR.FeeHash) || !bytes.Equal(statHash, d.IRTR.StatHash)) {
+	if !initial && !repeatedSwitch && (!bytes.Equal(feeHash, d.IRTR.FeeHash) || !bytes.Equal(statHash, d.IRTR.StatHash)) {
 		return nil, errors.New("fees or statistics do not match the commitments of the technical record")
 	}
 
-	// the last certification response
-	if (d.UC == nil) != (d.TR == nil) {
-		return nil, errors.New("last response must have both the UC and the technical record, or neither")
-	}
-	if d.UC == nil {
-		if !initial {
-			return nil, errors.New("a shard without a last response must be in its initial state")
-		}
-		return conf, nil
+	// the last certification response: every shard of a committed head has one - a newly activated shard gets its
+	// first response when the block of the activation is committed - so it can not be left out (a peer could
+	// otherwise strip it from a certified shard and have the node refuse the shard's requests)
+	if d.UC == nil || d.TR == nil {
+		return nil, errors.New("last response (UC and technical record) is required")
 	}
 	if d.UC.UnicityTreeCertificate == nil || d.UC.UnicityTreeCertificate.Partition != d.Partition || !d.UC.ShardTreeCertificate.Shard.Equal(d.Shard) {
 		return nil, errors.New("last response UC is of another shard")
+	}
+	// the UC was issued while the info was of the current or of the previous epoch of the shard
+	ucConf := bytes.Equal(d.UC.ShardConfHash, confHash)
+	if !ucConf && pair.previous != nil {
+		prevHash, err := pair.previous.Hash(hashAlg)
+		if err != nil {
+			return nil, fmt.Errorf("calculating PDR hash: %w", err)
+		}
+		ucConf = bytes.Equal(d.UC.ShardConfHash, prevHash)
+	}
+	if !ucConf {
+		return nil, errors.New("last response UC carries a shard configuration hash which is not one of the shard's")
 	}
 	trHash, err := d.TR.Hash()
 	if err != nil {
@@ -180,6 +193,41 @@ func validateRecoveredShard(d *abdrc.ShardInfo, pair shardConfPair, hashAlg cryp
 		return nil, errors.New("technical record of the last response differs from the one of the shard info")
 	}
 	return conf, nil
+}
+
+// isNewEpochAccounting tells whether the accounting of the info has the form ShardInfo.nextEpoch gives it when the
+// switch to the next epoch is made again by a following block: zero fees of exactly the configured validators and
+// zero statistics, after the serialized accounting of the epoch it follows. The serialized previous accounting
+// itself is what the first switch took from the then current info (a fee map of the configured validators, a
+// statistical record), and nothing the message carries commits to it any more: the technical record holds the
+// hashes of the accounting from before the repeated switch, which is gone. So its form is checked, its values can
+// not be (changing the next-epoch step to keep them changes the state root: a coordinated upgrade).
+func isNewEpochAccounting(d *abdrc.ShardInfo, conf *types.PartitionDescriptionRecord) bool {
+	if d.Stat != (certification.StatisticalRecord{}) || len(d.Fees) != len(conf.Validators) {
+		return false
+	}
+	for _, v := range conf.Validators {
+		if fee, ok := d.Fees[v.NodeID]; !ok || fee != 0 {
+			return false
+		}
+	}
+	var prevFees map[string]uint64
+	if types.Cbor.Unmarshal(d.PrevEpochFees, &prevFees) != nil || len(prevFees) != len(conf.Validators) {
+		return false
+	}
+	for _, v := range conf.Validators {
+		if _, ok := prevFees[v.NodeID]; !ok {
+			return false
+		}
+	}
+	var prevStat certification.StatisticalRecord
+	if types.Cbor.Unmarshal(d.PrevEpochStat, &prevStat) != nil {
+		return false
+	}
+	// canonical encodings: what is hashed later is exactly these bytes
+	reFees, err1 := types.Cbor.Marshal(prevFees)
+	reStat, err2 := types.Cbor.Marshal(prevStat)
+	return err1 == nil && err2 == nil && bytes.Equal(reFees, d.PrevEpochFees) && bytes.Equal(reStat, d.PrevEpochStat)
 }
 
 func technicalRecordsEqual(a, b *certification.TechnicalRecord) bool {
@@ -283,8 +331,24 @@ func validateGenesisHead(block *abdrc.CommittedBlock, rootHash []byte, hashAlg c
 	if !bytes.Equal(want, got) {
 		return errors.New("genesis block differs from the local genesis")
 	}
-	if block.Qc.VoteInfo.RoundNumber != rctypes.GenesisRootRound {
-		return errors.New("genesis QC is of another round")
+	// the QC of the genesis block is unsigned: it must be the local one in full
+	if local.Qc == nil || local.Qc.VoteInfo == nil || local.Qc.LedgerCommitInfo == nil {
+		return errors.New("no trusted local genesis QC")
+	}
+	wantVi, err := local.Qc.VoteInfo.Hash(hashAlg)
+	if err != nil {
+		return err
+	}
+	gotVi, err := block.Qc.VoteInfo.Hash(hashAlg)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(wantVi, gotVi) || block.Qc.LedgerCommitInfo == nil ||
+		!bytes.Equal(block.Qc.LedgerCommitInfo.PreviousHash, local.Qc.LedgerCommitInfo.PreviousHash) ||
+		!bytes.Equal(block.Qc.LedgerCommitInfo.Hash, local.Qc.LedgerCommitInfo.Hash) ||
+		block.Qc.LedgerCommitInfo.RootChainRoundNumber != local.Qc.LedgerCommitInfo.RootChainRoundNumber ||
+		block.Qc.LedgerCommitInfo.Epoch != local.Qc.LedgerCommitInfo.Epoch || block.Qc.LedgerCommitInfo.Timestamp != local.Qc.LedgerCommitInfo.Timestamp {
+		return errors.New("genesis QC differs from the local genesis")
 	}
 	cqc, info := block.CommitQc.VoteInfo, block.CommitQc.LedgerCommitInfo
 	if cqc.RoundNumber == rctypes.GenesisRootRound {
