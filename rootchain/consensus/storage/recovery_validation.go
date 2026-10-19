@@ -195,39 +195,31 @@ func validateRecoveredShard(d *abdrc.ShardInfo, pair shardConfPair, hashAlg cryp
 	return conf, nil
 }
 
-// isNewEpochAccounting tells whether the accounting of the info has the form ShardInfo.nextEpoch gives it when the
-// switch to the next epoch is made again by a following block: zero fees of exactly the configured validators and
-// zero statistics, after the serialized accounting of the epoch it follows. The serialized previous accounting
-// itself is what the first switch took from the then current info (a fee map of the configured validators, a
-// statistical record), and nothing the message carries commits to it any more: the technical record holds the
-// hashes of the accounting from before the repeated switch, which is gone. So its form is checked, its values can
-// not be (changing the next-epoch step to keep them changes the state root: a coordinated upgrade).
+// isNewEpochAccounting tells whether the accounting of the info is exactly the one ShardInfo.nextEpoch gives a shard
+// whose switch to the next epoch is made again by a following block: the current accounting is zero (zero fees of
+// exactly the configured validators, zero statistics) and the serialized previous accounting is the canonical
+// encoding of that same zero accounting, byte for byte. In the transition block the previous accounting is the real
+// one of the old epoch and is verified through the technical record; after a repeated switch it is zero.
 func isNewEpochAccounting(d *abdrc.ShardInfo, conf *types.PartitionDescriptionRecord) bool {
 	if d.Stat != (certification.StatisticalRecord{}) || len(d.Fees) != len(conf.Validators) {
 		return false
 	}
+	zeroFees := make(map[string]uint64, len(conf.Validators))
 	for _, v := range conf.Validators {
 		if fee, ok := d.Fees[v.NodeID]; !ok || fee != 0 {
 			return false
 		}
+		zeroFees[v.NodeID] = 0
 	}
-	var prevFees map[string]uint64
-	if types.Cbor.Unmarshal(d.PrevEpochFees, &prevFees) != nil || len(prevFees) != len(conf.Validators) {
+	prevFees, err := types.Cbor.Marshal(zeroFees)
+	if err != nil {
 		return false
 	}
-	for _, v := range conf.Validators {
-		if _, ok := prevFees[v.NodeID]; !ok {
-			return false
-		}
-	}
-	var prevStat certification.StatisticalRecord
-	if types.Cbor.Unmarshal(d.PrevEpochStat, &prevStat) != nil {
+	prevStat, err := types.Cbor.Marshal(certification.StatisticalRecord{})
+	if err != nil {
 		return false
 	}
-	// canonical encodings: what is hashed later is exactly these bytes
-	reFees, err1 := types.Cbor.Marshal(prevFees)
-	reStat, err2 := types.Cbor.Marshal(prevStat)
-	return err1 == nil && err2 == nil && bytes.Equal(reFees, d.PrevEpochFees) && bytes.Equal(reStat, d.PrevEpochStat)
+	return bytes.Equal(d.PrevEpochFees, prevFees) && bytes.Equal(d.PrevEpochStat, prevStat)
 }
 
 func technicalRecordsEqual(a, b *certification.TechnicalRecord) bool {

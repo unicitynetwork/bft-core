@@ -8,6 +8,7 @@ import (
 	"github.com/unicitynetwork/bft-go-base/types"
 
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
+	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-core/rootchain/testutils"
 )
@@ -66,7 +67,7 @@ func Test_RecoveryEpochs_IdleAcrossEpochStart(t *testing.T) {
 // a shard idle for several rounds after its transition (blocker 1)
 func Test_RecoveryEpochs_IdleAfterTransition(t *testing.T) {
 	c := newTestChain(t, chainShard{partition: 1, epochStarts: []uint64{1, 5}}, chainShard{partition: 2, epochStarts: []uint64{1}})
-	recoverEveryHead(t, c, [][]types.PartitionID{nil, nil, {1, 2}, {1}, {1}, {2}, {2}, {2}, {2}, {1}, {2}})
+	recoverEveryHead(t, c, [][]types.PartitionID{nil, nil, {1, 2}, {1}, {2}, {2}, {2}, {2}, {1}, {2}})
 }
 
 // shards whose epochs start at different rounds, both changing every round (blocker 3): the map iteration order
@@ -142,8 +143,8 @@ func Test_RecoveryEpochs_StrippedLastResponseIsRejected(t *testing.T) {
 	requireNothingPersisted(t, db)
 }
 
-// The shard info of an idle shard which has not certified in its new epoch has no free value but the serialized
-// accounting of the previous epoch (see isNewEpochAccounting): anything else is rejected.
+// The shard info of an idle shard which has not certified in its new epoch has no free value: zero current accounting
+// and the canonical zero encoding of the previous accounting, byte for byte (see isNewEpochAccounting).
 func Test_RecoveryEpochs_RepeatedSwitchStateIsStrict(t *testing.T) {
 	c := newTestChain(t, chainShard{partition: 1, epochStarts: []uint64{1, 5}}, chainShard{partition: 2, epochStarts: []uint64{1}})
 	for _, ch := range [][]types.PartitionID{nil, nil, {1, 2}, nil, {1}, nil, nil, nil} {
@@ -160,9 +161,24 @@ func Test_RecoveryEpochs_RepeatedSwitchStateIsStrict(t *testing.T) {
 				si.Fees[k] = 5
 			}
 		},
-		"statistics":                  func(si *abdrc.ShardInfo) { si.Stat.Blocks = 1 },
-		"fee list of other nodes":     func(si *abdrc.ShardInfo) { si.PrevEpochFees = []byte{0xa1, 0x61, 0x78, 0x01} },
-		"not a statistical record":    func(si *abdrc.ShardInfo) { si.PrevEpochStat = []byte{1, 2, 3} },
+		"statistics":               func(si *abdrc.ShardInfo) { si.Stat.Blocks = 1 },
+		"fee list of other nodes":  func(si *abdrc.ShardInfo) { si.PrevEpochFees = []byte{0xa1, 0x61, 0x78, 0x01} },
+		"not a statistical record": func(si *abdrc.ShardInfo) { si.PrevEpochStat = []byte{1, 2, 3} },
+		// well formed and canonical, but not the canonical zero encoding
+		"non-zero previous fees": func(si *abdrc.ShardInfo) {
+			fees := map[string]uint64{}
+			for k := range si.Fees {
+				fees[k] = 7
+			}
+			b, err := types.Cbor.Marshal(fees)
+			require.NoError(t, err)
+			si.PrevEpochFees = b
+		},
+		"non-zero previous statistics": func(si *abdrc.ShardInfo) {
+			b, err := types.Cbor.Marshal(certification.StatisticalRecord{Blocks: 4, BlockFees: 9})
+			require.NoError(t, err)
+			si.PrevEpochStat = b
+		},
 		"non canonical serialization": func(si *abdrc.ShardInfo) { si.PrevEpochFees = append([]byte{0xb8, 0x01}, si.PrevEpochFees[1:]...) },
 	} {
 		t.Run(name, func(t *testing.T) {
