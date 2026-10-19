@@ -70,7 +70,7 @@ func recoveredEnv(t *testing.T) *recFuzzEnv {
 func newRecFuzzEnv(t *testing.T) *recFuzzEnv {
 	dir, err := os.MkdirTemp("", "recovered-fuzz")
 	require.NoError(t, err)
-	c := newTestChainIn(t, dir,
+	c := newTestChainOn(t, dir, newMemoryStore(),
 		chainShard{partition: 1, key: "recovered-fuzz-node-1", epochStarts: []uint64{1, 4, 10}},
 		chainShard{partition: 2, key: "recovered-fuzz-node-2", epochStarts: []uint64{1, 6}},
 		chainShard{partition: 3, key: "recovered-fuzz-node-3", epochStarts: []uint64{1, 8}})
@@ -82,8 +82,8 @@ func newRecFuzzEnv(t *testing.T) *recFuzzEnv {
 		env.states = append(env.states, raw)
 		env.state = raw
 	}
-	env.db, err = NewBoltStorage(filepath.Join(dir, "recovered.db"))
-	require.NoError(t, err)
+	// the storage of the recovering node: the fixture and the fuzz inputs are about the state, not about the disk
+	env.db = newMemoryStore()
 	return env
 }
 

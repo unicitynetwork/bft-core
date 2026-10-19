@@ -30,7 +30,17 @@ pending block in round order: process the QC it carries, execute the block) on a
   - all blocks execute under the ordinary rules (verifier), and the block of the target round is there.
 
 A block without a QC (the tip) is not certified by anything in the message: it is only executed under the ordinary
-rules. "local" is read only (the trusted local genesis comes from it).
+rules; when the proposal of the tip's round arrives after the recovery the consensus manager compares the whole
+blocks (BlockStore.Add) and does not vote on a mismatch.
+
+The Author of a recovered block is not authenticated: RoundInfo commits to round, epoch, time, parent and state root
+but not to the block hash or the author, and the state message carries no proposer signature. Leader selection excludes
+recent authors, so a recovering node can temporarily elect a different leader than its peers, reject an honest proposal
+or send its vote elsewhere (a liveness limitation, safety rules and the state root binding are not affected). The
+election is deliberately not changed for recovered authors only, nodes which saw the original proposal would not agree
+with it.
+
+"local" is read only (the trusted local genesis comes from it).
 */
 func ValidateRecoveryState(hashAlg crypto.Hash, state *abdrc.StateMsg, toRound uint64, orchestration Orchestration, local PersistentStore,
 	newVerifier func(*BlockStore) (IRChangeReqVerifier, error), log *slog.Logger) error {
