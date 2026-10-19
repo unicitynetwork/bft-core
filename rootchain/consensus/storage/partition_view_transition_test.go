@@ -43,8 +43,12 @@ func newTSEnv(t *testing.T) *tsEnv {
 }
 
 func (e *tsEnv) orchestration(a *types.PartitionDescriptionRecord) mockOrchestration {
-	return mockOrchestration{shardConfigs: func(uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
-		return map[types.PartitionShardID]*types.PartitionDescriptionRecord{e.psA: a, e.psB: e.pdrB, e.psC: e.pdrC}, nil
+	return mockOrchestration{shardConfigs: func(round uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+		cur := a
+		if a == e.pdrA2 && round < e.pdrA2.EpochStart { // the configuration of a round is the one of its epoch
+			cur = e.pdrA
+		}
+		return map[types.PartitionShardID]*types.PartitionDescriptionRecord{e.psA: cur, e.psB: e.pdrB, e.psC: e.pdrC}, nil
 	}}
 }
 
@@ -293,7 +297,7 @@ also after another shard has produced a newer one.
 */
 func (e *tsEnv) checkRecovery(committed *ExecutedBlock, orc mockOrchestration) {
 	t := e.t
-	committed.CommitQc = fxCommitQc(committed)
+	committed.Qc, committed.CommitQc = consistentHeadQCs(t, committed)
 	infos, err := toRecoveryShardInfo(committed)
 	require.NoError(t, err)
 	payload := &rcnet.CommittedBlock{Block: committed.BlockData, ShardInfo: infos, Qc: committed.Qc, CommitQc: committed.CommitQc}

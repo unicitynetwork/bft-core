@@ -1448,6 +1448,14 @@ func Test_ConsensusManager_changeInTimeoutBlock(t *testing.T) {
 	db, err := storage.NewBoltStorage(filepath.Join(t.TempDir(), "peer.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
+	// the peer has the genesis of the (test) network in its storage: a genesis head is accepted only if it is that one
+	localBlocks, err := cm.blockStore.GetDB().LoadBlocks()
+	require.NoError(t, err)
+	for _, b := range localBlocks {
+		if b.GetRound() == drctypes.GenesisRootRound {
+			require.NoError(t, db.WriteBlock(b, true))
+		}
+	}
 	peerStore, err := storage.NewFromState(cm.params.HashAlgorithm, state.CommittedHead, db, cm.orchestration, cm.log)
 	require.NoError(t, err)
 	peerVerifier, err := NewIRChangeReqVerifier(cm.params, peerStore)

@@ -263,6 +263,17 @@ func TestStateMsg_Verify(t *testing.T) {
 		require.EqualError(t, sm.Verify(crypto.SHA256, &types.RootTrustBaseV1{}), "block qc verification error: vote info hash verification failed")
 	})
 
+	// the info moves on to the next epoch before the shard certifies in it: the retained UC carries the
+	// configuration hash of its own epoch, the info the one of the new epoch
+	t.Run("retained UC of the previous epoch configuration", func(t *testing.T) {
+		sm := validStateMsg()
+		cp := *sm.CommittedHead.ShardInfo[0].UC
+		sm.CommittedHead.ShardInfo[0].ShardConfHash = test.RandomBytes(32)
+		sm.CommittedHead.ShardInfo[0].UC = &cp
+		require.NoError(t, sm.CommittedHead.ShardInfo[0].IsValid())
+		require.NoError(t, sm.Verify(crypto.SHA256, testtb.NewAlwaysValidTrustBase(t)))
+	})
+
 	t.Run("invalid block node data", func(t *testing.T) {
 		sm := validStateMsg()
 		sm.Pending[0].Qc = nil
