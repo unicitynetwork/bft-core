@@ -58,6 +58,15 @@ func newTestChain(t *testing.T, shards ...chainShard) *testChain {
 // newTestChainIn is newTestChain with the databases in the given directory (which outlives the test).
 func newTestChainIn(t *testing.T, dir string, shards ...chainShard) *testChain {
 	t.Helper()
+	db, err := NewBoltStorage(filepath.Join(dir, "blocks.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	return newTestChainOn(t, dir, db, shards...)
+}
+
+// newTestChainOn is newTestChainIn with the given block storage.
+func newTestChainOn(t *testing.T, dir string, db PersistentStore, shards ...chainShard) *testChain {
+	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	orch, err := partitions.NewOrchestration(5, filepath.Join(dir, "orchestration.db"), log)
 	require.NoError(t, err)
@@ -87,9 +96,6 @@ func newTestChainIn(t *testing.T, dir string, shards ...chainShard) *testChain {
 			}))
 		}
 	}
-	db, err := NewBoltStorage(filepath.Join(dir, "blocks.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
 	c.store, err = New(crypto.SHA256, db, orch, log)
 	require.NoError(t, err)
 	c.highQc = c.store.GetHighQc()
