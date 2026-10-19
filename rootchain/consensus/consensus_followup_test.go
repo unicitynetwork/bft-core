@@ -488,10 +488,13 @@ func Test_Followup_RecoveryBookkeeping(t *testing.T) {
 		_, err := f.cm.recovery.Set(qc5)
 		require.NoError(t, err)
 		f.bufferStaleVotes(2)
+		future := f.validVote(9)
+		f.cm.voteBuffer[future.Author] = future
 		err = f.cm.onStateResponse(f.ctx, f.state)
 		require.ErrorContains(t, err, "QC after recovery")
 		require.True(t, f.cm.recovery.InRecovery(), "the new recovery is not cleared by the old completion")
-		require.Len(t, f.cm.voteBuffer, 2, "the buffered votes stay for the new recovery")
+		require.Len(t, f.cm.voteBuffer, 1, "the stale votes are dropped, the vote which may belong to the new recovery stays")
+		require.Contains(t, f.cm.voteBuffer, future.Author)
 	})
 }
 

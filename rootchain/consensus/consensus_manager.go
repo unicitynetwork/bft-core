@@ -1110,11 +1110,24 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	// ends with (identity, leader, safety or send error): the error is returned, the votes are still replayed.
 	err = x.completeRecovery(ctx, triggerMsg)
 	if x.recovery.InRecovery() {
-		// the handling of the trigger started a new recovery: its trigger and the votes buffered for it stay
+		// the handling of the trigger started a new recovery: its trigger and the votes buffered for it stay. The
+		// votes which are already stale cannot belong to it (a replay would refuse them), they are dropped so that
+		// they do not count toward the "votes but no proposal" recovery trigger.
+		x.dropStaleBufferedVotes()
 		return err
 	}
 	x.replayVoteBuffer(ctx)
 	return err
+}
+
+// dropStaleBufferedVotes removes the buffered votes of rounds before the current one.
+func (x *ConsensusManager) dropStaleBufferedVotes() {
+	current := x.pacemaker.GetCurrentRound()
+	for author, v := range x.voteBuffer {
+		if v.VoteInfo == nil || v.VoteInfo.RoundNumber < current {
+			delete(x.voteBuffer, author)
+		}
+	}
 }
 
 // completeRecovery handles the message which triggered the recovery on top of the installed state.

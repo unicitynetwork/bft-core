@@ -133,6 +133,18 @@ func (x *BlockStore) ProcessQc(qc *rctypes.QuorumCert) ([]*certification.Certifi
 	if qc == nil {
 		return nil, fmt.Errorf("qc is nil")
 	}
+	// A QC at or below the high QC is stale, unless the block it certifies is still retained: a higher QC is no proof
+	// that this retained block is the one the QC certifies (a recovered uncertified leaf of another branch can differ
+	// in timestamp, epoch or parent). The retained block is checked with the shared predicate before the stale-QC
+	// short circuit, so that a stale QC cannot authorize anything built on a mismatching block. A QC of pruned history
+	// (no retained block) stays a no-op.
+	if qc.VoteInfo != nil {
+		if b, err := x.blockTree.FindBlock(qc.GetRound()); err == nil {
+			if err = CheckQcOfBlock(qc, b); err != nil {
+				return nil, fmt.Errorf("qc does not certify the local block of round %d: %w", qc.GetRound(), err)
+			}
+		}
+	}
 	// if we have processed it already then skip (in case we are the next leader we have already handled the QC)
 	if x.GetHighQc().GetRound() >= qc.GetRound() {
 		// stale qc

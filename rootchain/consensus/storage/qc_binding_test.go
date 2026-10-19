@@ -119,3 +119,48 @@ func Test_BoltDB_LastVoteAndVotingRoundsSurviveReopen(t *testing.T) {
 	require.EqualValues(t, 7, db.GetHighestVotedRound())
 	require.EqualValues(t, 6, db.GetHighestQcRound())
 }
+
+// ProcessQc checks a retained block against a QC at or below the high QC too (a higher QC is not proof of the binding
+// of an older block); genuinely pruned history stays a no-op.
+func Test_Chain_StaleQCIsCheckedAgainstTheRetainedBlock(t *testing.T) {
+	c := newTestChain(t, chainShard{partition: 1, epochStarts: []uint64{1}})
+	for range 4 {
+		c.next()
+	}
+	high := c.store.GetHighQc()
+	root := c.store.blockTree.root.data
+	require.Less(t, root.GetRound(), high.GetRound())
+	require.Greater(t, root.GetRound(), uint64(1), "round 1 is pruned")
+
+	t.Run("exact match: a no-op", func(t *testing.T) {
+		for _, qc := range []*rctypes.QuorumCert{high, root.Qc} {
+			certs, err := c.store.ProcessQc(qc)
+			require.NoError(t, err)
+			require.Nil(t, certs)
+		}
+		require.Same(t, high, c.store.GetHighQc())
+	})
+
+	t.Run("retained block of another timestamp, epoch, parent or root: refused", func(t *testing.T) {
+		for name, change := range map[string]func(*rctypes.RoundInfo){
+			"timestamp": func(vi *rctypes.RoundInfo) { vi.Timestamp++ },
+			"epoch":     func(vi *rctypes.RoundInfo) { vi.Epoch++ },
+			"parent":    func(vi *rctypes.RoundInfo) { vi.ParentRoundNumber-- },
+			"root":      func(vi *rctypes.RoundInfo) { vi.CurrentRootHash = []byte{1} },
+		} {
+			vi := *high.VoteInfo
+			change(&vi)
+			stale := &rctypes.QuorumCert{VoteInfo: &vi, LedgerCommitInfo: high.LedgerCommitInfo, Signatures: high.Signatures}
+			_, err := c.store.ProcessQc(stale)
+			require.ErrorContains(t, err, "does not certify the local block", name)
+		}
+		require.Same(t, high, c.store.GetHighQc())
+	})
+
+	t.Run("pruned history: a no-op whatever the QC says", func(t *testing.T) {
+		old := &rctypes.QuorumCert{VoteInfo: &rctypes.RoundInfo{RoundNumber: 1, ParentRoundNumber: 0, Epoch: 9, Timestamp: 5, CurrentRootHash: []byte{7}}}
+		certs, err := c.store.ProcessQc(old)
+		require.NoError(t, err)
+		require.Nil(t, certs)
+	})
+}
