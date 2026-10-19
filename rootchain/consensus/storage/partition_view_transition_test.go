@@ -293,7 +293,7 @@ also after another shard has produced a newer one.
 */
 func (e *tsEnv) checkRecovery(committed *ExecutedBlock, orc mockOrchestration) {
 	t := e.t
-	committed.CommitQc = fxCommitQc(committed)
+	committed.Qc, committed.CommitQc = consistentHeadQCs(t, committed)
 	infos, err := toRecoveryShardInfo(committed)
 	require.NoError(t, err)
 	payload := &rcnet.CommittedBlock{Block: committed.BlockData, ShardInfo: infos, Qc: committed.Qc, CommitQc: committed.CommitQc}

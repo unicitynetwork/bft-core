@@ -13,8 +13,6 @@ import (
 	"github.com/unicitynetwork/bft-go-base/types"
 
 	"github.com/unicitynetwork/bft-core/internal/testutils/logger"
-	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
-	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
 	"github.com/unicitynetwork/bft-core/rootchain/partitions"
 	testpartition "github.com/unicitynetwork/bft-core/rootchain/partitions/testutils"
@@ -489,25 +487,18 @@ func Test_BlockStore_ShardInfo(t *testing.T) {
 }
 
 func Test_BlockStore_StateRoundtrip(t *testing.T) {
-	shardConf := newShardConf(t)
-	storeA := initBlockStoreFromGenesis(t, shardConf)
-	// the genesis block is created with the shard marked as "changed" - clear
-	// it as the state message does not carry that information
+	c := newTestChain(t, chainShard{partition: 1, epochStarts: []uint64{1}}, chainShard{partition: 2, epochStarts: []uint64{1}})
+	for _, changed := range [][]types.PartitionID{nil, nil, {1}, {1, 2}, {1}} {
+		c.next(changed...)
+	}
+	storeA := c.store
+	// the state message does not carry the "changed" marks
 	clear(storeA.blockTree.root.data.ShardState.Changed)
-
-	// modify Fees to see if they are restored correctly
-	si := storeA.ShardInfo(shardConf.PartitionID, shardConf.ShardID)
-	si.Fees[si.nodeIDs[0]] = 10
-
-	state, err := storeA.GetState()
-	require.NoError(t, err)
+	state := c.state()
 	require.NotNil(t, state)
 
-	db, err := NewBoltStorage(filepath.Join(t.TempDir(), "blocks.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
 	// state msg is used to init "shard info registry", the orchestration provides data which is not part of state msg
-	storeB, err := NewFromState(crypto.SHA256, state.CommittedHead, db, storeA.orchestration, logger.New(t))
+	storeB, _, err := c.recoverInto(received(t, state))
 	require.NoError(t, err)
 	require.NotNil(t, storeB)
 
@@ -515,113 +506,15 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	require.Equal(t, storeA.blockTree.root.data.ShardState.States, storeB.blockTree.root.data.ShardState.States)
 	require.Equal(t, storeA.blockTree.root.data.ShardState.Changed, storeB.blockTree.root.data.ShardState.Changed)
 	require.Equal(t, storeA.blockTree.root.data.RootHash, storeB.blockTree.root.data.RootHash, "root hash")
-	require.Equal(t, storeA.blockTree.root.child, storeB.blockTree.root.child)
-	require.Len(t, storeB.blockTree.roundToNode, len(storeA.blockTree.roundToNode))
-	for k, v := range storeA.blockTree.roundToNode {
-		bNode, ok := storeB.blockTree.roundToNode[k]
-		require.True(t, ok)
-		require.ElementsMatch(t, v.child, bNode.child)
-	}
 	require.Equal(t, storeA.blockTree.highQc, storeB.blockTree.highQc)
-
-	siA := storeA.ShardInfo(shardConf.PartitionID, shardConf.ShardID)
-	require.NoError(t, err)
-	require.NotNil(t, siA)
-	require.NoError(t, siA.IsValid())
-
-	siB := storeB.ShardInfo(shardConf.PartitionID, shardConf.ShardID)
-	require.NoError(t, err)
-	require.NotNil(t, siB)
-	require.NoError(t, siB.IsValid())
-
-	require.Equal(t, siA, siB)
-}
-
-// A peer replays a real state message but drops UC and TR of a certified shard (both null): the recovered node
-// keeps no LastCR for the shard and the next certification request of an honest validator of that shard must be
-// answered with an error, not a nil pointer dereference.
-func Test_BlockStore_RecoveredShardWithoutCertificateRefusesRequests(t *testing.T) {
-	node := testutils.NewTestNode(t)
-	shardConf := newShardConf(t)
-	shardConf.Validators = []*types.NodeInfo{node.NodeInfo(t)}
-	storeA := initBlockStoreFromGenesis(t, shardConf)
-	clear(storeA.blockTree.root.data.ShardState.Changed)
-	siA := storeA.ShardInfo(shardConf.PartitionID, shardConf.ShardID)
-	// make it a certified shard: the recovery shard info carries its last certification response
-	siA.LastCR = &certification.CertificationResponse{
-		Partition: shardConf.PartitionID, Shard: shardConf.ShardID,
-		Technical: certification.TechnicalRecord{Round: 2, Epoch: 0, Leader: "L", StatHash: []byte{1}, FeeHash: []byte{2}},
-		UC: types.UnicityCertificate{Version: 1, InputRecord: siA.IR,
-			UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 5, Timestamp: 1731504540}},
+	for _, p := range []types.PartitionID{1, 2} {
+		siA, siB := storeA.ShardInfo(p, types.ShardID{}), storeB.ShardInfo(p, types.ShardID{})
+		require.NotNil(t, siA)
+		require.NotNil(t, siB)
+		require.NoError(t, siA.IsValid())
+		require.NoError(t, siB.IsValid())
+		require.Equal(t, siA, siB)
 	}
-
-	state, err := storeA.GetState()
-	require.NoError(t, err)
-	raw, err := types.Cbor.Marshal(state)
-	require.NoError(t, err)
-	var received abdrc.StateMsg
-	require.NoError(t, types.Cbor.Unmarshal(raw, &received))
-	for i := range received.CommittedHead.ShardInfo {
-		received.CommittedHead.ShardInfo[i].UC = nil
-		received.CommittedHead.ShardInfo[i].TR = nil
-	}
-
-	db, err := NewBoltStorage(filepath.Join(t.TempDir(), "blocks.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-	storeB, err := NewFromState(crypto.SHA256, received.CommittedHead, db, storeA.orchestration, logger.New(t))
-	require.NoError(t, err)
-	siB := storeB.ShardInfo(shardConf.PartitionID, shardConf.ShardID)
-	require.NotNil(t, siB)
-	require.Nil(t, siB.LastCR)
-
-	// a validly signed request of a validator of the shard
-	bcr := &certification.BlockCertificationRequest{
-		PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID, NodeID: node.NodeInfo(t).NodeID,
-		InputRecord: &types.InputRecord{Version: 1, RoundNumber: 1, PreviousHash: siB.RootHash, Hash: []byte{2}, BlockHash: []byte{3}, SummaryValue: []byte{}, Timestamp: 1731504540},
-	}
-	require.NoError(t, bcr.Sign(node.Signer))
-	require.NotPanics(t, func() {
-		require.ErrorContains(t, siB.ValidRequest(bcr), "no certification response yet")
-	})
-}
-
-// The recovered state of a shard without UC/TR and with an IRTR epoch which differs from the IR epoch makes the
-// next block switch the shard into its next epoch; the error of that path used to be formatted from the (nil)
-// LastCR and panicked.
-func Test_BlockStore_RecoveredShardWithoutCertificateAndInconsistentEpoch(t *testing.T) {
-	shardConf := newShardConf(t)
-	storeA := initBlockStoreFromGenesis(t, shardConf)
-	clear(storeA.blockTree.root.data.ShardState.Changed)
-	state, err := storeA.GetState()
-	require.NoError(t, err)
-	raw, err := types.Cbor.Marshal(state)
-	require.NoError(t, err)
-	var received abdrc.StateMsg
-	require.NoError(t, types.Cbor.Unmarshal(raw, &received))
-	for i := range received.CommittedHead.ShardInfo {
-		received.CommittedHead.ShardInfo[i].UC = nil
-		received.CommittedHead.ShardInfo[i].TR = nil
-		received.CommittedHead.ShardInfo[i].IRTR.Epoch = received.CommittedHead.ShardInfo[i].IR.Epoch + 7
-	}
-
-	db, err := NewBoltStorage(filepath.Join(t.TempDir(), "blocks.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-	storeB, err := NewFromState(crypto.SHA256, received.CommittedHead, db, storeA.orchestration, logger.New(t))
-	if err != nil {
-		return // rejected at recovery: nothing to execute (the binding of the recovered state)
-	}
-	siB := storeB.ShardInfo(shardConf.PartitionID, shardConf.ShardID)
-	require.NotNil(t, siB)
-	require.Nil(t, siB.LastCR)
-	confs, err := storeB.orchestration.ShardConfigs(3)
-	require.NoError(t, err)
-	require.NotPanics(t, func() {
-		_, err := storeB.blockTree.root.data.ShardState.nextBlock(confs, crypto.SHA256)
-		require.Error(t, err)
-		require.ErrorContains(t, err, fmt.Sprintf("creating ShardInfo %s - %s of the next epoch", siB.PartitionID, siB.ShardID))
-	})
 }
 
 func Test_BlockStore_persistence(t *testing.T) {

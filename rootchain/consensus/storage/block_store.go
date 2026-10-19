@@ -65,7 +65,11 @@ func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db PersistentSt
 		return nil, errors.New("storage is nil")
 	}
 
-	rootNode, err := NewRootBlock(block, hash, orchestration)
+	local, err := trustedGenesis(db, hash, orchestration)
+	if err != nil {
+		return nil, err
+	}
+	rootNode, err := newRootBlock(block, hash, orchestration, local)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new root node: %w", err)
 	}

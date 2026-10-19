@@ -1,16 +1,15 @@
 package storage
 
 import (
+	"cmp"
 	"crypto"
-	"crypto/sha256"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
@@ -21,7 +20,6 @@ import (
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
-	"github.com/unicitynetwork/bft-core/rootchain/partitions"
 )
 
 // FuzzRecoveredState drives an arbitrary decoded StateMsg through everything a recovering root node does with it:
@@ -49,7 +47,6 @@ func FuzzRecoveredState(f *testing.F) {
 type recFuzzEnv struct {
 	orch   Orchestration
 	db     PersistentStore
-	conf   *types.PartitionDescriptionRecord
 	signer abcrypto.Signer
 	nodeID string
 	log    *slog.Logger
@@ -67,65 +64,39 @@ func recoveredEnv(t *testing.T) *recFuzzEnv {
 }
 
 // newRecFuzzEnv builds the deterministic fixture: one shard with one validator of a fixed key (so that the
-// configuration hash, which the state message carries, is the same in every process).
+// configuration hash, which the state message carries, is the same in every process) driven through the production
+// sequence for a few rounds (testChain), and its state message.
 func newRecFuzzEnv(t *testing.T) *recFuzzEnv {
-	key := sha256.Sum256([]byte("recovered state fuzz validator"))
-	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(key[:])
-	require.NoError(t, err)
-	verifier, err := signer.Verifier()
-	require.NoError(t, err)
-	pub, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
-	const nodeID = "recovered-state-fuzz-node"
-	conf := &types.PartitionDescriptionRecord{
-		Version: 1, NetworkID: 5, PartitionID: 1, PartitionTypeID: 1, ShardID: types.ShardID{},
-		UnitIDLen: 256, TypeIDLen: 32, T2Timeout: 2500 * time.Millisecond,
-		Validators: []*types.NodeInfo{{NodeID: nodeID, SigKey: pub, Stake: 1}},
-	}
 	dir, err := os.MkdirTemp("", "recovered-fuzz")
 	require.NoError(t, err)
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	orch, err := partitions.NewOrchestration(5, filepath.Join(dir, "orchestration.db"), log)
+	const nodeID = "recovered-state-fuzz-node"
+	c := newTestChainIn(t, dir, chainShard{partition: 1, key: nodeID, epochStarts: []uint64{1}})
+	c.next()
+	c.next()
+	c.next(1)
+	c.next(1)
+	raw, err := types.Cbor.Marshal(c.state())
 	require.NoError(t, err)
-	require.NoError(t, orch.AddShardConfig(conf))
-	db, err := NewBoltStorage(filepath.Join(dir, "blocks.db"))
+	db, err := NewBoltStorage(filepath.Join(dir, "recovered.db"))
 	require.NoError(t, err)
-	require.NoError(t, db.WriteBlock(genesisBlockWithShard(t, conf), true))
-	store, err := New(crypto.SHA256, db, orch, log)
-	require.NoError(t, err)
-	// the fixture shard is certified for real: the genesis block generates its certification response
-	// (a UC consistent with the trees), which becomes the last response kept in the recovery shard info
-	genesis := store.blockTree.root.data
-	genesis.BlockData.Payload = &rctypes.Payload{}
-	vi := &rctypes.RoundInfo{Version: 1, RoundNumber: genesis.GetRound(), Epoch: genesis.BlockData.Epoch, Timestamp: genesis.BlockData.Timestamp, CurrentRootHash: genesis.RootHash}
-	vh, err := vi.Hash(crypto.SHA256)
-	require.NoError(t, err)
-	commitQc := &rctypes.QuorumCert{
-		VoteInfo:         vi,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1, NetworkID: 5, RootChainRoundNumber: 4, Epoch: genesis.BlockData.Epoch, Timestamp: types.GenesisTime + 1, Hash: genesis.RootHash, PreviousHash: vh},
-		Signatures:       map[string]hex.Bytes{"fuzz": {1}}, // the trust base of the fuzz accepts it
-	}
-	genesis.Qc, genesis.CommitQc = commitQc, commitQc
-	_, err = genesis.GenerateCertificates(commitQc, log)
-	require.NoError(t, err)
-	require.NotNil(t, store.ShardInfo(conf.PartitionID, conf.ShardID).LastCR)
-	clear(genesis.ShardState.Changed)
-	state, err := store.GetState()
-	require.NoError(t, err)
-	raw, err := types.Cbor.Marshal(state)
-	require.NoError(t, err)
-	return &recFuzzEnv{orch: orch, db: db, conf: conf, signer: signer, nodeID: nodeID, log: log, state: raw}
+	conf := c.store.ShardInfo(1, types.ShardID{})
+	require.NotNil(t, conf.LastCR)
+	return &recFuzzEnv{orch: c.orch, db: db, signer: c.nodes[1].signer, nodeID: nodeID, log: c.log, state: raw}
 }
 
 // fuzzIRVerifier verifies IR change requests the way the consensus manager does (against the last response of
 // the shard of the parent block).
-type fuzzIRVerifier struct{ parent *ExecutedBlock }
+type fuzzIRVerifier struct{ store *BlockStore }
 
 func (v fuzzIRVerifier) VerifyIRChangeReq(round, parentRound uint64, req *rctypes.IRChangeReq) (*types.InputRecord, error) {
 	if req == nil {
 		return nil, fmt.Errorf("IR change request is nil")
 	}
-	si := v.parent.ShardState.States[types.PartitionShardID{PartitionID: req.Partition, ShardID: req.Shard.Key()}]
+	parent, err := v.store.Block(parentRound)
+	if err != nil || parent == nil {
+		return nil, fmt.Errorf("parent block: %v", err)
+	}
+	si := parent.ShardState.States[types.PartitionShardID{PartitionID: req.Partition, ShardID: req.Shard.Key()}]
 	if si == nil {
 		return nil, fmt.Errorf("missing shard info")
 	}
@@ -196,10 +167,31 @@ func (e *recFuzzEnv) exercise(sm *abdrc.StateMsg) (r reached) {
 		}
 	}
 
+	// the pending blocks of the message, the way the consensus manager adds them
+	verifier := fuzzIRVerifier{store: store}
+	pending := slices.Clone(sm.Pending)
+	slices.SortFunc(pending, func(a, b *rctypes.BlockData) int { return cmp.Compare(a.GetRound(), b.GetRound()) })
+	for _, b := range pending {
+		if b == nil {
+			continue
+		}
+		if b.Qc != nil {
+			_, _ = store.ProcessQc(b.Qc)
+		}
+		_, _ = store.Add(b, verifier) // may legitimately fail: it was verified against another committed state
+	}
+
 	// further blocks: empty, then with quorum and timeout change requests; commit them
-	parent := root
-	qc := store.GetHighQc()
 	for step := 0; step < 3; step++ {
+		// extend the tip (the highest QC, if its block could be added) or else the committed head
+		qc := store.GetHighQc()
+		parent, err := store.Block(qc.GetRound())
+		if err != nil || parent == nil {
+			parent, qc = root, root.Qc
+			if qc == nil || qc.GetRound() != parent.GetRound() {
+				break
+			}
+		}
 		round := parent.GetRound() + 1
 		payload := &rctypes.Payload{}
 		if step > 0 {
@@ -214,7 +206,8 @@ func (e *recFuzzEnv) exercise(sm *abdrc.StateMsg) (r reached) {
 			}
 		}
 		bd := &rctypes.BlockData{Author: "fuzz", Round: round, Epoch: parent.BlockData.Epoch, Timestamp: types.GenesisTime + round, Payload: payload, Qc: qc}
-		if _, err := store.Add(bd, fuzzIRVerifier{parent: parent}); err != nil {
+		root, err := store.Add(bd, verifier)
+		if err != nil {
 			break
 		}
 		r.blocks++
@@ -222,15 +215,17 @@ func (e *recFuzzEnv) exercise(sm *abdrc.StateMsg) (r reached) {
 		if err != nil || eb == nil {
 			break
 		}
-		// commit it: the certificates of the changed shards become the last responses
-		cqc := &rctypes.QuorumCert{
-			VoteInfo:         &rctypes.RoundInfo{Version: 1, RoundNumber: round, ParentRoundNumber: parent.GetRound(), Epoch: bd.Epoch, Timestamp: bd.Timestamp},
-			LedgerCommitInfo: &types.UnicitySeal{Version: 1, NetworkID: 5, RootChainRoundNumber: round, Epoch: bd.Epoch, Timestamp: bd.Timestamp, Hash: eb.RootHash, PreviousHash: []byte{1}},
-			Signatures:       map[string]hex.Bytes{"fuzz": {1}},
+		// the QC of the block commits its parent when the rounds are consecutive
+		vi := &rctypes.RoundInfo{Version: 1, RoundNumber: round, ParentRoundNumber: parent.GetRound(), Epoch: bd.Epoch, Timestamp: bd.Timestamp, CurrentRootHash: root}
+		vh, _ := vi.Hash(crypto.SHA256)
+		nqc := &rctypes.QuorumCert{
+			VoteInfo: vi,
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, NetworkID: 5, RootChainRoundNumber: parent.GetRound(), Epoch: parent.BlockData.Epoch,
+				Timestamp: parent.BlockData.Timestamp, Hash: parent.RootHash, PreviousHash: vh},
+			Signatures: map[string]hex.Bytes{"fuzz": {1}},
 		}
-		_, _ = eb.GenerateCertificates(cqc, e.log)
+		_, _ = store.ProcessQc(nqc)
 		_, _ = toRecoveryShardInfo(eb)
-		parent, qc = eb, cqc
 	}
 	_, _ = store.GetState()
 	for _, si := range shards {
@@ -251,11 +246,12 @@ func TestRecoveredFuzzSeedsReachPostRecoveryCode(t *testing.T) {
 	r := env.exercise(decode(env.state))
 	require.True(t, r.verified && r.installed, "%+v", r)
 	require.GreaterOrEqual(t, r.blocks, 1, "blocks were added after recovery")
-	// a shard without UC/TR: installed and driven on
+	// a certified shard without UC/TR passes StateMsg.Verify but is not installed (recovery binding)
 	sm := decode(env.state)
 	sm.CommittedHead.ShardInfo[0].UC, sm.CommittedHead.ShardInfo[0].TR = nil, nil
 	r = env.exercise(sm)
-	require.True(t, r.verified && r.installed, "%+v", r)
+	require.True(t, r.verified, "%+v", r)
+	require.False(t, r.installed, "%+v", r)
 }
 
 // UPDATE_FUZZ_SEEDS=1 go test ./rootchain/consensus/storage -run TestWriteRecoveredFuzzSeeds rewrites the seed corpus.
