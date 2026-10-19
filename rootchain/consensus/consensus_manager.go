@@ -1024,6 +1024,14 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	slices.SortFunc(rsp.Pending, func(a, b *drctypes.BlockData) int {
 		return cmp.Compare(a.GetRound(), b.GetRound())
 	})
+	// the complete recovery is staged and validated in memory first: nothing is written, installed or advanced
+	// unless the head and every pending block are consistent with the QCs and with what executing them gives
+	if err := storage.ValidateRecoveryState(x.params.HashAlgorithm, rsp, x.recovery.ToRound(), x.orchestration, x.blockStore.GetDB(),
+		func(bs *storage.BlockStore) (storage.IRChangeReqVerifier, error) {
+			return NewIRChangeReqVerifier(x.params, bs)
+		}, x.log); err != nil {
+		return fmt.Errorf("recovery state validation failed: %w", err)
+	}
 	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp.CommittedHead, x.blockStore.GetDB(), x.orchestration, x.log)
 	if err != nil {
 		return fmt.Errorf("recovery, new block store init failed: %w", err)

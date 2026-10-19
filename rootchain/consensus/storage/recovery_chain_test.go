@@ -98,10 +98,10 @@ func newTestChainIn(t *testing.T, dir string, shards ...chainShard) *testChain {
 
 // chainVerifier verifies IR change requests the way the consensus manager does: against the last response of the
 // shard in the committed state.
-type chainVerifier struct{ c *testChain }
+type chainVerifier struct{ store *BlockStore }
 
 func (v chainVerifier) VerifyIRChangeReq(round, _ uint64, req *rctypes.IRChangeReq) (*types.InputRecord, error) {
-	si := v.c.store.ShardInfo(req.Partition, req.Shard)
+	si := v.store.ShardInfo(req.Partition, req.Shard)
 	if si == nil || si.LastCR == nil {
 		return nil, fmt.Errorf("shard %d has no certification response yet", req.Partition)
 	}
@@ -131,7 +131,7 @@ func (c *testChain) next(changed ...types.PartitionID) {
 		payload.Requests = append(payload.Requests, &rctypes.IRChangeReq{Partition: p, CertReason: rctypes.Quorum, Requests: []*certification.BlockCertificationRequest{bcr}})
 	}
 	bd := &rctypes.BlockData{Author: "chain", Round: c.round, Epoch: rctypes.GenesisRootEpoch, Timestamp: types.GenesisTime + c.round, Payload: payload, Qc: c.highQc}
-	root, err := c.store.Add(bd, chainVerifier{c})
+	root, err := c.store.Add(bd, chainVerifier{c.store})
 	require.NoError(c.t, err)
 	vi := &rctypes.RoundInfo{Version: 1, RoundNumber: c.round, ParentRoundNumber: parent, Epoch: bd.Epoch, Timestamp: bd.Timestamp, CurrentRootHash: root}
 	vh, err := vi.Hash(crypto.SHA256)

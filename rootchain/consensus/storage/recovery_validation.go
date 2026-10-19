@@ -43,18 +43,23 @@ type shardConfPair struct {
 // recoveredShardConfs resolves for every shard with validators the configurations relevant for the head.
 func recoveredShardConfs(round uint64, shardConfs map[types.PartitionShardID]*types.PartitionDescriptionRecord, orchestration Orchestration) (map[types.PartitionShardID]shardConfPair, error) {
 	out := make(map[types.PartitionShardID]shardConfPair, len(shardConfs))
-	var older map[types.PartitionShardID]*types.PartitionDescriptionRecord
+	// every shard's previous epoch configuration is looked up at the round before ITS epoch started; the shards
+	// of a head do not switch epochs at the same round, so the lookups are cached by round, not shared
+	olderAt := map[uint64]map[types.PartitionShardID]*types.PartitionDescriptionRecord{}
 	for k, pdr := range shardConfs {
 		if len(pdr.Validators) == 0 {
 			continue // the shard is deleted
 		}
 		pair := shardConfPair{current: pdr}
 		if pdr.Epoch > 0 && pdr.EpochStart > 1 {
-			if older == nil {
+			lookup := pdr.EpochStart - 1
+			older, ok := olderAt[lookup]
+			if !ok {
 				var err error
-				if older, err = orchestration.ShardConfigs(pdr.EpochStart - 1); err != nil {
-					return nil, fmt.Errorf("loading shard configurations for round %d: %w", pdr.EpochStart-1, err)
+				if older, err = orchestration.ShardConfigs(lookup); err != nil {
+					return nil, fmt.Errorf("loading shard configurations for round %d: %w", lookup, err)
 				}
+				olderAt[lookup] = older
 			}
 			if prev, ok := older[k]; ok && prev.Epoch+1 == pdr.Epoch && len(prev.Validators) > 0 {
 				pair.previous = prev
@@ -70,16 +75,17 @@ func validateRecoveredShard(d *abdrc.ShardInfo, pair shardConfPair, hashAlg cryp
 	if d.IR == nil {
 		return nil, errors.New("input record is missing")
 	}
-	// The info is of the active configuration, except in the block which triggered an epoch change of the shard:
-	// the technical record has already moved to the new epoch but the info (fees, validators) is switched to it
-	// only when the next block starts.
+	// The info is of the active configuration, except while the shard has not switched to the epoch which the active
+	// configuration starts: then it is still of the previous epoch (the switch is made by the first change request
+	// of the shard in the new epoch). In the block of that request the technical record is already of the new epoch
+	// but the info is switched only when the next block starts ("transition").
 	conf, transition := pair.current, false
 	confHash, err := pair.current.Hash(hashAlg)
 	if err != nil {
 		return nil, fmt.Errorf("calculating PDR hash: %w", err)
 	}
 	if !bytes.Equal(d.ShardConfHash, confHash) {
-		if pair.previous == nil || d.IRTR.Epoch != pair.current.Epoch {
+		if pair.previous == nil {
 			return nil, errors.New("calculated shard conf hash doesn't match the value in block data")
 		}
 		prevHash, err := pair.previous.Hash(hashAlg)
@@ -89,7 +95,15 @@ func validateRecoveredShard(d *abdrc.ShardInfo, pair shardConfPair, hashAlg cryp
 		if !bytes.Equal(d.ShardConfHash, prevHash) {
 			return nil, errors.New("calculated shard conf hash doesn't match the value in block data")
 		}
-		conf, transition = pair.previous, true
+		switch d.IRTR.Epoch {
+		case pair.current.Epoch:
+			transition = true
+		case pair.previous.Epoch:
+			// not switched yet
+		default:
+			return nil, fmt.Errorf("technical record of epoch %d with the info of epoch %d", d.IRTR.Epoch, pair.previous.Epoch)
+		}
+		conf = pair.previous
 	}
 
 	// operational values are derived from the configuration, never taken from the message
