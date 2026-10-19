@@ -98,6 +98,9 @@ func (x *IRChangeReqVerifier) verifyRequest(rootRound uint64, irChReq *drctypes.
 		return nil, nil, fmt.Errorf("missing shard info for partition %d shard %s", irChReq.Partition, irChReq.Shard.String())
 	}
 
+	if si.LastCR == nil {
+		return nil, nil, fmt.Errorf("shard %d %s has no certification response yet", irChReq.Partition, irChReq.Shard.String())
+	}
 	// verify request
 	luc := si.LastCR.UC
 	inputRecord, err := irChReq.Verify(si, &luc, rootRound, t2TimeoutToRootRounds(si.T2Timeout, x.params.BlockRate/2))

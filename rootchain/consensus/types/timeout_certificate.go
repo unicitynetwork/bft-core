@@ -35,6 +35,9 @@ func NewTimeout(round, epoch uint64, hqc *QuorumCert) *Timeout {
 }
 
 func (x *Timeout) IsValid() error {
+	if x == nil {
+		return fmt.Errorf("timeout is nil")
+	}
 	if x.HighQc == nil {
 		return fmt.Errorf("high QC is unassigned")
 	}
@@ -132,6 +135,11 @@ func BytesFromTimeoutVote(t *Timeout, author string, vote *TimeoutVote) []byte {
 func (x *TimeoutCert) IsValid() error {
 	if x.Timeout == nil {
 		return fmt.Errorf("timeout data is unassigned")
+	}
+	for author, vote := range x.Signatures {
+		if vote == nil {
+			return fmt.Errorf("timeout vote of %q is nil", author)
+		}
 	}
 	return nil
 }
