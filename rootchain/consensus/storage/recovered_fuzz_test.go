@@ -82,8 +82,10 @@ func newRecFuzzEnv(t *testing.T) *recFuzzEnv {
 		env.states = append(env.states, raw)
 		env.state = raw
 	}
-	// the storage of the recovering node: the fixture and the fuzz inputs are about the state, not about the disk
-	env.db = newMemoryStore()
+	// the storage of the recovering node stays on bolt: the inputs persist and reload blocks built from a peer's
+	// state (bolt, ShardStates/ShardSet CBOR); only the fixture chain above is in memory
+	env.db, err = NewBoltStorage(filepath.Join(dir, "recovered.db"))
+	require.NoError(t, err)
 	return env
 }
 
