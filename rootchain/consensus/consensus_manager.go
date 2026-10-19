@@ -1083,19 +1083,15 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		// Process QC first, update round
 		x.processQC(ctx, prop.Block.Qc)
 		x.processTC(ctx, prop.LastRoundTc)
-		var stateHash []byte
-		if block, err := x.blockStore.Block(prop.Block.Round); err != nil {
-			// Block not found, was not sent with recovery info
-			// execute proposed payload
-			stateHash, err = x.blockStore.Add(prop.Block, x.irReqVerifier)
-			if err != nil {
-				// wait for timeout, if others make progress this node will need to recover
-				// cannot send vote, so just return and wait for local timeout or new proposal (and try to recover then)
-				return fmt.Errorf("recovery failed to execute proposal: %w", err)
-			}
-		} else {
-			// use the state hash from storage
-			stateHash = block.RootHash
+		// The last block of the recovered state (the tip) is not certified by the state message, so the state hash of
+		// a stored block is used only if it is the proposed block: Add compares the hashes of the complete blocks if
+		// the round exists, returns the stored root for the same block, executes the proposal if the round is not
+		// there, and fails otherwise. In case of failure the node does not vote (the vote state is not touched) and
+		// waits for the timeout or the next proposal, as the node cannot sign the proposal with a state it did not
+		// compute for it.
+		stateHash, err := x.blockStore.Add(prop.Block, x.irReqVerifier)
+		if err != nil {
+			return fmt.Errorf("recovery failed to execute proposal: %w", err)
 		}
 		// send a vote message to next leader
 		voteMsg, err := x.safety.MakeVote(prop.Block, stateHash, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC())

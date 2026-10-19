@@ -1698,49 +1698,54 @@ The state message carries B4 but not QC(4), which is not the commit QC of any bl
 carried by the message which triggered the recovery must be processed after the recovery,
 otherwise the high QC of the node stays behind.
 */
+// returns stopped CM with the tree above, its state, QC(4), the id of the node and its network
+func recoveryTreeSetup(t *testing.T) (*ConsensusManager, *abdrc.StateMsg, *drctypes.QuorumCert, string, *testnetwork.MockNet) {
+	mockNet := testnetwork.NewRootMockNetwork()
+	cm, rootNode, _ := initConsensusManager(t, mockNet)
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled); close(done) }()
+
+	prop := testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	mockNet.WaitReceive(t, prop)
+	vote := testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	mockNet.WaitReceive(t, vote)
+	// QC(2), proposal 3 is not delivered and the round times out
+	prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	require.EqualValues(t, 3, prop.Block.Round)
+	// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
+	cm.onLocalTimeout(ctx)
+	tmo := testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
+	mockNet.WaitReceive(t, tmo)
+	// TC(3) -> proposal 4 extends QC(2)
+	prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	require.EqualValues(t, 4, prop.Block.Round)
+	require.EqualValues(t, 2, prop.Block.Qc.GetRound())
+	mockNet.WaitReceive(t, prop)
+	vote = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	mockNet.WaitReceive(t, vote)
+	// QC(4), proposal 5 is not delivered so B4 has no child
+	prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	require.EqualValues(t, 5, prop.Block.Round)
+	ctxCancel()
+	<-done
+
+	qc4 := cm.blockStore.GetHighQc()
+	require.EqualValues(t, 4, qc4.GetRound())
+	require.Zero(t, qc4.LedgerCommitInfo.RootChainRoundNumber, "QC(4) doesn't commit")
+	state, err := cm.blockStore.GetState()
+	require.NoError(t, err)
+	require.Less(t, state.CommittedHead.CommitQc.GetRound(), qc4.GetRound())
+	for _, b := range state.Pending {
+		require.Less(t, b.Qc.GetRound(), qc4.GetRound(), "state doesn't carry QC(4)")
+	}
+	return cm, state, qc4, rootNode.PeerConf.ID.String(), mockNet
+}
+
 func Test_ConsensusManager_recoveryRestoresHighQc(t *testing.T) {
-	// returns stopped CM with the tree above, its state and QC(4)
 	setup := func(t *testing.T) (*ConsensusManager, *abdrc.StateMsg, *drctypes.QuorumCert, string) {
-		mockNet := testnetwork.NewRootMockNetwork()
-		cm, rootNode, _ := initConsensusManager(t, mockNet)
-		ctx, ctxCancel := context.WithCancel(context.Background())
-		done := make(chan struct{})
-		go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled); close(done) }()
-
-		prop := testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
-		mockNet.WaitReceive(t, prop)
-		vote := testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
-		mockNet.WaitReceive(t, vote)
-		// QC(2), proposal 3 is not delivered and the round times out
-		prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
-		require.EqualValues(t, 3, prop.Block.Round)
-		// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
-		cm.onLocalTimeout(ctx)
-		tmo := testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
-		mockNet.WaitReceive(t, tmo)
-		// TC(3) -> proposal 4 extends QC(2)
-		prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
-		require.EqualValues(t, 4, prop.Block.Round)
-		require.EqualValues(t, 2, prop.Block.Qc.GetRound())
-		mockNet.WaitReceive(t, prop)
-		vote = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
-		mockNet.WaitReceive(t, vote)
-		// QC(4), proposal 5 is not delivered so B4 has no child
-		prop = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
-		require.EqualValues(t, 5, prop.Block.Round)
-		ctxCancel()
-		<-done
-
-		qc4 := cm.blockStore.GetHighQc()
-		require.EqualValues(t, 4, qc4.GetRound())
-		require.Zero(t, qc4.LedgerCommitInfo.RootChainRoundNumber, "QC(4) doesn't commit")
-		state, err := cm.blockStore.GetState()
-		require.NoError(t, err)
-		require.Less(t, state.CommittedHead.CommitQc.GetRound(), qc4.GetRound())
-		for _, b := range state.Pending {
-			require.Less(t, b.Qc.GetRound(), qc4.GetRound(), "state doesn't carry QC(4)")
-		}
-		return cm, state, qc4, rootNode.PeerConf.ID.String()
+		cm, state, qc4, author, _ := recoveryTreeSetup(t)
+		return cm, state, qc4, author
 	}
 	// recover from the state, replaces the block store
 	recoverFrom := func(t *testing.T, cm *ConsensusManager, state *abdrc.StateMsg, trigger any) {
@@ -1796,4 +1801,124 @@ func testQC(round, parent uint64, rootHash []byte) *drctypes.QuorumCert {
 		VoteInfo:         &drctypes.RoundInfo{RoundNumber: round, ParentRoundNumber: parent, CurrentRootHash: rootHash},
 		LedgerCommitInfo: &types.UnicitySeal{Version: 1},
 	}
+}
+
+/*
+The last block of the recovered state (the tip) is not certified by the state message. A forged tip must not make the
+node vote with the root of the forged block for the honest proposal of the same round; the node abstains and its vote
+state is left as it was.
+*/
+func Test_ConsensusManager_recoveryTipMustBeTheProposedBlock(t *testing.T) {
+	// recovers from the state of the setup (tip: block of round 4) triggered by the proposal of the block of round 4
+	recoverWith := func(t *testing.T, votedRound uint64, withTC bool, change func(state *abdrc.StateMsg, tip *drctypes.BlockData)) (*ConsensusManager, error, []testnetwork.PeerMessage, *drctypes.BlockData) {
+		cm, state, _, _, mockNet := recoveryTreeSetup(t)
+		require.NotEmpty(t, state.Pending)
+		tip := state.Pending[len(state.Pending)-1]
+		require.EqualValues(t, 4, tip.Round)
+		// the honest proposal is the block as it is before any change
+		raw, err := types.Cbor.Marshal(tip)
+		require.NoError(t, err)
+		honest := &drctypes.BlockData{}
+		require.NoError(t, types.Cbor.Unmarshal(raw, honest))
+		change(state, tip)
+		tc, err := cm.blockStore.GetLastTC()
+		require.NoError(t, err)
+
+		ctx, ctxCancel := context.WithCancel(context.Background())
+		defer ctxCancel()
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-cm.ucSink:
+				}
+			}
+		}()
+		// the durable vote state is monotonic: the node is set to the state it had before the vote of the setup
+		cm.safety.storage = &votedRoundStorage{SafetyStorage: cm.safety.storage, round: votedRound}
+		mockNet.ResetSentMessages(network.ProtocolRootVote)
+		// round 4 extends QC(2), the proposal carries TC(3)
+		prop := &abdrc.ProposalMsg{Block: honest}
+		if withTC {
+			prop.LastRoundTc = tc
+			require.NotNil(t, prop.LastRoundTc)
+		}
+		cm.recovery = &recoveryState{}
+		_, err = cm.recovery.Set(prop)
+		require.NoError(t, err)
+		err = cm.onStateResponse(ctx, state)
+		return cm, err, mockNet.SentMessages(network.ProtocolRootVote), honest
+	}
+	nothing := func(*abdrc.StateMsg, *drctypes.BlockData) {}
+
+	t.Run("matching tip: votes with the stored root", func(t *testing.T) {
+		cm, err, votes, honest := recoverWith(t, 3, true, nothing)
+		require.NoError(t, err)
+		require.Len(t, votes, 1)
+		stored, err := cm.blockStore.Block(4)
+		require.NoError(t, err)
+		require.Equal(t, []byte(stored.RootHash), []byte(votes[0].Message.(*abdrc.VoteMsg).VoteInfo.CurrentRootHash))
+		require.EqualValues(t, honest.Round, cm.safety.storage.GetHighestVotedRound())
+	})
+
+	t.Run("absent tip: executes the proposal and votes", func(t *testing.T) {
+		cm, err, votes, _ := recoverWith(t, 3, true, func(state *abdrc.StateMsg, tip *drctypes.BlockData) {
+			state.Pending = state.Pending[:len(state.Pending)-1]
+		})
+		require.NoError(t, err)
+		require.Len(t, votes, 1)
+		stored, err := cm.blockStore.Block(4)
+		require.NoError(t, err)
+		require.Equal(t, []byte(stored.RootHash), []byte(votes[0].Message.(*abdrc.VoteMsg).VoteInfo.CurrentRootHash))
+	})
+
+	t.Run("forged tip: abstains, vote state untouched", func(t *testing.T) {
+		cm, err, votes, _ := recoverWith(t, 3, true, func(_ *abdrc.StateMsg, tip *drctypes.BlockData) { tip.Timestamp++ })
+		require.ErrorContains(t, err, "already in store")
+		require.Empty(t, votes, "no vote for the proposal with the state of the forged block")
+		require.Nil(t, cm.pacemaker.GetVoted())
+		require.EqualValues(t, 3, cm.safety.storage.GetHighestVotedRound())
+	})
+
+	t.Run("forged author only: abstains", func(t *testing.T) {
+		cm, err, votes, _ := recoverWith(t, 3, true, func(_ *abdrc.StateMsg, tip *drctypes.BlockData) { tip.Author = "forged-author" })
+		require.ErrorContains(t, err, "already in store")
+		require.Empty(t, votes)
+		require.EqualValues(t, 3, cm.safety.storage.GetHighestVotedRound())
+	})
+
+	t.Run("already voted in the round: no second vote", func(t *testing.T) {
+		cm, err, votes, _ := recoverWith(t, 4, true, nothing)
+		require.ErrorContains(t, err, "already voted for round 4")
+		require.Empty(t, votes)
+		require.EqualValues(t, 4, cm.safety.storage.GetHighestVotedRound())
+	})
+
+	t.Run("safety rule rejects the vote (no TC for the round which does not extend the QC)", func(t *testing.T) {
+		cm, err, votes, _ := recoverWith(t, 3, false, nothing)
+		require.ErrorContains(t, err, "not safe to vote")
+		require.Empty(t, votes)
+		require.Nil(t, cm.pacemaker.GetVoted())
+		require.EqualValues(t, 3, cm.safety.storage.GetHighestVotedRound())
+	})
+}
+
+// votedRoundStorage keeps the highest voted round at (at least) the given value; it stands for a node which has
+// not voted in the round of the recovered tip.
+type votedRoundStorage struct {
+	SafetyStorage
+	round uint64
+}
+
+func (s *votedRoundStorage) GetHighestVotedRound() uint64 { return s.round }
+
+func (s *votedRoundStorage) SetHighestVotedRound(round uint64) error {
+	s.round = max(s.round, round)
+	return nil
+}
+
+func (s *votedRoundStorage) SetHighestQcRound(qcRound, votedRound uint64) error {
+	s.round = max(s.round, votedRound)
+	return s.SafetyStorage.SetHighestQcRound(qcRound, votedRound)
 }
