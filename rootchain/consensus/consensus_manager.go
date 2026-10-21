@@ -924,7 +924,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 	}
 
 	x.leaderCnt.Add(ctx, 1)
-	x.log.InfoContext(ctx, "new round start, node is leader")
+	// x.log.InfoContext(ctx, "new round start, node is leader")
 
 	// the proposal extends the block of the high QC, only changes in that branch are in the way of new ones
 	highQc := x.blockStore.GetHighQc()

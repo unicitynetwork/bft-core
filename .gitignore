@@ -3,6 +3,12 @@
 .DS_Store
 build/
 
+# rust
+target/
+Cargo.lock
+*.pdb
+config.toml
+
 # Test artifacts
 test-coverage.out
 test-coverage-cobertura.xml

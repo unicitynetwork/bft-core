@@ -228,6 +228,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 	if err = host.BootstrapConnect(ctx, log); err != nil {
 		return err
 	}
+
 	node, err := rootchain.New(
 		host,
 		partitionNet,
