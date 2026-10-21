@@ -1,7 +1,6 @@
 package consensus
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -428,7 +427,11 @@ func (x *ConsensusManager) handlePacemakerEvent(ctx context.Context, event paceM
 
 		if isLeader {
 			if qc := x.pacemaker.RoundQC(); qc != nil || currentRound == 2 {
-				x.processQC(ctx, qc)
+				if err := x.processQC(ctx, qc); err != nil {
+					// no proposal on top of a QC which the local state does not match
+					x.log.WarnContext(ctx, "not proposing", logger.Error(err))
+					return
+				}
 				x.processNewRoundEvent(ctx)
 				x.updateQCMetrics(ctx, qc)
 			}
@@ -623,7 +626,9 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 	}
 	x.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("processed vote, quorum: %t, mature: %t", qc != nil, mature))
 	if qc != nil && mature {
-		x.processQC(ctx, qc)
+		if err := x.processQC(ctx, qc); err != nil {
+			return err
+		}
 		x.processNewRoundEvent(ctx)
 		x.updateQCMetrics(ctx, qc)
 	}
@@ -652,7 +657,9 @@ func (x *ConsensusManager) onTimeoutMsg(ctx context.Context, vote *abdrc.Timeout
 		return err
 	}
 	// node is up-to-date, first handle high QC, maybe this has not been seen yet
-	x.processQC(ctx, vote.Timeout.HighQc)
+	if err := x.processQC(ctx, vote.Timeout.HighQc); err != nil {
+		return fmt.Errorf("timeout vote high QC: %w", err)
+	}
 	// when there is multiple consecutive timeout rounds and instance is in one of the previous round
 	// (ie haven't got enough timeout votes for the latest round quorum) recovery is not triggered as
 	// the highQC is the same for both rounds. So checking the lastTC helps the instance into latest TO round.
@@ -686,7 +693,9 @@ func (x *ConsensusManager) onTimeoutMsg(ctx context.Context, vote *abdrc.Timeout
 /*
 checkRecoveryNeeded verify current state against received state and determine if the validator needs to
 recover or not. Basically either the state is different or validator is behind (has skipped some views/rounds).
-Returns nil when no recovery is needed and error describing the reason to trigger the recovery otherwise.
+Returns nil when no recovery is needed and error describing the reason to trigger the recovery otherwise. A local
+block which the QC does not certify (different state root, epoch, timestamp or parent) needs recovery too, the QC is
+not attached to it.
 */
 func (x *ConsensusManager) checkRecoveryNeeded(qc *drctypes.QuorumCert) error {
 	// when node has fallen behind we trigger recovery here as we fail to load block for
@@ -695,8 +704,10 @@ func (x *ConsensusManager) checkRecoveryNeeded(qc *drctypes.QuorumCert) error {
 	if err != nil {
 		return fmt.Errorf("failed to read root hash for round %d from local block store: %w", qc.VoteInfo.RoundNumber, err)
 	}
-	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, block.RootHash) {
-		return fmt.Errorf("unexpected round %d state - expected %X, local %X", qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, block.RootHash)
+	// the same predicate as storing the QC and as staging a recovery: round, parent round, epoch, timestamp and state
+	// root of the QC against the executed local block, not only the root
+	if err = storage.CheckQcOfBlock(qc, block); err != nil {
+		return fmt.Errorf("unexpected round %d state - QC (root %X) does not match the local block (root %X): %w", qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, block.RootHash, err)
 	}
 	return nil
 }
@@ -731,7 +742,10 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	}
 	// Every proposal must carry a QC or TC for previous round
 	// Process QC first, update round
-	x.processQC(ctx, proposal.Block.Qc)
+	if err = x.processQC(ctx, proposal.Block.Qc); err != nil {
+		// recovery was requested, nothing is executed or voted on top of a QC which was not accepted
+		return fmt.Errorf("proposal QC: %w", err)
+	}
 	x.processTC(ctx, proposal.LastRoundTc)
 	// execute proposed payload
 	start := time.Now()
@@ -770,29 +784,31 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	return nil
 }
 
-// processQC - handles quorum certificate
-func (x *ConsensusManager) processQC(ctx context.Context, qc *drctypes.QuorumCert) {
+// processQC - handles quorum certificate. A non-nil error means that the QC was not accepted (and recovery was
+// requested): the caller must not go on with anything which is based on the QC (execute a proposal, vote, advance
+// the round, propose, update the leader).
+func (x *ConsensusManager) processQC(ctx context.Context, qc *drctypes.QuorumCert) error {
 	ctx, span := x.tracer.Start(ctx, "ConsensusManager.processQC")
 	defer span.End()
 	if qc == nil {
-		return
+		return nil
 	}
 	certs, err := x.blockStore.ProcessQc(qc)
 	if err != nil {
 		x.log.WarnContext(ctx, "failure to process QC triggers recovery", logger.Error(err))
-		if err := x.sendRecoveryRequests(ctx, qc); err != nil {
-			x.log.WarnContext(ctx, "sending recovery requests failed", logger.Error(err))
+		if e := x.sendRecoveryRequests(ctx, qc); e != nil {
+			x.log.WarnContext(ctx, "sending recovery requests failed", logger.Error(e))
 		}
-		return
+		return fmt.Errorf("QC of round %d not accepted: %w", qc.GetRound(), err)
 	}
 	select {
 	case <-ctx.Done():
-		return // node is exiting certificates have been stored and we are done
+		return nil // node is exiting certificates have been stored and we are done
 	case x.ucSink <- certs: // trigger update to partition nodes
 	}
 
 	if !x.pacemaker.AdvanceRoundQC(ctx, qc) {
-		return
+		return nil
 	}
 
 	// Round was advanced, we could have a new trust base.
@@ -804,6 +820,7 @@ func (x *ConsensusManager) processQC(ctx context.Context, qc *drctypes.QuorumCer
 	if err := x.leaderSelector.Update(qc, x.pacemaker.GetCurrentRound(), x.blockStore.Block); err != nil {
 		x.log.ErrorContext(ctx, "failed to update leader selector", logger.Error(err))
 	}
+	return nil
 }
 
 // processTC - handles timeout certificate
@@ -886,9 +903,17 @@ func (x *ConsensusManager) replayVoteBuffer(ctx context.Context) {
 		return
 	}
 
+	// The votes are replayed from a detached snapshot: replaying (or the QC a vote carries) can start a new recovery,
+	// whose trigger vote is buffered again, and that buffer must not be cleared together with the replayed votes.
+	snapshot := make([]*abdrc.VoteMsg, 0, voteCnt)
+	for _, v := range x.voteBuffer {
+		snapshot = append(snapshot, v)
+	}
+	clear(x.voteBuffer)
+
 	x.log.DebugContext(ctx, fmt.Sprintf("replaying %d buffered votes", voteCnt))
 	var errs []error
-	for _, v := range x.voteBuffer {
+	for _, v := range snapshot {
 		if err := x.onVoteMsg(ctx, v); err != nil {
 			errs = append(errs, err)
 		}
@@ -902,7 +927,11 @@ func (x *ConsensusManager) replayVoteBuffer(ctx context.Context) {
 		span.RecordError(err)
 	}
 
-	clear(x.voteBuffer)
+	// votes for a round which is still in the future were buffered again by the replay: they are dropped as before
+	// (votes are buffered for one round only), unless the replay started a recovery which they belong to
+	if !x.recovery.InRecovery() {
+		clear(x.voteBuffer)
+	}
 }
 
 // processNewRoundEvent handled new view event, is called when either QC or TC is reached locally and
@@ -1024,6 +1053,14 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	slices.SortFunc(rsp.Pending, func(a, b *drctypes.BlockData) int {
 		return cmp.Compare(a.GetRound(), b.GetRound())
 	})
+	// the complete recovery is staged and validated in memory first: nothing is written, installed or advanced
+	// unless the head and every pending block are consistent with the QCs and with what executing them gives
+	if err := storage.ValidateRecoveryState(x.params.HashAlgorithm, rsp, x.recovery.ToRound(), x.orchestration, x.blockStore.GetDB(),
+		func(bs *storage.BlockStore) (storage.IRChangeReqVerifier, error) {
+			return NewIRChangeReqVerifier(x.params, bs)
+		}, x.log); err != nil {
+		return fmt.Errorf("recovery state validation failed: %w", err)
+	}
 	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp.CommittedHead, x.blockStore.GetDB(), x.orchestration, x.log)
 	if err != nil {
 		return fmt.Errorf("recovery, new block store init failed: %w", err)
@@ -1069,61 +1106,115 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	if err = x.leaderSelector.Update(x.blockStore.GetHighQc(), x.pacemaker.GetCurrentRound(), x.blockStore.Block); err != nil {
 		x.log.ErrorContext(ctx, "failed to update leader selector", logger.Error(err))
 	}
+	// Once the validated state is installed, the buffer housekeeping is not skipped by whatever the trigger handling
+	// ends with (identity, leader, safety or send error): the error is returned, the votes are still replayed.
+	err = x.completeRecovery(ctx, triggerMsg)
+	if x.recovery.InRecovery() {
+		// the handling of the trigger started a new recovery: its trigger and the votes buffered for it stay. The
+		// votes which are already stale cannot belong to it (a replay would refuse them), they are dropped so that
+		// they do not count toward the "votes but no proposal" recovery trigger.
+		x.dropStaleBufferedVotes()
+		return err
+	}
+	x.replayVoteBuffer(ctx)
+	return err
+}
+
+// dropStaleBufferedVotes removes the buffered votes of rounds before the current one.
+func (x *ConsensusManager) dropStaleBufferedVotes() {
+	current := x.pacemaker.GetCurrentRound()
+	for author, v := range x.voteBuffer {
+		if v.VoteInfo == nil || v.VoteInfo.RoundNumber < current {
+			delete(x.voteBuffer, author)
+		}
+	}
+}
+
+// completeRecovery handles the message which triggered the recovery on top of the installed state.
+func (x *ConsensusManager) completeRecovery(ctx context.Context, triggerMsg any) error {
 	if prop, ok := triggerMsg.(*abdrc.ProposalMsg); ok {
-		// the proposal was verified when it was received, so try and execute it now
-		// Every proposal must carry a QC or TC for previous round
-		// Process QC first, update round
-		x.processQC(ctx, prop.Block.Qc)
-		x.processTC(ctx, prop.LastRoundTc)
-		var stateHash []byte
-		if block, err := x.blockStore.Block(prop.Block.Round); err != nil {
-			// Block not found, was not sent with recovery info
-			// execute proposed payload
-			stateHash, err = x.blockStore.Add(prop.Block, x.irReqVerifier)
-			if err != nil {
-				// wait for timeout, if others make progress this node will need to recover
-				// cannot send vote, so just return and wait for local timeout or new proposal (and try to recover then)
-				return fmt.Errorf("recovery failed to execute proposal: %w", err)
-			}
-		} else {
-			// use the state hash from storage
-			stateHash = block.RootHash
-		}
-		// send a vote message to next leader
-		voteMsg, err := x.safety.MakeVote(prop.Block, stateHash, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC())
-		if err != nil {
-			// wait for timeout, if others make progress this node will need to recover
-			return fmt.Errorf("failed to sign vote: %w", err)
-		}
-		x.pacemaker.SetVoted(voteMsg)
-		// send vote to the next leader
-		nextLeader, err := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
-		if err != nil {
-			return fmt.Errorf("could not determine next leader to send vote after recovery: %w", err)
-		}
-		x.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("sending block %d vote after recovery to next leader %s", prop.Block.Round, nextLeader.String()))
-		if err = x.net.Send(ctx, voteMsg, nextLeader); err != nil {
-			return fmt.Errorf("failed to send vote to next leader: %w", err)
-		}
+		return x.voteAfterRecovery(ctx, prop)
 	}
 	if tmo, ok := triggerMsg.(*abdrc.TimeoutMsg); ok {
 		// the recovery state carries the blocks but not the QC of a block without a child, the high
 		// QC of the timeout vote might be such QC - process it as onTimeoutMsg does
-		x.processQC(ctx, tmo.Timeout.HighQc)
+		if err := x.processQC(ctx, tmo.Timeout.HighQc); err != nil {
+			return fmt.Errorf("timeout vote high QC after recovery: %w", err)
+		}
 		// timeout vote carries last round TC, if not nil, use it to advance pacemaker to correct round
 		// todo: timeout votes are not buffered
 		x.processTC(ctx, tmo.LastTC)
 	}
 	if qc, ok := triggerMsg.(*drctypes.QuorumCert); ok {
 		// the QC which failed to be processed, its block should be there now
-		x.processQC(ctx, qc)
+		if err := x.processQC(ctx, qc); err != nil {
+			return fmt.Errorf("QC after recovery: %w", err)
+		}
 	}
 	if vote, ok := triggerMsg.(*abdrc.VoteMsg); ok {
 		// same as for timeout vote, without the high QC of the vote the buffered votes would be
 		// replayed as votes for a future round
-		x.processQC(ctx, vote.HighQc)
+		if err := x.processQC(ctx, vote.HighQc); err != nil {
+			return fmt.Errorf("vote high QC after recovery: %w", err)
+		}
 	}
-	x.replayVoteBuffer(ctx)
+	return nil
+}
+
+// voteAfterRecovery executes and votes on the proposal which triggered the recovery, with the admission rules of an
+// ordinary proposal: it is not stale, it is made by the leader of its round, and the QC it carries is accepted.
+func (x *ConsensusManager) voteAfterRecovery(ctx context.Context, prop *abdrc.ProposalMsg) error {
+	// the proposal was verified (signature, membership) when it was received. That does not make its author the
+	// leader of the round: the leader is checked as in onProposalMsg, with the round of the proposal, before the
+	// proposal is executed or any vote state is touched. A lookup error means no vote either.
+	if prop.Block.Round < x.pacemaker.GetCurrentRound() {
+		return fmt.Errorf("stale proposal for round %d from %s after recovery", prop.Block.Round, prop.Block.Author)
+	}
+	l, err := x.leaderSelector.GetLeaderForRound(prop.Block.Round)
+	if err != nil {
+		return fmt.Errorf("could not determine leader for round %d to verify the proposal after recovery: %w", prop.Block.Round, err)
+	}
+	if l.String() != prop.Block.Author {
+		return fmt.Errorf("expected %s to be leader of the round %d but got proposal from %s, no vote after recovery", l, prop.Block.Round, prop.Block.Author)
+	}
+	// Every proposal must carry a QC or TC for previous round
+	// Process QC first, update round
+	if err = x.processQC(ctx, prop.Block.Qc); err != nil {
+		return fmt.Errorf("proposal QC after recovery: %w", err)
+	}
+	x.processTC(ctx, prop.LastRoundTc)
+	// The last block of the recovered state (the tip) is not certified by the state message, so the state hash of
+	// a stored block is used only if it is the proposed block: Add compares the hashes of the complete blocks if
+	// the round exists, returns the stored root for the same block, executes the proposal if the round is not
+	// there, and fails otherwise. In case of failure the node does not vote (the vote state is not touched) and
+	// waits for the timeout or the next proposal, as the node cannot sign the proposal with a state it did not
+	// compute for it.
+	stateHash, err := x.blockStore.Add(prop.Block, x.irReqVerifier)
+	if err != nil {
+		return fmt.Errorf("recovery failed to execute proposal: %w", err)
+	}
+	// send a vote message to next leader
+	voteMsg, err := x.safety.MakeVote(prop.Block, stateHash, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC())
+	if err != nil {
+		// wait for timeout, if others make progress this node will need to recover
+		return fmt.Errorf("failed to sign vote: %w", err)
+	}
+	// as on the ordinary path: the last vote restores the pacemaker after a restart. It is not the barrier against
+	// signing twice (MakeVote has advanced the voting rounds durably before it signed), so a failure to store it
+	// only warns, and neither it nor a failed send is a reason to sign again
+	if err = x.blockStore.StoreLastVote(voteMsg); err != nil {
+		x.log.WarnContext(ctx, "vote store failed", logger.Error(err))
+	}
+	x.pacemaker.SetVoted(voteMsg)
+	// send vote to the next leader
+	nextLeader, err := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+	if err != nil {
+		return fmt.Errorf("could not determine next leader to send vote after recovery: %w", err)
+	}
+	x.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("sending block %d vote after recovery to next leader %s", prop.Block.Round, nextLeader.String()))
+	if err = x.net.Send(ctx, voteMsg, nextLeader); err != nil {
+		return fmt.Errorf("failed to send vote to next leader: %w", err)
+	}
 	return nil
 }
 

@@ -3,9 +3,11 @@ package storage
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 	"log/slog"
 
+	"github.com/unicitynetwork/bft-core/logger"
 	"github.com/unicitynetwork/bft-core/network/protocol/abdrc"
 	"github.com/unicitynetwork/bft-core/network/protocol/certification"
 	rctypes "github.com/unicitynetwork/bft-core/rootchain/consensus/types"
@@ -32,27 +34,42 @@ type (
 )
 
 func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration Orchestration) (*ExecutedBlock, error) {
+	return newRootBlock(block, hash, orchestration, nil)
+}
+
+// newRootBlock creates the root block of a recovery state. The state is validated completely before the block is
+// returned, ie before anything is persisted or installed. localGenesis is the genesis the node trusts (nil: the
+// one derived by NewGenesisBlock).
+func newRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration Orchestration, localGenesis *ExecutedBlock) (*ExecutedBlock, error) {
+	if block == nil {
+		return nil, errors.New("committed block is nil")
+	}
 	shardConfs, err := orchestration.ShardConfigs(block.GetRound())
 	if err != nil {
 		return nil, fmt.Errorf("loading shard configurations for round %d: %w", block.GetRound(), err)
+	}
+	confPairs, err := recoveredShardConfs(block.GetRound(), shardConfs, orchestration)
+	if err != nil {
+		return nil, err
 	}
 
 	shardState := ShardStates{
 		States:  make(map[types.PartitionShardID]*ShardInfo, len(shardConfs)),
 		Changed: ShardSet{},
 	}
-	for _, d := range block.ShardInfo {
+	for i := range block.ShardInfo {
+		d := &block.ShardInfo[i]
 		shardKey := types.PartitionShardID{PartitionID: d.Partition, ShardID: d.Shard.Key()}
-		shardConf, ok := shardConfs[shardKey]
+		if _, dup := shardState.States[shardKey]; dup {
+			return nil, fmt.Errorf("block contains shard %s - %s more than once", d.Partition, d.Shard)
+		}
+		pair, ok := confPairs[shardKey]
 		if !ok {
-			return nil, fmt.Errorf("block contains shard %s - %s which is not listed in the local orchestration", d.Partition, d.Shard)
+			return nil, fmt.Errorf("block contains shard %s - %s which is not active in the local orchestration", d.Partition, d.Shard)
 		}
-		shardConfHash, err := shardConf.Hash(crypto.SHA256)
+		shardConf, err := validateRecoveredShard(d, pair, hash)
 		if err != nil {
-			return nil, fmt.Errorf("calculating PDR hash: %w", err)
-		}
-		if !bytes.Equal(d.ShardConfHash, shardConfHash) {
-			return nil, fmt.Errorf("calculated shard conf hash doesn't match the value in block data for %s - %s", d.Partition, d.Shard)
+			return nil, fmt.Errorf("shard %s - %s: %w", d.Partition, d.Shard, err)
 		}
 
 		si := &ShardInfo{
@@ -81,10 +98,25 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 		}
 		shardState.States[shardKey] = si
 	}
+	for k := range confPairs {
+		// the genesis block has no shards (they are activated by the first block, see ShardStates.nextBlock)
+		if _, ok := shardState.States[k]; !ok && block.GetRound() != rctypes.GenesisRootRound {
+			return nil, fmt.Errorf("block lacks the active shard %s - %s", k.PartitionID, k.ShardID)
+		}
+	}
 
 	ut, _, err := shardState.UnicityTree(hash)
 	if err != nil {
 		return nil, err
+	}
+	// before anything is written: the head is consistent with the authenticated root and with itself
+	if block.GetRound() == rctypes.GenesisRootRound && localGenesis == nil {
+		if localGenesis, err = NewGenesisBlock(orchestration.NetworkID(), hash); err != nil {
+			return nil, fmt.Errorf("local genesis: %w", err)
+		}
+	}
+	if err := validateRecoveredHead(block, ut.RootHash(), hash, localGenesis); err != nil {
+		return nil, fmt.Errorf("invalid recovery state: %w", err)
 	}
 	return &ExecutedBlock{
 		BlockData:  block.Block,
@@ -144,8 +176,8 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 	}, nil
 }
 
-func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*certification.CertificationResponse, error) {
-	crs, rootHash, err := x.ShardState.certificationResponses(x.HashAlgo)
+func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert, log *slog.Logger) ([]*certification.CertificationResponse, error) {
+	crs, rootHash, viewErrs, err := x.ShardState.certificationResponsesWithViews(x.HashAlgo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate root hash: %w", err)
 	}
@@ -159,6 +191,11 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 	}
 	if len(crs) == 0 {
 		return nil, nil
+	}
+	// the partition view is optional proof material, never a reason to fail the certification
+	for partition, err := range viewErrs {
+		log.Warn("certification responses are sent without partition view",
+			slog.Uint64("partition", uint64(partition)), slog.Uint64("round", x.GetRound()), logger.Error(err))
 	}
 
 	// create UnicitySeal for pending certificates

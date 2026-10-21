@@ -1,6 +1,75 @@
-# Upgrading root nodes
+# Upgrading
 
 Notes for upgrades which need more than replacing the binary of one node at a time.
+
+## Strict signature rule (bft-go-base `uc-consolidation`)
+
+The technical reasoning, the example and the full procedure are in
+[bft-go-base `docs/UPGRADING.md`](https://github.com/unicitynetwork/bft-go-base/blob/uc-consolidation/docs/UPGRADING.md).
+This section gives bft-core's part of it. The aggregator side is in the
+[aggregator-go README](https://github.com/unicitynetwork/aggregator-go/blob/uc-consolidation/README.md#upgrading-strict-signature-rule).
+
+Terms (the same in all three documents): **root validators** are the BFT Core root chain nodes;
+**aggregators** are also the shard nodes in this stack; **shard validators** are a separately
+deployed shard consensus cohort, if there is one (it is treated according to its own verification
+paths). The **strict rule** is the strict secp256k1 `VerifyHash` / `VerifyBytes` rule, together
+with the stricter `ShardingScheme.IsValid` (incomplete shard schemes are now rejected, complete
+ones are unchanged).
+
+### Baseline assumption: stop-all upgrade
+
+The current binaries have no activation gate, so root consensus must not mix the two verification
+rules. The release assumes a stop-all upgrade as the conservative baseline: every process (root
+validators, aggregators, shard validators) is stopped, upgraded and started together. This is an
+assumption about what is known to be safe, not a requirement; a gentler procedure is fine where it
+is simple and safe. A rolling upgrade inside the root validator cohort is not supported.
+
+### Gentler procedure: validator cutover, then rolling aggregators
+
+If a full stop is unwanted, the architect's recommended alternative is:
+
+1. A coordinated cutover of all root validators together (see the procedure of the
+   [PR #27 section](#procedure) below for the steps), plus any shard consensus cohort according to
+   its own verification paths.
+2. Check that the network makes progress, recovers and produces fresh UCs, and that a
+   still-old aggregator accepts and processes those UCs. Only then upgrade the aggregators, one at
+   a time while they keep running. Strict-valid
+   certificates pass the old verifier and aggregators already send strict-valid requests.
+
+New certifications pause during the root cutover; uninterrupted writes are not promised. Do not
+reverse the order: strict aggregators with legacy root validators can reject seals the root chain
+finalized. This procedure has not been rehearsed in a deployment yet; rehearse it before relying
+on it. A fully rolling validator upgrade (a compatibility release plus epoch-based activation) is
+possible future work and is not implemented.
+
+### Preflight and constraints
+
+- Before the cutover verify, under the strict rule, the durable artifacts that startup, recovery
+  and proof serving will check: QCs, timeout certificates, UCs and seals, trust-base history and
+  persisted proofs. Also check node keys and that registered sharding schemes are complete.
+  Stopping the nodes does not make a legacy-only certificate strict-valid.
+- Fence the old root validators so that none of them can rejoin after the cutover.
+- Back up the home directory and never erase safety (voting) records to get a node to start.
+- Rollback after the network has made new progress needs a coordinated plan; do not restart
+  isolated old binaries. The strict rule itself changes no message or database format, but the
+  release also adds the versioned V2 certification response (legacy peers keep the old form) and
+  aggregator-go stores a partition view next to the UC. Check wire and storage compatibility of
+  the pinned builds separately before relying on a rollback. Rolling back one node does not undo
+  certificates that were produced meanwhile.
+
+### What can go wrong
+
+Honest signers produce 65-byte low-S signatures that pass both rules and are unaffected. A
+non-strict signature comes from a Byzantine signer, or from anyone who changes the recovery byte
+of a relayed signature. Only then can old and new nodes disagree on whether a seal or QC has a
+quorum, so mixed rules can stall progress. This is a liveness problem, not a fork: both rules
+need a quorum of real root keys and the strict rule accepts a subset of what the old one accepts.
+The affected paths are seals, QCs, timeout certificates, votes and proposals, certification
+requests and trust-base signatures. Root validators verify QCs; aggregators verify only UC seals
+and the root trust base.
+
+Merge and release order: bft-go-base → bft-core → aggregator-go. bft-core must also take the
+`leaderNode.NodeID` formatting fix (bft-core#38) with the bft-go-base dependency update.
 
 ## Branch-aware "change in progress" check (PR #27)
 

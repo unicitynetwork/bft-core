@@ -65,7 +65,11 @@ func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db PersistentSt
 		return nil, errors.New("storage is nil")
 	}
 
-	rootNode, err := NewRootBlock(block, hash, orchestration)
+	local, err := trustedGenesis(db, hash, orchestration)
+	if err != nil {
+		return nil, err
+	}
+	rootNode, err := newRootBlock(block, hash, orchestration, local)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new root node: %w", err)
 	}
@@ -129,6 +133,18 @@ func (x *BlockStore) ProcessQc(qc *rctypes.QuorumCert) ([]*certification.Certifi
 	if qc == nil {
 		return nil, fmt.Errorf("qc is nil")
 	}
+	// A QC at or below the high QC is stale, unless the block it certifies is still retained: a higher QC is no proof
+	// that this retained block is the one the QC certifies (a recovered uncertified leaf of another branch can differ
+	// in timestamp, epoch or parent). The retained block is checked with the shared predicate before the stale-QC
+	// short circuit, so that a stale QC cannot authorize anything built on a mismatching block. A QC of pruned history
+	// (no retained block) stays a no-op.
+	if qc.VoteInfo != nil {
+		if b, err := x.blockTree.FindBlock(qc.GetRound()); err == nil {
+			if err = CheckQcOfBlock(qc, b); err != nil {
+				return nil, fmt.Errorf("qc does not certify the local block of round %d: %w", qc.GetRound(), err)
+			}
+		}
+	}
 	// if we have processed it already then skip (in case we are the next leader we have already handled the QC)
 	if x.GetHighQc().GetRound() >= qc.GetRound() {
 		// stale qc
@@ -146,7 +162,7 @@ func (x *BlockStore) ProcessQc(qc *rctypes.QuorumCert) ([]*certification.Certifi
 		return nil, nil
 	}
 	// If the QC commits a state committed block becomes the new root
-	ucs, err := x.blockTree.Commit(qc)
+	ucs, err := x.blockTree.Commit(qc, x.log)
 	if err != nil {
 		return nil, fmt.Errorf("committing new root block: %w", err)
 	}

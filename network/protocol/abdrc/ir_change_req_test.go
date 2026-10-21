@@ -201,7 +201,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 				Signature: []byte{0, 1, 2, 3, 4, 5},
 			},
 			args:    args{rootTrust: tb},
-			wantErr: "signature verification failed: verify bytes failed: signature length is 6 b (expected 64 b)",
+			wantErr: "signature verification failed: verify bytes failed: signature length is 6 b (expected 65 b)",
 		},
 	}
 	for _, tt := range tests {

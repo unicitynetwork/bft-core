@@ -28,6 +28,9 @@ import (
 type (
 	PartitionNet interface {
 		Send(ctx context.Context, msg any, receivers ...peer.ID) error
+		// SendCertificationResponse sends the response using the best protocol version
+		// supported by each receiver.
+		SendCertificationResponse(ctx context.Context, cr *certification.CertificationResponse, receivers ...peer.ID) error
 		ReceivedChannel() <-chan any
 	}
 
@@ -80,7 +83,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("creating request buffer: %w", err)
 	}
-	subs, err := NewSubscriptions(pNet.Send, observe)
+	subs, err := NewSubscriptions(pNet.SendCertificationResponse, observe)
 	if err != nil {
 		return nil, fmt.Errorf("creating subscribers list: %w", err)
 	}
@@ -181,7 +184,7 @@ func (v *Node) sendResponse(ctx context.Context, nodeID string, cr *certificatio
 	if err := cr.IsValid(); err != nil {
 		return fmt.Errorf("invalid certification response: %w", err)
 	}
-	return v.net.Send(ctx, cr, peerID)
+	return v.net.SendCertificationResponse(ctx, cr, peerID)
 }
 
 func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error {
